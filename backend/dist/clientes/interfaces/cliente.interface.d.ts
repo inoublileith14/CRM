@@ -1,0 +1,34 @@
+import { Inmueble } from '../../inmuebles/interfaces/inmueble.interface';
+import { Worker } from '../../workers/interfaces/worker.interface';
+export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
+export type ClienteOrigen = 'email' | 'call' | 'otro';
+export type ClienteGestionEstado = 'no_gestionando' | 'gestionando' | 'visita_concertada' | 'nc' | 'pendiente_cuadrar_docs' | 'no_gestionado' | 'gestionando_w' | 'pendiente_cuadrar_visita' | 'ya_compro';
+export interface Cliente {
+    id: string;
+    nombre: string;
+    email: string | null;
+    telefono: string | null;
+    ciudad: string | null;
+    estado: ClienteEstado;
+    origen: ClienteOrigen | null;
+    estado_contacto: string | null;
+    descripcion: string | null;
+    ref_cliente: string | null;
+    mensaje: string | null;
+    fecha_contacto: string | null;
+    fecha_ultima_gestion: string | null;
+    presupuesto_maximo: string | null;
+    banos: number | null;
+    notas: string | null;
+    tipo_operacion: 'alquiler' | 'venta' | null;
+    created_at: string;
+    updated_at: string;
+    inmueble_ids?: string[];
+    worker_ids?: string[];
+    inmuebles_count?: number;
+    workers_count?: number;
+    inmuebles?: Inmueble[];
+    workers?: Worker[];
+    gestion_estado?: ClienteGestionEstado | null;
+}
+export type ClienteInput = Omit<Cliente, 'id' | 'created_at' | 'updated_at' | 'inmuebles_count' | 'workers_count' | 'inmuebles' | 'workers'>;

@@ -1,0 +1,32 @@
+export class BulkImportClienteItemDto {
+  nombre: string;
+  email?: string | null;
+  telefono?: string | null;
+  ciudad?: string | null;
+  estado?: 'activo' | 'inactivo' | 'pendiente';
+  origen?: 'email' | 'call' | 'otro' | null;
+  estado_contacto?: string | null;
+  descripcion?: string | null;
+  ref_cliente?: string | null;
+  mensaje?: string | null;
+  fecha_contacto?: string | null;
+  fecha_ultima_gestion?: string | null;
+  presupuesto_maximo?: string | null;
+  banos?: number | null;
+  notas?: string | null;
+  tipo_operacion?: 'alquiler' | 'venta' | null;
+  inmueble_ids?: string[];
+  worker_ids?: string[];
+}
+
+export class BulkImportClientesOptionsDto {
+  inmueble_id?: string;
+  worker_id?: string;
+  tipo_operacion?: 'alquiler' | 'venta';
+  skip_duplicates?: boolean;
+}
+
+export class BulkImportClientesDto {
+  clientes: BulkImportClienteItemDto[];
+  options?: BulkImportClientesOptionsDto;
+}

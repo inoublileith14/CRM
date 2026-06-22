@@ -1,0 +1,38 @@
+import { Cliente } from '../../clientes/interfaces/cliente.interface';
+export interface Inmueble {
+    id: string;
+    ref: string | null;
+    fecha_entrada_inmueble: string | null;
+    imagen_real: string | null;
+    direccion_piso_real: string | null;
+    foto_espejo: string | null;
+    espejo_direccion: string | null;
+    barrio_distrito: string | null;
+    precio: number | null;
+    precio_espejo: number | null;
+    hab: number | null;
+    banos: number | null;
+    metros: number | null;
+    larga_estancia_temporada: 'larga' | 't' | null;
+    propietario_id: string | null;
+    propietarios_contactos: {
+        nombre: string;
+        telf: string | null;
+    }[];
+    nombre_propi: string | null;
+    telf: string | null;
+    ficha_del_piso_real: string | null;
+    link_idealista_espejo: string | null;
+    fecha_visitas_entrada: string | null;
+    observaciones: string | null;
+    amueblado: 'si' | 'no' | null;
+    captador_alquilado_por: string | null;
+    status: 'I' | 'P' | 'I-M' | null;
+    row_color: string | null;
+    tipo_operacion: 'alquiler' | 'venta' | null;
+    created_at: string;
+    updated_at: string;
+    clientes_count?: number;
+    clientes?: Cliente[];
+}
+export type InmuebleInput = Omit<Inmueble, 'id' | 'created_at' | 'updated_at'>;
