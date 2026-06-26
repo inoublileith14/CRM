@@ -48,6 +48,23 @@ export function isDefaultClienteEntradaDate(
   return !fechaContacto?.trim();
 }
 
+export function getClienteEntradaSortKey(
+  fechaContacto: string | null | undefined,
+): number {
+  const iso = resolveClienteEntradaIso(fechaContacto);
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return (
+      Number(match[1]) * 10_000 +
+      Number(match[2]) * 100 +
+      Number(match[3])
+    );
+  }
+
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 /** Full calendar months elapsed from an ISO date until today. */
 export function monthsSinceDate(isoDate: string | null | undefined): number | null {
   const resolved = resolveClienteEntradaIso(isoDate);
@@ -88,4 +105,16 @@ export function formatEntradaElapsedLabel(isoDate: string | null | undefined): s
   if (months === 0) return 'Hace menos de 1 mes';
   if (months === 1) return 'Hace 1 mes';
   return `Hace ${months} meses`;
+}
+
+/** `YYYY-MM-DD` calendar key for an ISO timestamp (UTC date part when present). */
+export function getClienteCalendarDateKey(
+  isoDate: string | null | undefined,
+): string | null {
+  if (!isoDate?.trim()) return null;
+  const match = isoDate.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }

@@ -21,6 +21,8 @@ interface ClienteGestionEstadoSelectProps {
   value: string | null | undefined;
   disabled?: boolean;
   compact?: boolean;
+  /** Dense per-house clients table: full column width, label may wrap 2 lines. */
+  tableLayout?: boolean;
   onUpdated: (result: {
     gestion_estado: ClienteGestionEstado;
     fecha_ultima_gestion: string;
@@ -34,6 +36,7 @@ export function ClienteGestionEstadoSelect({
   value,
   disabled,
   compact,
+  tableLayout,
   onUpdated,
 }: ClienteGestionEstadoSelectProps) {
   const [open, setOpen] = useState(false);
@@ -171,12 +174,20 @@ export function ClienteGestionEstadoSelect({
         onClick={() => setOpen((prev) => !prev)}
         style={getGestionOptionStyle(current)}
         className={`inline-flex items-center justify-between gap-1 rounded px-2 py-1 text-left text-[10px] font-bold uppercase leading-tight sm:text-xs disabled:opacity-60 ${
-          compact ? 'w-full min-w-0' : 'min-w-[10rem] max-w-xs w-full'
+          compact || tableLayout ? 'w-full min-w-0' : 'min-w-[10rem] max-w-xs w-full'
         }`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="min-w-0 flex-1 truncate">{current.label}</span>
+        <span
+          className={
+            tableLayout
+              ? 'min-w-0 flex-1 line-clamp-2 break-words whitespace-normal leading-tight'
+              : 'min-w-0 flex-1 truncate'
+          }
+        >
+          {current.label}
+        </span>
         {saving ? (
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
         ) : (

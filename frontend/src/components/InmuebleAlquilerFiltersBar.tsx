@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { CalendarRange } from 'lucide-react';
+import { DEFAULT_VENTA_DENSE_ROW_COLOR } from '@/lib/inmueble-status';
 import {
   buildPropietarioFilterOptions,
   buildRefFilterOptions,
@@ -106,7 +107,12 @@ export function InmuebleAlquilerFiltersBar({
   }
 
   return (
-    <div className="border-b border-slate-300 bg-gray-200 px-3 py-2 sm:px-4">
+    <div
+      className="px-3 py-2 sm:px-4"
+      style={
+        isVenta ? { backgroundColor: DEFAULT_VENTA_DENSE_ROW_COLOR } : undefined
+      }
+    >
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-end gap-2">
           <TableFilterSearchSelect
@@ -114,9 +120,8 @@ export function InmuebleAlquilerFiltersBar({
             value={filters.ref}
             options={refOptions}
             onChange={(ref) => patch({ ref })}
-            placeholder=""
+            placeholder="Buscar referencia…"
             emptyOptionLabel="Todas las referencias"
-            searchPlaceholder="Buscar referencia…"
             disabled={disabled}
             accent={selectAccent}
             className="w-[10rem] shrink-0"

@@ -19,7 +19,7 @@ import {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('admin@cocount.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingInvite, setCheckingInvite] = useState(true);
@@ -76,7 +76,7 @@ function LoginForm() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <p className="text-sm font-semibold uppercase tracking-widest text-emerald-400">
-            Coconut
+            COCOUNT LUXURY FLATS 
           </p>
           <h1 className="mt-2 text-3xl font-bold text-white">
             Iniciar sesión
@@ -147,19 +147,7 @@ function LoginForm() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-400">
-          ¿No tienes cuenta?{' '}
-          <Link
-            href="/registro"
-            className="font-medium text-emerald-400 hover:text-emerald-300"
-          >
-            Regístrate aquí
-          </Link>
-        </p>
 
-        <p className="mt-3 text-center text-xs text-slate-500">
-          Usuario demo: admin@cocount.com
-        </p>
       </div>
     </div>
   );

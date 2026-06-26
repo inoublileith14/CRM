@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight } from 'lucide-react';
+import { getInmuebleDenseHeaderColor } from '@/lib/inmueble-table-layout';
 import { InmueblePropietarioContacto } from '@/lib/inmueble-propietarios';
 import { TipoOperacion } from '@/types/inmueble';
 
@@ -29,58 +30,42 @@ interface PillTheme {
   empty: string;
 }
 
-function getPillTheme(tipoOperacion: TipoOperacion): PillTheme {
-  if (tipoOperacion === 'alquiler') {
-    return {
-      primary: {
-        pill: 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/20',
-        circle: 'bg-emerald-500',
-        circleBorder: 'border-l border-emerald-400/40',
-        hover: 'hover:bg-emerald-500',
-      },
-      secondary: {
-        pill: 'bg-emerald-50 text-emerald-900 shadow-sm shadow-emerald-900/5',
-        circle: 'bg-white',
-        circleBorder: 'border-l border-emerald-200/80',
-        hover: 'hover:bg-emerald-100/80',
-      },
-      fecha: {
-        pill: 'bg-[#fde047] text-emerald-950 shadow-sm shadow-amber-900/10',
-        circle: 'bg-amber-300',
-        circleBorder: 'border-l border-amber-400/50',
-        hover: 'hover:bg-amber-300',
-      },
-      empty: 'bg-slate-100 text-slate-400 shadow-sm shadow-slate-900/5',
-    };
-  }
+const DENSE_PROPI_PILL_STYLE_ALQUILER: PillStyleSet = {
+  pill: 'text-white shadow-sm shadow-black/10',
+  circle: 'bg-[#006847]',
+  circleBorder: 'border-l border-white/20',
+  hover: 'hover:opacity-90',
+};
 
+const DENSE_PROPI_PILL_STYLE_VENTA: PillStyleSet = {
+  pill: 'text-white shadow-sm shadow-black/10',
+  circle: 'bg-[#163a72]',
+  circleBorder: 'border-l border-white/20',
+  hover: 'hover:opacity-90',
+};
+
+function getPillTheme(tipoOperacion: TipoOperacion): PillTheme {
+  const pillStyle =
+    tipoOperacion === 'venta'
+      ? DENSE_PROPI_PILL_STYLE_VENTA
+      : DENSE_PROPI_PILL_STYLE_ALQUILER;
   return {
-    primary: {
-      pill: 'bg-blue-600 text-white shadow-sm shadow-blue-900/20',
-      circle: 'bg-blue-500',
-      circleBorder: 'border-l border-blue-400/40',
-      hover: 'hover:bg-blue-500',
-    },
-    secondary: {
-      pill: 'bg-blue-50 text-blue-900 shadow-sm shadow-blue-900/5',
-      circle: 'bg-white',
-      circleBorder: 'border-l border-blue-200/80',
-      hover: 'hover:bg-blue-100/80',
-    },
-    fecha: {
-      pill: 'bg-[#fde047] text-blue-950 shadow-sm shadow-amber-900/10',
-      circle: 'bg-amber-300',
-      circleBorder: 'border-l border-amber-400/50',
-      hover: 'hover:bg-amber-300',
-    },
-    empty: 'bg-slate-100 text-slate-400 shadow-sm shadow-slate-900/5',
+    primary: pillStyle,
+    secondary: pillStyle,
+    fecha: pillStyle,
+    empty: 'text-white/60 shadow-sm shadow-black/10',
   };
+}
+
+function getPropiPillBackgroundStyle(tipoOperacion: TipoOperacion) {
+  return { backgroundColor: getInmuebleDenseHeaderColor(tipoOperacion) };
 }
 
 interface PropiPillProps {
   label: string;
   variant: PillVariant;
   theme: PillTheme;
+  pillBackgroundStyle: { backgroundColor: string };
   interactive?: boolean;
   isPlaceholder?: boolean;
   onClick?: () => void;
@@ -91,6 +76,7 @@ function PropiPill({
   label,
   variant,
   theme,
+  pillBackgroundStyle,
   interactive = false,
   isPlaceholder = false,
   onClick,
@@ -133,6 +119,7 @@ function PropiPill({
         type="button"
         onClick={onClick}
         title={title}
+        style={pillBackgroundStyle}
         className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${baseClass}`}
       >
         {inner}
@@ -143,6 +130,7 @@ function PropiPill({
   return (
     <span
       title={title}
+      style={pillBackgroundStyle}
       className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full ${baseClass}`}
     >
       {inner}
@@ -156,6 +144,7 @@ interface PropiValueLineProps {
   variant: 'primary' | 'secondary' | 'fecha';
   showFirstOnlyWhenMultiple?: boolean;
   theme: PillTheme;
+  pillBackgroundStyle: { backgroundColor: string };
   centered?: boolean;
 }
 
@@ -165,6 +154,7 @@ function PropiValueLine({
   variant,
   showFirstOnlyWhenMultiple = false,
   theme,
+  pillBackgroundStyle,
   centered = false,
 }: PropiValueLineProps) {
   const [open, setOpen] = useState(false);
@@ -243,6 +233,7 @@ function PropiValueLine({
           label={emptyLabel}
           variant="empty"
           theme={theme}
+          pillBackgroundStyle={pillBackgroundStyle}
           isPlaceholder
         />
       </div>
@@ -289,6 +280,7 @@ function PropiValueLine({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           title={`Ver todos (${values.length})`}
+          style={pillBackgroundStyle}
           className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${
             theme[variant].pill
           } ${theme[variant].hover} cursor-pointer`}
@@ -309,7 +301,13 @@ function PropiValueLine({
 
   return (
     <div className={wrapperClass}>
-      <PropiPill label={summary} variant={variant} theme={theme} title={summary} />
+      <PropiPill
+        label={summary}
+        variant={variant}
+        theme={theme}
+        pillBackgroundStyle={pillBackgroundStyle}
+        title={summary}
+      />
     </div>
   );
 }
@@ -323,33 +321,9 @@ function toWhatsAppHref(phone: string): string | null {
   return `https://wa.me/${digits}`;
 }
 
-function WhatsAppIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      fill="currentColor"
-      aria-hidden
-    >
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-    </svg>
-  );
-}
-
-function PropiWhatsAppButton({
-  phone,
-  tipoOperacion,
-}: {
-  phone: string;
-  tipoOperacion: TipoOperacion;
-}) {
+function PropiWhatsAppButton({ phone }: { phone: string }) {
   const href = toWhatsAppHref(phone);
   if (!href) return null;
-
-  const accentClass =
-    tipoOperacion === 'alquiler'
-      ? 'bg-[#25D366] text-white hover:bg-[#1ebe57]'
-      : 'bg-[#25D366] text-white hover:bg-[#1ebe57]';
 
   return (
     <a
@@ -357,10 +331,17 @@ function PropiWhatsAppButton({
       target="_blank"
       rel="noopener noreferrer"
       onClick={(event) => event.stopPropagation()}
-      className={`inline-flex h-6 w-full max-w-full items-center justify-center rounded-full transition ${accentClass}`}
+      className="inline-flex h-6 w-full max-w-full items-center justify-center transition hover:opacity-90"
       title={`WhatsApp: ${phone}`}
     >
-      <WhatsAppIcon className="h-3.5 w-3.5" />
+      <img
+        src="/whatsapp-logo.png"
+        alt="WhatsApp"
+        className="h-6 w-6 shrink-0 object-contain"
+        width={24}
+        height={24}
+        draggable={false}
+      />
     </a>
   );
 }
@@ -379,6 +360,7 @@ export function InmueblePropiCell({
     entradaDate && entradaDate !== '—' ? [entradaDate] : [];
 
   const theme = getPillTheme(tipoOperacion);
+  const pillBackgroundStyle = getPropiPillBackgroundStyle(tipoOperacion);
 
   return (
     <div
@@ -389,6 +371,7 @@ export function InmueblePropiCell({
         values={dateValues}
         variant="fecha"
         theme={theme}
+        pillBackgroundStyle={pillBackgroundStyle}
         centered={centered}
       />
       <PropiValueLine
@@ -396,6 +379,7 @@ export function InmueblePropiCell({
         values={names}
         variant="primary"
         theme={theme}
+        pillBackgroundStyle={pillBackgroundStyle}
         centered={centered}
       />
       <PropiValueLine
@@ -404,10 +388,11 @@ export function InmueblePropiCell({
         variant="secondary"
         showFirstOnlyWhenMultiple
         theme={theme}
+        pillBackgroundStyle={pillBackgroundStyle}
         centered={centered}
       />
       {phones[0] ? (
-        <PropiWhatsAppButton phone={phones[0]} tipoOperacion={tipoOperacion} />
+        <PropiWhatsAppButton phone={phones[0]} />
       ) : null}
     </div>
   );

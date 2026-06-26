@@ -7,6 +7,7 @@ export type ClienteGestionEstado =
   | 'no_gestionando'
   | 'gestionando'
   | 'visita_concertada'
+  | 'reservado'
   | 'nc'
   | 'pendiente_cuadrar_docs'
   | 'no_gestionado'

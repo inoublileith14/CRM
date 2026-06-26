@@ -1,5 +1,9 @@
 import { ClienteGestionEstado } from '@/types/cliente';
 import { Inmueble, InmuebleFormData } from '@/types/inmueble';
+import {
+  ClientesByTipoListParams,
+  ClientesByTipoPageResult,
+} from '@/types/clientes-by-tipo-page';
 import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
 import { parseApiResponse } from './parse-api-error';
 import { ApiError } from './api';
@@ -50,10 +54,32 @@ export function getInmuebles(
 
 export function getInmuebleClientesByTipo(
   tipo_operacion: 'alquiler' | 'venta',
-): Promise<InmuebleClienteLinkRow[]> {
-  return request<InmuebleClienteLinkRow[]>(
-    `/api/inmuebles/clientes/by-tipo?tipo_operacion=${tipo_operacion}`,
+  params: ClientesByTipoListParams,
+): Promise<ClientesByTipoPageResult> {
+  const search = new URLSearchParams({
+    tipo_operacion,
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+  if (params.sort) {
+    search.set('sort', params.sort);
+  }
+  if (params.dir) {
+    search.set('dir', params.dir);
+  }
+  return request<ClientesByTipoPageResult>(
+    `/api/inmuebles/clientes/by-tipo?${search.toString()}`,
   );
+}
+
+/** @deprecated Use getInmuebleClientesByTipo with pagination params */
+export function getInmuebleClientesByTipoAll(
+  tipo_operacion: 'alquiler' | 'venta',
+): Promise<InmuebleClienteLinkRow[]> {
+  return getInmuebleClientesByTipo(tipo_operacion, {
+    page: 1,
+    limit: 10_000,
+  }).then((result) => result.rows);
 }
 
 export function getInmueble(id: string): Promise<Inmueble> {

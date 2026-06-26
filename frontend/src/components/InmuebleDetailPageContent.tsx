@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Loader2, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClienteCopyContactsButton } from '@/components/ClienteCopyContactsButton';
 import { ClienteExcelImportButton } from '@/components/ClienteExcelImportButton';
+import { InmuebleClienteManualAddButton } from '@/components/InmuebleClienteManualAddButton';
 import { ClienteWhatsAppButton } from '@/components/ClienteWhatsAppButton';
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
+import { ClienteFechaUltimaGestionFilterHead } from '@/components/ClienteFechaUltimaGestionFilterHead';
 import { ClienteGestionEstadoSelect } from '@/components/ClienteGestionEstadoSelect';
 import { ClienteTrabajadorCell } from '@/components/ClienteTrabajadorCell';
 import { ClienteNotasCell } from '@/components/ClienteNotasCell';
@@ -23,17 +25,30 @@ import {
   useWorkersQuery,
 } from '@/hooks/use-dashboard-queries';
 import { useQueryUiState } from '@/hooks/use-query-ui';
-import { bulkAssignWorker } from '@/lib/clientes-api';
+import {
+  ClienteGestionEstado,
+  getClienteGestionEstadoOption,
+  getClienteGestionEstadoOptions,
+  getGestionOptionStyle,
+} from '@/lib/cliente-gestion-estado';
+import { bulkAssignWorker, bulkUnassignWorker } from '@/lib/clientes-api';
+import { updateClienteGestionEstado } from '@/lib/inmuebles-api';
 import {
   applyInmuebleClienteListFilters,
   EMPTY_INMUEBLE_CLIENTE_FILTERS,
   hasActiveInmuebleClienteFilters,
+  INMUEBLE_CLIENTE_UNASSIGNED_WORKER,
   InmuebleClienteFechaSort,
   InmuebleClienteFilters,
 } from '@/lib/inmueble-cliente-filters';
 import { buildInmuebleClienteTableColumns } from '@/lib/table-columns';
+import { formatTableHeaderLabel } from '@/lib/table-header-label';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { buildTableStateKey } from '@/lib/persisted-table-state';
 import { formatClienteEntradaDate } from '@/lib/cliente-date-utils';
 import { InmuebleInfoCard } from '@/components/InmuebleInfoCard';
+import { useCurrentUser } from '@/contexts/CurrentUserContext';
+import { isAdminUser } from '@/lib/auth-roles';
 import { queryKeys } from '@/lib/query-keys';
 import {
   Cliente,
@@ -53,6 +68,7 @@ export function InmuebleDetailPageContent({
   expectedTipo,
 }: InmuebleDetailPageContentProps) {
   const params = useParams();
+  const pathname = usePathname();
   const router = useRouter();
   const id = params.id as string;
 
@@ -60,6 +76,8 @@ export function InmuebleDetailPageContent({
   const { invalidateInmueble, invalidateClientesByTipo } =
     useInvalidateDashboardQueries();
   const inmuebleQuery = useInmuebleQuery(id);
+  const { user } = useCurrentUser();
+  const canManageInmuebles = isAdminUser(user?.rol);
   const workersQuery = useWorkersQuery(true);
   const {
     data: inmueble,
@@ -76,13 +94,39 @@ export function InmuebleDetailPageContent({
   const [selectedClienteIds, setSelectedClienteIds] = useState<Set<string>>(
     new Set(),
   );
-  const [assignWorkerId, setAssignWorkerId] = useState('');
   const [assigning, setAssigning] = useState(false);
-  const [clienteFilters, setClienteFilters] = useState<InmuebleClienteFilters>(
-    EMPTY_INMUEBLE_CLIENTE_FILTERS,
+  const [updatingEstado, setUpdatingEstado] = useState(false);
+  const bulkBusy = assigning || updatingEstado;
+  const [clienteListState, setClienteListState] = usePersistedState(
+    `${buildTableStateKey(pathname)}:clientes`,
+    {
+      clienteFilters: EMPTY_INMUEBLE_CLIENTE_FILTERS,
+      fechaContactoSort: null as InmuebleClienteFechaSort,
+    },
   );
-  const [fechaContactoSort, setFechaContactoSort] =
-    useState<InmuebleClienteFechaSort>(null);
+  const { clienteFilters, fechaContactoSort } = clienteListState;
+  const setClienteFilters = (
+    value:
+      | InmuebleClienteFilters
+      | ((prev: InmuebleClienteFilters) => InmuebleClienteFilters),
+  ) =>
+    setClienteListState((prev) => ({
+      ...prev,
+      clienteFilters:
+        typeof value === 'function' ? value(prev.clienteFilters) : value,
+    }));
+  const setFechaContactoSort = (
+    value:
+      | InmuebleClienteFechaSort
+      | ((prev: InmuebleClienteFechaSort) => InmuebleClienteFechaSort),
+  ) =>
+    setClienteListState((prev) => ({
+      ...prev,
+      fechaContactoSort:
+        typeof value === 'function'
+          ? value(prev.fechaContactoSort)
+          : value,
+    }));
 
   useEffect(() => {
     if (!inmueble) return;
@@ -108,6 +152,13 @@ export function InmuebleDetailPageContent({
         if (!prev?.clientes) return prev;
         return { ...prev, clientes: updater(prev.clientes) };
       },
+    );
+  }
+
+  function patchInmuebleDetail(next: Partial<Inmueble>) {
+    queryClient.setQueryData<Inmueble>(
+      queryKeys.inmuebles.detail(id),
+      (prev) => (prev ? { ...prev, ...next } : prev),
     );
   }
 
@@ -206,61 +257,105 @@ export function InmuebleDetailPageContent({
     setSelectedClienteIds(new Set());
   }
 
-  async function handleAssignWorker(inmuebleId: string) {
+  async function handleAssignWorkerSelect(inmuebleId: string, workerId: string) {
+    if (!workerId) return;
+
     if (selectedClienteIds.size === 0) {
       toast.error('Selecciona al menos un cliente');
       return;
     }
-    if (!assignWorkerId) {
-      toast.error('Selecciona el trabajador al que asignar');
-      return;
-    }
 
-    const worker = workers.find((w) => w.id === assignWorkerId);
-    const count = selectedClienteIds.size;
-
-    if (
-      !confirm(
-        `¿Asignar ${count} cliente${count !== 1 ? 's' : ''} a ${worker?.nombre ?? 'el trabajador seleccionado'}?`,
-      )
-    ) {
-      return;
-    }
+    const clienteIds = [...selectedClienteIds];
+    const isUnassign = workerId === INMUEBLE_CLIENTE_UNASSIGNED_WORKER;
 
     setAssigning(true);
 
     try {
-      const result = await bulkAssignWorker({
-        worker_id: assignWorkerId,
-        assignments: [...selectedClienteIds].map((clienteId) => ({
-          cliente_id: clienteId,
-          inmueble_id: inmuebleId,
-        })),
-      });
+      if (isUnassign) {
+        const result = await bulkUnassignWorker({ cliente_ids: clienteIds });
+        toast.success(
+          `${result.unassigned} cliente${result.unassigned !== 1 ? 's' : ''} sin asignar`,
+        );
+      } else {
+        const result = await bulkAssignWorker({
+          worker_id: workerId,
+          assignments: clienteIds.map((clienteId) => ({
+            cliente_id: clienteId,
+            inmueble_id: inmuebleId,
+          })),
+        });
 
-      toast.success(
-        `${result.assigned} cliente${result.assigned !== 1 ? 's' : ''} asignado${result.assigned !== 1 ? 's' : ''}`,
-      );
+        toast.success(
+          `${result.assigned} cliente${result.assigned !== 1 ? 's' : ''} asignado${result.assigned !== 1 ? 's' : ''}`,
+        );
+      }
+
       clearSelection();
       await refreshInmueble();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'No se pudieron asignar los clientes';
-      toast.error(message);
+      const defaultMessage = isUnassign
+        ? 'No se pudieron quitar las asignaciones'
+        : 'No se pudieron asignar los clientes';
+      toast.error(
+        error instanceof Error ? error.message : defaultMessage,
+      );
     } finally {
       setAssigning(false);
     }
   }
+
+  async function handleBulkGestionEstadoSelect(gestionEstado: string) {
+    if (!gestionEstado || !inmueble) return;
+
+    if (selectedClienteIds.size === 0) {
+      toast.error('Selecciona al menos un cliente');
+      return;
+    }
+
+    const clienteIds = [...selectedClienteIds];
+    setUpdatingEstado(true);
+
+    try {
+      const results = await Promise.all(
+        clienteIds.map((clienteId) =>
+          updateClienteGestionEstado(
+            inmueble.id,
+            clienteId,
+            gestionEstado as ClienteGestionEstado,
+          ),
+        ),
+      );
+
+      for (let i = 0; i < clienteIds.length; i++) {
+        handleClientePatch(clienteIds[i], {
+          gestion_estado: results[i].gestion_estado,
+          fecha_ultima_gestion: results[i].fecha_ultima_gestion,
+        });
+      }
+
+      toast.success(
+        `${clienteIds.length} cliente${clienteIds.length !== 1 ? 's' : ''} actualizado${clienteIds.length !== 1 ? 's' : ''}`,
+      );
+      clearSelection();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudieron actualizar los estados',
+      );
+      await refreshInmueble();
+    } finally {
+      setUpdatingEstado(false);
+    }
+  }
+
+  const gestionEstadoOptions = getClienteGestionEstadoOptions(expectedTipo);
 
   const selectClass = `h-7 shrink-0 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition ${
     expectedTipo === 'alquiler'
       ? 'focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
       : 'focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
   } disabled:opacity-60`;
-  const assignButtonClass =
-    expectedTipo === 'alquiler'
-      ? 'bg-emerald-600 hover:bg-emerald-500'
-      : 'bg-blue-700 hover:bg-blue-600';
 
   if (showInitialLoading) {
     return (
@@ -318,9 +413,13 @@ export function InmuebleDetailPageContent({
       <InmuebleInfoCard
         inmueble={inmueble}
         onPreviewImage={(src, alt) => setPreviewImage({ src, alt })}
+        onUpdated={canManageInmuebles ? (updated) => patchInmuebleDetail(updated) : undefined}
         listPath={listPath}
         listLabel={listLabel}
-        editHref={`${listPath}/${inmueble.id}/edit`}
+        editHref={
+          canManageInmuebles ? `${listPath}/${inmueble.id}/edit` : undefined
+        }
+        readOnly={!canManageInmuebles}
         isRefreshing={isRefreshing}
         tipoAccentClass={tipoAccentClass}
       />
@@ -330,7 +429,15 @@ export function InmuebleDetailPageContent({
           <h2 className="shrink-0 text-xs font-semibold whitespace-nowrap text-slate-900">
             Clientes ({clientes.length})
           </h2>
-          <div className="ml-auto">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <InmuebleClienteManualAddButton
+              inmuebleId={inmueble.id}
+              inmuebleRef={inmueble.ref}
+              tipoOperacion={expectedTipo}
+              workers={workers}
+              onComplete={refreshInmueble}
+              compact
+            />
             <ClienteExcelImportButton
               inmuebleId={inmueble.id}
               tipoOperacion={expectedTipo}
@@ -354,14 +461,14 @@ export function InmuebleDetailPageContent({
               tipoOperacion={expectedTipo}
               workers={workers}
               hasActiveFilters={clienteFiltersActive}
-              disabled={assigning}
+              disabled={bulkBusy}
               compact
             />
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
               <ClienteWhatsAppButton
                 inmuebleId={inmueble.id}
                 clienteIds={[...selectedClienteIds]}
-                disabled={assigning}
+                disabled={bulkBusy}
                 compact
                 onSent={(updates) => {
                   for (const update of updates) {
@@ -374,58 +481,68 @@ export function InmuebleDetailPageContent({
               />
               <ClienteCopyContactsButton
                 clientes={selectedClientes}
-                disabled={assigning}
+                disabled={bulkBusy}
                 compact
               />
               <select
-                value={assignWorkerId}
-                onChange={(e) => setAssignWorkerId(e.target.value)}
-                disabled={assigning}
+                value=""
+                onChange={(e) => void handleBulkGestionEstadoSelect(e.target.value)}
+                disabled={bulkBusy || selectedClienteIds.size === 0}
+                className={`w-full sm:w-auto ${selectClass}`}
+                aria-label="Estado de gestión para asignar"
+              >
+                <option value="" disabled>
+                  {updatingEstado ? 'Actualizando…' : 'Cambiar estado…'}
+                </option>
+                {gestionEstadoOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value=""
+                onChange={(e) =>
+                  void handleAssignWorkerSelect(inmueble.id, e.target.value)
+                }
+                disabled={bulkBusy || selectedClienteIds.size === 0}
                 className={`w-full sm:w-auto ${selectClass}`}
                 aria-label="Trabajador para asignar"
               >
-                <option value="">Asignar a trabajador…</option>
+                <option value="" disabled>
+                  {assigning ? 'Asignando…' : 'Asignar a trabajador…'}
+                </option>
+                <option value={INMUEBLE_CLIENTE_UNASSIGNED_WORKER}>
+                  Sin asignar
+                </option>
                 {workers.map((worker) => (
                   <option key={worker.id} value={worker.id}>
                     {worker.nombre} ({getWorkerRolLabel(worker.rol)})
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => handleAssignWorker(inmueble.id)}
-                disabled={
-                  assigning ||
-                  selectedClienteIds.size === 0 ||
-                  !assignWorkerId
-                }
-                className={`inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-semibold text-white transition disabled:opacity-60 ${assignButtonClass}`}
-              >
-                {assigning ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <UserPlus className="h-3.5 w-3.5" />
-                )}
-                Asignar
-              </button>
             </div>
           </div>
         )}
 
         {clientes.length === 0 ? (
           <p className="py-10 text-center text-slate-500">
-            No hay clientes vinculados a este inmueble. Usa Importar Excel para
-            añadirlos.
+            No hay clientes vinculados a este inmueble. Usa Añadir o Importar
+            para añadirlos.
           </p>
         ) : filteredClientes.length === 0 ? (
           <TableFilterEmptyState onClear={clearAllFilters} />
         ) : (
           <>
-          <div className="overflow-x-auto">
-            <table className="min-w-[56rem] w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50">
+          <div className="w-full">
+            <table className="table-fixed min-w-[56rem] w-full border-collapse border border-black text-left text-sm">
+              <thead className="border-b border-black">
                 <tr>
-                  <th className="w-10 px-3 py-3">
+                  <th
+                    className={`sticky top-14 z-30 w-10 border border-black px-3 py-4 sm:top-16 ${
+                      expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                    }`}
+                  >
                     <input
                       type="checkbox"
                       checked={allClientesSelected}
@@ -437,7 +554,7 @@ export function InmuebleDetailPageContent({
                       onChange={() =>
                         toggleSelectAllClientes(filteredClientes)
                       }
-                      disabled={assigning}
+                      disabled={bulkBusy}
                       className={`h-4 w-4 rounded border-slate-300 ${accentCheckbox}`}
                       aria-label="Seleccionar todos los clientes"
                     />
@@ -446,12 +563,14 @@ export function InmuebleDetailPageContent({
                     col.key === 'fecha_contacto' ? (
                       <th
                         key={col.key}
-                        className="whitespace-nowrap px-4 py-3 text-xs font-semibold normal-case text-slate-600"
+                        className={`sticky top-14 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-2 py-4 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                        }`}
                       >
                         <button
                           type="button"
                           onClick={toggleFechaContactoSort}
-                          className="inline-flex items-center gap-1 transition hover:text-slate-900"
+                          className="inline-flex w-full flex-col items-center justify-center gap-0.5 uppercase transition hover:text-yellow-200"
                           title={
                             fechaContactoSort === 'asc'
                               ? 'Más antigua primero — clic para más reciente'
@@ -460,14 +579,18 @@ export function InmuebleDetailPageContent({
                                 : 'Clic para ordenar por fecha de entrada'
                           }
                         >
-                          {col.label}
+                          <span className="whitespace-pre-line leading-tight">
+                            {formatTableHeaderLabel(
+                              col.shortLabel ?? col.label,
+                            )}
+                          </span>
                           {fechaContactoSort === 'asc' ? (
-                            <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                            <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
                           ) : fechaContactoSort === 'desc' ? (
-                            <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                            <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
                           ) : (
                             <ArrowUpDown
-                              className="h-3.5 w-3.5 opacity-60"
+                              className="h-3.5 w-3.5 shrink-0 opacity-60"
                               aria-hidden
                             />
                           )}
@@ -476,39 +599,85 @@ export function InmuebleDetailPageContent({
                     ) : col.key === 'fecha_ultima_gestion' ? (
                       <th
                         key={col.key}
-                        className="min-w-[7.5rem] whitespace-nowrap px-4 py-3 text-xs font-semibold normal-case text-slate-600"
+                        className={`sticky top-14 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                        }`}
                       >
-                        {col.label}
+                        <ClienteFechaUltimaGestionFilterHead
+                          label={col.shortLabel ?? col.label}
+                          value={clienteFilters.fecha_ultima_gestion ?? ''}
+                          onChange={(fecha_ultima_gestion) =>
+                            setClienteFilters((prev) => ({
+                              ...prev,
+                              fecha_ultima_gestion,
+                            }))
+                          }
+                          disabled={bulkBusy}
+                          accent={expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}
+                        />
+                      </th>
+                    ) : col.key === 'nombre' ? (
+                      <th
+                        key={col.key}
+                        className={`sticky top-14 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                        }`}
+                      >
+                        {formatTableHeaderLabel(col.label)}
+                      </th>
+                    ) : col.key === 'ref_cliente' ? (
+                      <th
+                        key={col.key}
+                        className={`sticky top-14 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                        }`}
+                      >
+                        {formatTableHeaderLabel(col.label)}
+                      </th>
+                    ) : col.key === 'gestion_estado' ? (
+                      <th
+                        key={col.key}
+                        className={`sticky top-14 z-30 w-[14rem] max-w-[14rem] border border-black px-3 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                        }`}
+                      >
+                        {formatTableHeaderLabel(col.label)}
                       </th>
                     ) : (
                       <th
                         key={col.key}
-                        className="px-4 py-3 text-xs font-semibold normal-case text-slate-600"
+                        className={`sticky top-14 z-30 border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                        }`}
                       >
-                        {col.label}
+                        {formatTableHeaderLabel(col.label)}
                       </th>
                     ),
                   )}
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Acciones
+                  <th
+                    className={`sticky top-14 z-30 w-11 max-w-[2.75rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                      expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
+                    }`}
+                  >
+                    <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {filteredClientes.map((cliente) => {
                   const isSelected = selectedClienteIds.has(cliente.id);
 
                   return (
                   <tr
                     key={cliente.id}
-                    className={`hover:bg-slate-50 ${isSelected ? selectedRowClass : ''}`}
+                    className={`${isSelected ? selectedRowClass : ''} hover:bg-slate-50`}
                   >
-                    <td className="w-10 px-3 py-3">
+                    <td className="w-10 border border-black px-3 py-3">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleClienteSelection(cliente.id)}
-                        disabled={assigning}
+                        disabled={bulkBusy}
                         className={`h-4 w-4 rounded border-slate-300 ${accentCheckbox}`}
                         aria-label={`Seleccionar ${cliente.nombre}`}
                       />
@@ -518,7 +687,7 @@ export function InmuebleDetailPageContent({
                         return (
                           <td
                             key={col.key}
-                            className="whitespace-nowrap px-4 py-3 text-slate-600"
+                            className="w-[5.5rem] min-w-[5.5rem] whitespace-nowrap border border-black px-2 py-3 text-center text-slate-700"
                           >
                             {formatClienteEntradaDate(cliente.fecha_contacto)}
                           </td>
@@ -527,13 +696,17 @@ export function InmuebleDetailPageContent({
 
                       if (col.key === 'gestion_estado') {
                         return (
-                          <td key={col.key} className="px-4 py-3">
+                          <td
+                            key={col.key}
+                            className="w-[14rem] max-w-[14rem] align-top border border-black px-2 py-3"
+                          >
                             <ClienteGestionEstadoSelect
                               inmuebleId={inmueble.id}
                               clienteId={cliente.id}
                               tipoOperacion={expectedTipo}
                               value={cliente.gestion_estado}
-                              disabled={assigning}
+                              disabled={bulkBusy}
+                              tableLayout
                               onUpdated={(result) =>
                                 handleClientePatch(cliente.id, {
                                   gestion_estado: result.gestion_estado,
@@ -546,16 +719,28 @@ export function InmuebleDetailPageContent({
                       }
 
                       if (col.key === 'fecha_ultima_gestion') {
+                        const gestionStyle = getGestionOptionStyle(
+                          getClienteGestionEstadoOption(
+                            cliente.gestion_estado,
+                            expectedTipo,
+                          ),
+                        );
                         return (
                           <td
                             key={col.key}
-                            className="min-w-[8.5rem] whitespace-nowrap px-4 py-3"
+                            className="w-[5.5rem] min-w-[5.5rem] align-top border border-black px-1 py-3"
+                            style={{
+                              backgroundColor: gestionStyle.backgroundColor,
+                              color: gestionStyle.color,
+                            }}
                           >
                             <ClienteFechaUltimaGestionCell
                               inmuebleId={inmueble.id}
                               clienteId={cliente.id}
                               value={cliente.fecha_ultima_gestion}
-                              disabled={assigning}
+                              disabled={bulkBusy}
+                              compact
+                              gestionStyle={gestionStyle}
                               onUpdated={(fechaUltimaGestion) =>
                                 handleClientePatch(cliente.id, {
                                   fecha_ultima_gestion: fechaUltimaGestion,
@@ -568,11 +753,14 @@ export function InmuebleDetailPageContent({
 
                       if (col.key === 'nombre') {
                         return (
-                          <td key={col.key} className="px-4 py-3">
+                          <td
+                            key={col.key}
+                            className="w-[11rem] max-w-[11rem] align-top border border-black px-4 py-3"
+                          >
                             <ClienteNombreCell
                               clienteId={cliente.id}
                               value={cliente.nombre}
-                              disabled={assigning}
+                              disabled={bulkBusy}
                               onUpdated={(nombre) =>
                                 handleClientePatch(cliente.id, { nombre })
                               }
@@ -583,11 +771,11 @@ export function InmuebleDetailPageContent({
 
                       if (col.key === 'notas') {
                         return (
-                          <td key={col.key} className="px-4 py-3">
+                          <td key={col.key} className="border border-black px-4 py-3">
                             <ClienteNotasCell
                               clienteId={cliente.id}
                               value={cliente.notas}
-                              disabled={assigning}
+                              disabled={bulkBusy}
                               onUpdated={(notas) =>
                                 handleClientePatch(cliente.id, { notas })
                               }
@@ -597,13 +785,15 @@ export function InmuebleDetailPageContent({
                       }
 
                       if (col.key === 'ref_cliente') {
+                        const refText = cliente.ref_cliente?.trim() || '—';
                         return (
                           <td
                             key={col.key}
-                            className="max-w-[14rem] px-4 py-3 text-slate-600"
+                            className="w-[11rem] max-w-[11rem] align-top border border-black px-4 py-3 text-slate-700"
+                            title={refText !== '—' ? refText : undefined}
                           >
-                            <span className="block break-words whitespace-normal leading-snug">
-                              {cliente.ref_cliente?.trim() || '—'}
+                            <span className="block line-clamp-3 break-words whitespace-normal leading-snug">
+                              {refText}
                             </span>
                           </td>
                         );
@@ -611,14 +801,14 @@ export function InmuebleDetailPageContent({
 
                       if (col.key === 'trabajador') {
                         return (
-                          <td key={col.key} className="px-4 py-3">
+                          <td key={col.key} className="border border-black px-4 py-3">
                             <ClienteTrabajadorCell
                               inmuebleId={inmueble.id}
                               clienteId={cliente.id}
                               workers={workers}
                               assignedWorkers={cliente.workers}
                               tipoOperacion={expectedTipo}
-                              disabled={assigning}
+                              disabled={bulkBusy}
                               onUpdated={(nextWorkers) =>
                                 handleClientePatch(cliente.id, {
                                   workers: nextWorkers,
@@ -635,19 +825,21 @@ export function InmuebleDetailPageContent({
                       return (
                         <td
                           key={col.key}
-                          className="max-w-[200px] truncate px-4 py-3 text-slate-700"
+                          className="max-w-[200px] truncate border border-black px-4 py-3 text-slate-700"
                           title={display}
                         >
                           {display}
                         </td>
                       );
                     })}
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className="w-11 max-w-[2.75rem] border border-black px-1 py-3 text-center align-middle">
                       <Link
                         href={`/dashboard/clientes/${cliente.id}`}
-                        className={`text-sm font-medium ${accentLink}`}
+                        className={`inline-flex items-center justify-center rounded p-1.5 transition hover:bg-slate-100 ${accentLink}`}
+                        title="Ver cliente"
+                        aria-label="Ver cliente"
                       >
-                        Ver cliente
+                        <Pencil className="h-4 w-4 shrink-0" aria-hidden />
                       </Link>
                     </td>
                   </tr>

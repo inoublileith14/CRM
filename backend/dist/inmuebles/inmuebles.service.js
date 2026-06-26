@@ -15,8 +15,53 @@ const common_1 = require("@nestjs/common");
 const cliente_gestion_estado_1 = require("../clientes/cliente-gestion-estado");
 const supabase_service_1 = require("../supabase/supabase.service");
 const inmueble_propietarios_util_1 = require("./inmueble-propietarios.util");
-const SELECT_FIELDS = 'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista_espejo, fecha_visitas_entrada, observaciones, amueblado, captador_alquilado_por, status, row_color, tipo_operacion, created_at, updated_at';
+const cliente_entrada_sort_util_1 = require("./cliente-entrada-sort.util");
+const inmueble_split_fields_1 = require("./inmueble-split-fields");
+const SELECT_FIELDS = 'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, distrito_ciudad, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista, link_espejo, link_idealista_espejo, fecha_visitas, fecha_visitas_entrada, observaciones, requisitos_propietario, amueblado, captador, alquilado_por, captador_alquilado_por, status, row_color, tipo_operacion, created_at, updated_at';
 const SELECT_DETAIL = `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))`;
+const CLIENTE_GLOBAL_FIELDS = `
+  id,
+  nombre,
+  email,
+  telefono,
+  ciudad,
+  estado,
+  origen,
+  estado_contacto,
+  ref_cliente,
+  fecha_contacto,
+  fecha_ultima_gestion,
+  presupuesto_maximo,
+  banos,
+  notas,
+  tipo_operacion,
+  created_at,
+  updated_at
+`;
+const CLIENTE_INMUEBLE_LINK_SELECT = `
+  cliente_id,
+  inmueble_id,
+  gestion_estado,
+  fecha_ultima_gestion,
+  clientes(${CLIENTE_GLOBAL_FIELDS}),
+  inmuebles!inner(id, ref, direccion_piso_real, barrio_distrito, tipo_operacion)
+`;
+const CLIENTE_UNLINKED_SELECT = `
+  ${CLIENTE_GLOBAL_FIELDS},
+  cliente_inmuebles(inmueble_id)
+`;
+const LINK_INDEX_SELECT = `
+  cliente_id,
+  inmueble_id,
+  clientes!inner(fecha_contacto),
+  inmuebles!inner(tipo_operacion)
+`;
+const UNLINKED_INDEX_SELECT = `
+  id,
+  fecha_contacto,
+  cliente_inmuebles(inmueble_id)
+`;
+const MAX_CLIENTES_BY_TIPO_LIMIT = 10_000;
 const CLIENTE_SELECT = `
   id,
   nombre,
@@ -45,8 +90,9 @@ async function fetchAll(queryFactory, pageSize = 1000) {
     for (let from = 0;; from += pageSize) {
         const to = from + pageSize - 1;
         const { data, error } = await queryFactory(from, to);
-        if (error)
-            throw new Error(error.message);
+        if (error) {
+            throw new Error(error.message || JSON.stringify(error));
+        }
         const chunk = data ?? [];
         all.push(...chunk);
         if (chunk.length < pageSize)
@@ -54,9 +100,24 @@ async function fetchAll(queryFactory, pageSize = 1000) {
     }
     return all;
 }
-let InmueblesService = InmueblesService_1 = class InmueblesService {
+function chunkArray(items, size) {
+    if (size <= 0)
+        return [items];
+    const chunks = [];
+    for (let i = 0; i < items.length; i += size) {
+        chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+}
+const HYDRATE_LINKED_FULL_SCAN_THRESHOLD = 120;
+const HYDRATE_LINKED_IN_BATCH_SIZE = 80;
+const HYDRATE_UNLINKED_IN_BATCH_SIZE = 200;
+let InmueblesService = class InmueblesService {
+    static { InmueblesService_1 = this; }
     supabase;
     logger = new common_1.Logger(InmueblesService_1.name);
+    clientesByTipoIndexCache = new Map();
+    static INDEX_CACHE_TTL_MS = 60_000;
     constructor(supabase) {
         this.supabase = supabase;
     }
@@ -80,43 +141,39 @@ let InmueblesService = InmueblesService_1 = class InmueblesService {
         return data ?? [];
     }
     async findClientesByTipoOperacion(tipoOperacion) {
-        const { data, error } = await this.supabase
-            .getAdmin()
-            .from('inmuebles')
-            .select(SELECT_DETAIL)
-            .eq('tipo_operacion', tipoOperacion)
-            .order('created_at', { ascending: false });
-        if (error) {
-            if (this.isMissingClienteInmuebles(error.message)) {
+        const defaultGestion = (0, cliente_gestion_estado_1.getDefaultClienteGestionEstado)(tipoOperacion);
+        const rows = [];
+        let linkedLinks = [];
+        try {
+            linkedLinks = await fetchAll((from, to) => this.supabase
+                .getAdmin()
+                .from('cliente_inmuebles')
+                .select(CLIENTE_INMUEBLE_LINK_SELECT)
+                .eq('inmuebles.tipo_operacion', tipoOperacion)
+                .range(from, to));
+        }
+        catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            if (this.isMissingClienteInmuebles(message)) {
                 return [];
             }
-            this.logger.error(`Error al listar clientes por tipo ${tipoOperacion}: ${error.message}`);
+            this.logger.error(`Error al listar clientes vinculados por tipo ${tipoOperacion}: ${message}`);
             throw new common_1.InternalServerErrorException('No se pudieron cargar los clientes');
         }
-        const rows = [];
         const linkedClienteIds = new Set();
-        for (const inmuebleRow of data ?? []) {
-            const inmueble = this.mapWithClientes(inmuebleRow);
-            const label = inmueble.direccion_piso_real ||
-                inmueble.barrio_distrito ||
-                'Inmueble sin dirección';
-            for (const cliente of inmueble.clientes ?? []) {
-                linkedClienteIds.add(cliente.id);
-                rows.push({
-                    row_key: `${inmueble.id}-${cliente.id}`,
-                    inmueble_id: inmueble.id,
-                    inmueble_label: label,
-                    inmueble_ref: inmueble.ref,
-                    cliente,
-                });
-            }
+        for (const linkRow of linkedLinks) {
+            const mapped = this.mapLinkedClienteRow(linkRow, defaultGestion);
+            if (!mapped)
+                continue;
+            linkedClienteIds.add(mapped.cliente.id);
+            rows.push(mapped);
         }
         let rawClientes = [];
         try {
             rawClientes = await fetchAll((from, to) => this.supabase
                 .getAdmin()
                 .from('clientes')
-                .select(CLIENTE_SELECT)
+                .select(CLIENTE_UNLINKED_SELECT)
                 .eq('tipo_operacion', tipoOperacion)
                 .range(from, to));
         }
@@ -126,10 +183,20 @@ let InmueblesService = InmueblesService_1 = class InmueblesService {
             throw new common_1.InternalServerErrorException('No se pudieron cargar los clientes');
         }
         for (const row of rawClientes ?? []) {
-            const cliente = this.mapCliente(row);
-            const hasLinks = (cliente.inmueble_ids?.length ?? 0) > 0;
-            if (linkedClienteIds.has(cliente.id) || hasLinks)
+            const clienteInmuebles = (row.cliente_inmuebles ?? []);
+            if (linkedClienteIds.has(row.id) || clienteInmuebles.length > 0) {
                 continue;
+            }
+            const { cliente_inmuebles: _ci, ...rest } = row;
+            const cliente = {
+                ...rest,
+                inmueble_ids: [],
+                worker_ids: [],
+                inmuebles_count: 0,
+                workers_count: 0,
+                workers: [],
+                gestion_estado: null,
+            };
             rows.push({
                 row_key: `unlinked-${cliente.id}`,
                 inmueble_id: null,
@@ -139,6 +206,250 @@ let InmueblesService = InmueblesService_1 = class InmueblesService {
             });
         }
         return rows;
+    }
+    async findClientesByTipoOperacionPaginated(tipoOperacion, query) {
+        const page = Math.max(1, query.page);
+        const limit = Math.min(Math.max(1, query.limit), MAX_CLIENTES_BY_TIPO_LIMIT);
+        const sortDir = query.sort === 'fecha_entrada' && query.dir === 'asc' ? 'asc' : 'desc';
+        const index = await this.buildClientesByTipoIndex(tipoOperacion);
+        const sorted = [...index].sort((a, b) => {
+            if (a.sort_key !== b.sort_key) {
+                return sortDir === 'asc'
+                    ? a.sort_key - b.sort_key
+                    : b.sort_key - a.sort_key;
+            }
+            return a.row_key.localeCompare(b.row_key);
+        });
+        const total = sorted.length;
+        const offset = (page - 1) * limit;
+        const slice = sorted.slice(offset, offset + limit);
+        const defaultGestion = (0, cliente_gestion_estado_1.getDefaultClienteGestionEstado)(tipoOperacion);
+        const rows = await this.hydrateClientesByTipoPage(slice, tipoOperacion, defaultGestion);
+        return { rows, total, page, limit };
+    }
+    async buildClientesByTipoIndex(tipoOperacion) {
+        const cacheKey = tipoOperacion;
+        const cached = this.clientesByTipoIndexCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.items;
+        }
+        const items = [];
+        const linkedClienteIds = new Set();
+        let linkedIndex = [];
+        try {
+            linkedIndex = await fetchAll((from, to) => this.supabase
+                .getAdmin()
+                .from('cliente_inmuebles')
+                .select(LINK_INDEX_SELECT)
+                .eq('inmuebles.tipo_operacion', tipoOperacion)
+                .range(from, to));
+        }
+        catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            if (this.isMissingClienteInmuebles(message)) {
+                return [];
+            }
+            this.logger.error(`Error al indexar clientes vinculados (${tipoOperacion}): ${message}`);
+            throw new common_1.InternalServerErrorException('No se pudieron cargar los clientes');
+        }
+        for (const linkRow of linkedIndex) {
+            const inmuebleId = linkRow.inmueble_id;
+            const clienteId = linkRow.cliente_id;
+            const clienteRaw = linkRow.clientes;
+            if (!inmuebleId || !clienteId)
+                continue;
+            linkedClienteIds.add(clienteId);
+            items.push({
+                row_key: `${inmuebleId}-${clienteId}`,
+                cliente_id: clienteId,
+                inmueble_id: inmuebleId,
+                sort_key: (0, cliente_entrada_sort_util_1.getClienteEntradaSortKey)(clienteRaw?.fecha_contacto ?? null),
+            });
+        }
+        let rawClientes = [];
+        try {
+            rawClientes = await fetchAll((from, to) => this.supabase
+                .getAdmin()
+                .from('clientes')
+                .select(UNLINKED_INDEX_SELECT)
+                .eq('tipo_operacion', tipoOperacion)
+                .range(from, to));
+        }
+        catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            this.logger.error(`Error al indexar clientes sin inmueble (${tipoOperacion}): ${message}`);
+            throw new common_1.InternalServerErrorException('No se pudieron cargar los clientes');
+        }
+        for (const row of rawClientes) {
+            const clienteId = row.id;
+            const clienteInmuebles = (row.cliente_inmuebles ?? []);
+            if (linkedClienteIds.has(clienteId) || clienteInmuebles.length > 0) {
+                continue;
+            }
+            items.push({
+                row_key: `unlinked-${clienteId}`,
+                cliente_id: clienteId,
+                inmueble_id: null,
+                sort_key: (0, cliente_entrada_sort_util_1.getClienteEntradaSortKey)(row.fecha_contacto),
+            });
+        }
+        this.clientesByTipoIndexCache.set(cacheKey, {
+            items,
+            expiresAt: Date.now() + InmueblesService_1.INDEX_CACHE_TTL_MS,
+        });
+        return items;
+    }
+    async hydrateClientesByTipoPage(slice, tipoOperacion, defaultGestion) {
+        if (slice.length === 0)
+            return [];
+        const linkedItems = slice.filter((item) => item.inmueble_id);
+        const unlinkedIds = slice
+            .filter((item) => !item.inmueble_id)
+            .map((item) => item.cliente_id);
+        const rowByKey = new Map();
+        if (linkedItems.length > 0) {
+            const pairKeys = new Set(linkedItems.map((item) => `${item.inmueble_id}:${item.cliente_id}`));
+            let linkedRows = [];
+            try {
+                linkedRows = await this.fetchLinkedRowsForHydration(tipoOperacion, linkedItems, pairKeys);
+            }
+            catch (e) {
+                const message = e instanceof Error ? e.message : String(e);
+                this.logger.error(`Error al hidratar clientes vinculados (${tipoOperacion}): ${message || '(sin detalle)'}`);
+                throw new common_1.InternalServerErrorException('No se pudieron cargar los clientes');
+            }
+            for (const linkRow of linkedRows) {
+                const inmuebleId = linkRow.inmueble_id;
+                const clienteId = linkRow.cliente_id;
+                if (!inmuebleId || !clienteId)
+                    continue;
+                if (!pairKeys.has(`${inmuebleId}:${clienteId}`))
+                    continue;
+                const mapped = this.mapLinkedClienteRow(linkRow, defaultGestion);
+                if (mapped)
+                    rowByKey.set(mapped.row_key, mapped);
+            }
+        }
+        if (unlinkedIds.length > 0) {
+            let unlinkedRows = [];
+            try {
+                unlinkedRows = await this.fetchClientesByIds(unlinkedIds);
+            }
+            catch (e) {
+                const message = e instanceof Error ? e.message : String(e);
+                this.logger.error(`Error al hidratar clientes sin inmueble (${tipoOperacion}): ${message || '(sin detalle)'}`);
+                throw new common_1.InternalServerErrorException('No se pudieron cargar los clientes');
+            }
+            for (const row of unlinkedRows) {
+                const cliente = {
+                    ...row,
+                    inmueble_ids: [],
+                    worker_ids: [],
+                    inmuebles_count: 0,
+                    workers_count: 0,
+                    workers: [],
+                    gestion_estado: null,
+                };
+                rowByKey.set(`unlinked-${cliente.id}`, {
+                    row_key: `unlinked-${cliente.id}`,
+                    inmueble_id: null,
+                    inmueble_label: '—',
+                    inmueble_ref: null,
+                    cliente,
+                });
+            }
+        }
+        return slice
+            .map((item) => rowByKey.get(item.row_key))
+            .filter((row) => row != null);
+    }
+    async fetchLinkedRowsForHydration(tipoOperacion, linkedItems, pairKeys) {
+        const fetchByTipo = () => fetchAll((from, to) => this.supabase
+            .getAdmin()
+            .from('cliente_inmuebles')
+            .select(CLIENTE_INMUEBLE_LINK_SELECT)
+            .eq('inmuebles.tipo_operacion', tipoOperacion)
+            .range(from, to));
+        if (linkedItems.length > HYDRATE_LINKED_FULL_SCAN_THRESHOLD) {
+            const all = await fetchByTipo();
+            return all.filter((linkRow) => {
+                const inmuebleId = linkRow.inmueble_id;
+                const clienteId = linkRow.cliente_id;
+                return (Boolean(inmuebleId && clienteId) &&
+                    pairKeys.has(`${inmuebleId}:${clienteId}`));
+            });
+        }
+        const linkedRows = [];
+        const seen = new Set();
+        for (const batch of chunkArray(linkedItems, HYDRATE_LINKED_IN_BATCH_SIZE)) {
+            const clienteIds = [...new Set(batch.map((item) => item.cliente_id))];
+            const inmuebleIds = [
+                ...new Set(batch.map((item) => item.inmueble_id)),
+            ];
+            const batchRows = await fetchAll((from, to) => this.supabase
+                .getAdmin()
+                .from('cliente_inmuebles')
+                .select(CLIENTE_INMUEBLE_LINK_SELECT)
+                .eq('inmuebles.tipo_operacion', tipoOperacion)
+                .in('cliente_id', clienteIds)
+                .in('inmueble_id', inmuebleIds)
+                .range(from, to));
+            for (const linkRow of batchRows) {
+                const inmuebleId = linkRow.inmueble_id;
+                const clienteId = linkRow.cliente_id;
+                if (!inmuebleId || !clienteId)
+                    continue;
+                const key = `${inmuebleId}:${clienteId}`;
+                if (!pairKeys.has(key) || seen.has(key))
+                    continue;
+                seen.add(key);
+                linkedRows.push(linkRow);
+            }
+        }
+        return linkedRows;
+    }
+    async fetchClientesByIds(ids) {
+        const rows = [];
+        for (const batch of chunkArray(ids, HYDRATE_UNLINKED_IN_BATCH_SIZE)) {
+            const { data, error } = await this.supabase
+                .getAdmin()
+                .from('clientes')
+                .select(CLIENTE_GLOBAL_FIELDS)
+                .in('id', batch);
+            if (error) {
+                throw new Error(error.message || JSON.stringify(error));
+            }
+            rows.push(...(data ?? []));
+        }
+        return rows;
+    }
+    mapLinkedClienteRow(linkRow, defaultGestion) {
+        const inmueble = linkRow.inmuebles;
+        const clienteRaw = linkRow.clientes;
+        if (!inmueble?.id || !clienteRaw?.id)
+            return null;
+        const cliente = {
+            ...clienteRaw,
+            fecha_ultima_gestion: clienteRaw.fecha_ultima_gestion ??
+                linkRow.fecha_ultima_gestion ??
+                null,
+            gestion_estado: linkRow.gestion_estado ?? defaultGestion,
+            inmueble_ids: [inmueble.id],
+            worker_ids: [],
+            inmuebles_count: 1,
+            workers_count: 0,
+            workers: [],
+        };
+        const label = inmueble.direccion_piso_real ||
+            inmueble.barrio_distrito ||
+            'Inmueble sin dirección';
+        return {
+            row_key: `${inmueble.id}-${cliente.id}`,
+            inmueble_id: inmueble.id,
+            inmueble_label: label,
+            inmueble_ref: inmueble.ref,
+            cliente,
+        };
     }
     mapCliente(row) {
         const clienteInmuebles = (row.cliente_inmuebles ?? []);
@@ -200,10 +511,10 @@ let InmueblesService = InmueblesService_1 = class InmueblesService {
     }
     async create(dto) {
         const ownerFields = (0, inmueble_propietarios_util_1.normalizePropietariosContactos)(dto);
-        const payload = {
+        const payload = (0, inmueble_split_fields_1.normalizeInmuebleSplitFields)({
             ...dto,
             ...ownerFields,
-        };
+        });
         const { data, error } = await this.supabase
             .getAdmin()
             .from('inmuebles')
@@ -226,11 +537,11 @@ let InmueblesService = InmueblesService_1 = class InmueblesService {
         const { data, error } = await this.supabase
             .getAdmin()
             .from('inmuebles')
-            .update({
+            .update((0, inmueble_split_fields_1.normalizeInmuebleSplitFields)({
             ...dto,
             ...ownerFields,
             updated_at: new Date().toISOString(),
-        })
+        }))
             .eq('id', id)
             .select(SELECT_FIELDS)
             .single();

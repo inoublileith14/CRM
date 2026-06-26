@@ -268,6 +268,43 @@ let ClientesService = ClientesService_1 = class ClientesService {
         }
         return { assigned: assignments.length };
     }
+    async bulkUnassignWorker(dto) {
+        const clienteIds = [...new Set((dto.cliente_ids ?? []).filter(Boolean))];
+        if (clienteIds.length === 0) {
+            throw new common_1.BadRequestException('Debes indicar al menos un cliente');
+        }
+        const admin = this.supabase.getAdmin();
+        const { data: existingClientes, error: clientesError } = await admin
+            .from('clientes')
+            .select('id')
+            .in('id', clienteIds);
+        if (clientesError) {
+            this.logger.error(`Error al validar clientes: ${clientesError.message}`);
+            throw new common_1.InternalServerErrorException('No se pudieron validar los clientes');
+        }
+        const foundClienteIds = new Set((existingClientes ?? []).map((row) => row.id));
+        const missingClienteIds = clienteIds.filter((id) => !foundClienteIds.has(id));
+        if (missingClienteIds.length > 0) {
+            throw new common_1.NotFoundException(`Cliente(s) no encontrado(s): ${missingClienteIds.join(', ')}`);
+        }
+        const { error: delWorkerError } = await admin
+            .from('cliente_workers')
+            .delete()
+            .in('cliente_id', clienteIds);
+        if (delWorkerError) {
+            this.logger.error(`Error al quitar trabajadores: ${delWorkerError.message}`);
+            throw new common_1.InternalServerErrorException('No se pudieron quitar los trabajadores');
+        }
+        const now = new Date().toISOString();
+        const { error: touchError } = await admin
+            .from('clientes')
+            .update({ updated_at: now })
+            .in('id', clienteIds);
+        if (touchError) {
+            this.logger.warn(`Desasignación OK pero no se actualizó updated_at: ${touchError.message}`);
+        }
+        return { unassigned: clienteIds.length };
+    }
     async bulkAssignInmueble(dto) {
         const { inmueble_id: inmuebleId, cliente_ids: rawClienteIds } = dto;
         if (!inmuebleId) {

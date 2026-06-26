@@ -22,10 +22,11 @@ import {
   getWhatsAppMessages,
 } from '@/lib/whatsapp-inbox-api';
 import { TipoOperacion } from '@/types/inmueble';
+import { ClientesByTipoListParams } from '@/types/clientes-by-tipo-page';
 
 const defaultQueryOptions = {
   gcTime: QUERY_GC_TIME,
-  refetchOnWindowFocus: false,
+  refetchOnWindowFocus: process.env.NODE_ENV === 'production',
   retry: 1,
 } as const;
 
@@ -84,20 +85,28 @@ export function useClienteQuery(id: string) {
   });
 }
 
-export function useClientesByTipoQuery(tipo: TipoOperacion) {
+export function useClientesByTipoQuery(
+  tipo: TipoOperacion,
+  params: ClientesByTipoListParams,
+) {
   return useQuery({
-    queryKey: queryKeys.clientes.byTipo(tipo),
-    queryFn: () => getInmuebleClientesByTipo(tipo),
+    queryKey: queryKeys.clientes.byTipo(tipo, params),
+    queryFn: () => getInmuebleClientesByTipo(tipo, params),
     staleTime: QUERY_STALE_TIME.list,
+    placeholderData: (previousData) => previousData,
     ...defaultQueryOptions,
   });
 }
 
-export function useInmueblesQuery(filters?: InmueblesFilters) {
+export function useInmueblesQuery(
+  filters?: InmueblesFilters,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: queryKeys.inmuebles.all(filters),
     queryFn: () => getInmuebles(filters),
     staleTime: QUERY_STALE_TIME.list,
+    enabled: options?.enabled ?? true,
     ...defaultQueryOptions,
   });
 }
@@ -210,7 +219,7 @@ export function useInvalidateDashboardQueries() {
       queryClient.invalidateQueries({ queryKey: queryKeys.clientes.all }),
     invalidateClientesByTipo: (tipo: TipoOperacion) =>
       queryClient.invalidateQueries({
-        queryKey: queryKeys.clientes.byTipo(tipo),
+        queryKey: ['clientes-by-tipo', tipo],
       }),
     invalidateCliente: (id: string) =>
       queryClient.invalidateQueries({

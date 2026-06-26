@@ -5,3 +5,14 @@ export const EXCEL_TABLE_CLASS =
 export const EXCEL_CELL_BORDER = 'border border-black';
 
 export const EXCEL_CELL_ALIGN = 'text-center align-middle';
+
+/** Shared typography for table column titles */
+export const TABLE_HEAD_TEXT_CLASS =
+  'text-xs font-semibold uppercase tracking-wide';
+
+/** Standard table header cell padding (list/detail tables) */
+export const TABLE_HEAD_PADDING = 'px-4 py-4 min-h-[3rem]';
+
+/** Dense/excel table header cell padding */
+export const TABLE_HEAD_PADDING_DENSE = 'px-3 py-3.5 min-h-[3.5rem] sm:px-3.5 sm:py-4';
+

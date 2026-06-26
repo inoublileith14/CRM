@@ -3,16 +3,25 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { CreateInmuebleDto } from './dto/create-inmueble.dto';
 import { UpdateInmuebleDto } from './dto/update-inmueble.dto';
 import { InmuebleClienteLinkRow } from './interfaces/inmueble-cliente-link.interface';
+import { ClientesByTipoPageQuery, ClientesByTipoPageResult } from './interfaces/clientes-by-tipo-page.interface';
 import { Inmueble } from './interfaces/inmueble.interface';
 export declare class InmueblesService {
     private supabase;
     private readonly logger;
+    private readonly clientesByTipoIndexCache;
+    private static readonly INDEX_CACHE_TTL_MS;
     constructor(supabase: SupabaseService);
     findAll(filters?: {
         tipo_operacion?: string;
         propietario_id?: string;
     }): Promise<Inmueble[]>;
     findClientesByTipoOperacion(tipoOperacion: 'alquiler' | 'venta'): Promise<InmuebleClienteLinkRow[]>;
+    findClientesByTipoOperacionPaginated(tipoOperacion: 'alquiler' | 'venta', query: ClientesByTipoPageQuery): Promise<ClientesByTipoPageResult>;
+    private buildClientesByTipoIndex;
+    private hydrateClientesByTipoPage;
+    private fetchLinkedRowsForHydration;
+    private fetchClientesByIds;
+    private mapLinkedClienteRow;
     private mapCliente;
     findOne(id: string): Promise<Inmueble>;
     private findOneWithoutClientes;

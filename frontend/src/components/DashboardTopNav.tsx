@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, LogOut, Menu, Settings, User, X } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -9,11 +10,12 @@ import { useCurrentUser } from '@/contexts/CurrentUserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { logout } from '@/lib/api';
 import {
-  dashboardNavEntries,
   DashboardNavGroup,
+  getDashboardNavEntries,
   isNavGroupActive,
   isNavItemActive,
 } from '@/lib/dashboard-nav-items';
+import { isAdminUser } from '@/lib/auth-roles';
 import { MessageKey } from '@/lib/i18n/messages';
 
 const navLinkClass = (active: boolean) =>
@@ -120,6 +122,7 @@ export function DashboardTopNav() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const displayName = user?.nombre || user?.email || '—';
+  const navEntries = getDashboardNavEntries({ isAdmin: isAdminUser(user?.rol) });
 
   useEffect(() => {
     setMobileOpen(false);
@@ -170,9 +173,14 @@ export function DashboardTopNav() {
           href="/dashboard"
           className="flex shrink-0 items-center gap-2 rounded-lg py-1 transition hover:opacity-90"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-sm sm:h-9 sm:w-9">
-            C
-          </span>
+          <Image
+            src="/logo.png"
+            alt={t('app.brand')}
+            width={36}
+            height={36}
+            className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9"
+            priority
+          />
           <p className="hidden text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-900 sm:block lg:text-xs">
             {t('app.brand')}
           </p>
@@ -182,7 +190,7 @@ export function DashboardTopNav() {
           className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 md:flex lg:gap-1"
           aria-label="Principal"
         >
-          {dashboardNavEntries.map((entry) => {
+          {navEntries.map((entry) => {
             if (entry.type === 'group') {
               return (
                 <NavGroupMenu
@@ -357,7 +365,7 @@ export function DashboardTopNav() {
               </button>
             </div>
             <ul className="space-y-0.5">
-              {dashboardNavEntries.map((entry) => {
+              {navEntries.map((entry) => {
                 if (entry.type === 'group') {
                   return (
                     <li key={entry.labelKey}>

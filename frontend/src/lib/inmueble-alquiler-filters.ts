@@ -100,8 +100,9 @@ function matchesZona(inmueble: Inmueble, query: string): boolean {
 
   const direccion = inmueble.direccion_piso_real?.toLowerCase() ?? '';
   const barrio = inmueble.barrio_distrito?.toLowerCase() ?? '';
+  const distritoCiudad = inmueble.distrito_ciudad?.toLowerCase() ?? '';
 
-  return direccion.includes(q) || barrio.includes(q);
+  return direccion.includes(q) || barrio.includes(q) || distritoCiudad.includes(q);
 }
 
 export function hasActiveInmuebleAlquilerFilters(

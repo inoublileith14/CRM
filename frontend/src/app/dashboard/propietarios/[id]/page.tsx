@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
 import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
@@ -17,6 +17,7 @@ import { TIPO_OPERACION_LABELS } from '@/types/inmueble';
 
 export default function PropietarioDetailPage() {
   const params = useParams();
+  const pathname = usePathname();
   const id = params.id as string;
   const propietarioQuery = usePropietarioQuery(id);
   const {
@@ -41,7 +42,7 @@ export default function PropietarioDetailPage() {
     setColumnFilter,
     setSort,
     isFilterActiveForColumn,
-  } = useTableColumnFilters(inmuebles, tableColumns);
+  } = useTableColumnFilters(inmuebles, tableColumns, { pathname });
 
   if (showInitialLoading) {
     return (
@@ -164,11 +165,11 @@ export default function PropietarioDetailPage() {
                       onApply={(next) => setColumnFilter(col.key, next)}
                       onSort={(direction) => setSort(col.key, direction)}
                       variant="slate"
-                      className="px-4 normal-case"
+                      className="px-4"
                     />
                   ))}
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Acciones
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    ACCIONES
                   </th>
                 </tr>
               </thead>

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -22,6 +23,12 @@ import { WorkersService } from './workers.service';
 export class WorkersController {
   constructor(private workersService: WorkersService) {}
 
+  private assertAdmin(req: Request & { user: UserProfile }) {
+    if (req.user.rol !== 'admin') {
+      throw new ForbiddenException('Solo admin');
+    }
+  }
+
   @Get()
   findAll(@Query('activo') activo?: string) {
     const activoOnly = activo === 'true';
@@ -35,27 +42,48 @@ export class WorkersController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Req() req: Request & { user: UserProfile },
+    @Param('id') id: string,
+  ) {
+    this.assertAdmin(req);
     return this.workersService.findOne(id);
   }
 
   @Post()
-  create(@Body() dto: CreateWorkerDto) {
+  create(
+    @Req() req: Request & { user: UserProfile },
+    @Body() dto: CreateWorkerDto,
+  ) {
+    this.assertAdmin(req);
     return this.workersService.create(dto);
   }
 
   @Post(':id/reenviar-invitacion')
-  resendInvitation(@Param('id') id: string) {
+  resendInvitation(
+    @Req() req: Request & { user: UserProfile },
+    @Param('id') id: string,
+  ) {
+    this.assertAdmin(req);
     return this.workersService.resendInvitation(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateWorkerDto) {
+  update(
+    @Req() req: Request & { user: UserProfile },
+    @Param('id') id: string,
+    @Body() dto: UpdateWorkerDto,
+  ) {
+    this.assertAdmin(req);
     return this.workersService.update(id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(
+    @Req() req: Request & { user: UserProfile },
+    @Param('id') id: string,
+  ) {
+    this.assertAdmin(req);
     return this.workersService.remove(id);
   }
 }

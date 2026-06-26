@@ -2,7 +2,39 @@ import {
   InmuebleFormData,
   TIPO_OPERACION_LABELS,
   type Inmueble,
+  type TipoOperacion,
 } from '@/types/inmueble';
+import { DEFAULT_VENTA_DENSE_ROW_COLOR } from '@/lib/inmueble-status';
+
+/** Default thumbnail when an inmueble has no imagen real / foto espejo. */
+export const INMUEBLE_PLACEHOLDER_IMAGE_SRC = '/image_background.jpg';
+
+/** Background behind alquiler property thumbnails (RGB 193, 216, 173). */
+export const INMUEBLE_IMAGE_BACKGROUND_ALQUILER = 'rgb(193, 216, 173)';
+
+/** Background behind venta property thumbnails — matches venta row color. */
+export const INMUEBLE_IMAGE_BACKGROUND_VENTA = DEFAULT_VENTA_DENSE_ROW_COLOR;
+
+/** @deprecated Use getInmuebleImageBackground */
+export const INMUEBLE_IMAGE_BACKGROUND = INMUEBLE_IMAGE_BACKGROUND_ALQUILER;
+
+export function getInmuebleImageBackground(
+  tipoOperacion: TipoOperacion | null | undefined,
+): string {
+  return tipoOperacion === 'venta'
+    ? INMUEBLE_IMAGE_BACKGROUND_VENTA
+    : INMUEBLE_IMAGE_BACKGROUND_ALQUILER;
+}
+
+export function resolveInmuebleImageSrc(
+  imageUrl: string | null | undefined,
+): { src: string; isPlaceholder: boolean } {
+  const trimmed = imageUrl?.trim() ?? '';
+  if (trimmed && isUrl(trimmed)) {
+    return { src: trimmed, isPlaceholder: false };
+  }
+  return { src: INMUEBLE_PLACEHOLDER_IMAGE_SRC, isPlaceholder: true };
+}
 
 /** Scalar inmueble field value safe for table cells. */
 export function toInmuebleCellValue(value: unknown): string | number | null {
@@ -55,12 +87,25 @@ export function formatInmueblePrecio(value: number): string {
   }).format(Math.round(value));
 }
 
+/** Column width for venta PRECIO — fits header and largest formatted price in the list. */
+export function getVentaPrecioColumnWidth(
+  inmuebles: ReadonlyArray<{ precio: number | null }>,
+): string {
+  let maxChars = 6;
+  for (const row of inmuebles) {
+    if (typeof row.precio === 'number') {
+      maxChars = Math.max(maxChars, formatInmueblePrecio(row.precio).length);
+    }
+  }
+  return `${Math.min(12, maxChars + 2)}ch`;
+}
+
 export function formatInmuebleCell(
   key: keyof InmuebleFormData,
   value: string | number | null | undefined,
 ): string {
   if (value === null || value === undefined || value === '') return '—';
-  if (key === 'fecha_entrada_inmueble') {
+  if (key === 'fecha_entrada_inmueble' || key === 'fecha_visitas' || key === 'fecha_visitas_entrada') {
     return formatInmuebleEntradaDate(value);
   }
   if (key === 'precio' && typeof value === 'number') {
@@ -123,7 +168,10 @@ export function buildInmuebleDenseImageOverlays(
   }
 
   return {
-    top: formatInmuebleCell('precio_espejo', inmueble.precio_espejo),
-    bottom: inmueble.espejo_direccion?.trim() || '—',
+    top:
+      inmueble.precio_espejo != null
+        ? formatInmuebleCell('precio_espejo', inmueble.precio_espejo)
+        : '',
+    bottom: inmueble.espejo_direccion?.trim() ?? '',
   };
 }

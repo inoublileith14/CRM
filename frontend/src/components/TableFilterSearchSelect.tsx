@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { FilterSearchOption } from '@/lib/inmueble-alquiler-filters';
 
 interface TableFilterSearchSelectProps {
@@ -25,35 +25,34 @@ export function TableFilterSearchSelect({
   onChange,
   placeholder = 'Todos',
   emptyOptionLabel,
-  searchPlaceholder = 'Buscar…',
+  searchPlaceholder,
   disabled,
   accent = 'emerald',
   className = '',
 }: TableFilterSearchSelectProps) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const focusRing =
     accent === 'emerald'
       ? 'focus:border-emerald-500 focus:ring-emerald-500/20'
       : 'focus:border-blue-500 focus:ring-blue-500/20';
 
-  const selected = options.find((option) => option.value === value) ?? null;
+  const inputPlaceholder = searchPlaceholder ?? placeholder;
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = value.trim().toLowerCase();
     if (!q) return options;
     return options.filter((option) => {
       const haystack = `${option.label} ${option.sublabel ?? ''}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [options, query]);
+  }, [options, value]);
 
   useEffect(() => setMounted(true), []);
 
@@ -64,7 +63,7 @@ export function TableFilterSearchSelect({
       const rect = triggerRef.current!.getBoundingClientRect();
       const margin = 8;
       const panelWidth = Math.max(rect.width, 240);
-      const estimatedHeight = 280;
+      const estimatedHeight = 240;
       const spaceBelow = window.innerHeight - rect.bottom - margin;
       const spaceAbove = rect.top - margin;
       const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
@@ -110,7 +109,6 @@ export function TableFilterSearchSelect({
 
     document.addEventListener('mousedown', handlePointerDown);
     document.addEventListener('keydown', handleEscape);
-    searchRef.current?.focus();
 
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
@@ -121,15 +119,21 @@ export function TableFilterSearchSelect({
   function handleSelect(next: string) {
     onChange(next);
     setOpen(false);
-    setQuery('');
+    inputRef.current?.focus();
   }
 
-  function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Escape') {
+      setOpen(false);
+      return;
+    }
     if (event.key === 'Enter') {
       event.preventDefault();
-      onChange(query.trim());
       setOpen(false);
-      setQuery('');
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setOpen(true);
     }
   }
 
@@ -146,24 +150,6 @@ export function TableFilterSearchSelect({
           width: position.width,
         }}
       >
-        <div className="border-b border-slate-100 p-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              ref={searchRef}
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              placeholder={searchPlaceholder}
-              className={`w-full rounded-md border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm text-slate-900 outline-none focus:ring-2 ${focusRing}`}
-            />
-          </div>
-          <p className="mt-1.5 px-0.5 text-[10px] text-slate-500">
-            Pulsa Enter para filtrar por texto libre
-          </p>
-        </div>
-
         <ul className="max-h-52 overflow-y-auto py-1" role="listbox">
           <li>
             <button
@@ -214,25 +200,34 @@ export function TableFilterSearchSelect({
       <div ref={rootRef} className="relative">
         <div
           ref={triggerRef}
-          className={`flex w-full items-center gap-1 rounded-md border border-slate-300 bg-white outline-none transition hover:bg-slate-50 disabled:opacity-60 ${focusRing}`}
+          className={`flex w-full items-center gap-1 rounded-md border border-slate-300 bg-white outline-none transition focus-within:ring-2 disabled:opacity-60 ${focusRing}`}
         >
-          <button
-            type="button"
+          <input
+            ref={inputRef}
+            type="search"
+            value={value}
             disabled={disabled}
-            onClick={() => setOpen((prev) => !prev)}
-            className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-sm text-slate-900"
+            onChange={(event) => {
+              onChange(event.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={handleInputKeyDown}
+            placeholder={inputPlaceholder}
+            className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400"
             aria-expanded={open}
             aria-haspopup="listbox"
-          >
-            <span className="min-w-0 flex-1 truncate">
-              {value || selected?.label || placeholder}
-            </span>
-          </button>
+            aria-label={label}
+          />
           {value ? (
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onChange('')}
+              onClick={() => {
+                onChange('');
+                setOpen(false);
+                inputRef.current?.focus();
+              }}
               className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
               aria-label={`Limpiar ${label}`}
             >
@@ -242,7 +237,10 @@ export function TableFilterSearchSelect({
           <button
             type="button"
             disabled={disabled}
-            onClick={() => setOpen((prev) => !prev)}
+            onClick={() => {
+              setOpen((prev) => !prev);
+              inputRef.current?.focus();
+            }}
             className="px-1.5 py-1.5 text-slate-400 disabled:opacity-60"
             aria-label={`Abrir ${label}`}
           >

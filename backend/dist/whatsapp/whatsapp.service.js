@@ -295,7 +295,7 @@ let WhatsAppService = WhatsAppService_1 = class WhatsAppService {
         const { data: inmueble, error: inmuebleError } = await this.supabase
             .getAdmin()
             .from('inmuebles')
-            .select('id, tipo_operacion, link_idealista_espejo, ficha_del_piso_real, imagen_real, foto_espejo')
+            .select('id, tipo_operacion, link_idealista, link_espejo, link_idealista_espejo, ficha_del_piso_real, imagen_real, foto_espejo')
             .eq('id', inmuebleId)
             .maybeSingle();
         if (inmuebleError) {
@@ -305,7 +305,9 @@ let WhatsAppService = WhatsAppService_1 = class WhatsAppService {
         if (!inmueble) {
             throw new common_1.BadRequestException('Inmueble no encontrado');
         }
-        const propertyLink = inmueble.link_idealista_espejo?.trim() ||
+        const propertyLink = inmueble.link_idealista?.trim() ||
+            inmueble.link_espejo?.trim() ||
+            inmueble.link_idealista_espejo?.trim() ||
             inmueble.ficha_del_piso_real?.trim() ||
             '';
         if (!propertyLink) {

@@ -1,4 +1,6 @@
 import { INMUEBLE_FIELDS, InmuebleFormData, TipoOperacion } from '@/types/inmueble';
+import { EXCEL_TABLE_CLASS } from '@/lib/excel-table-styles';
+import type { CSSProperties } from 'react';
 
 export interface InmuebleTableFieldConfig {
   key: keyof InmuebleFormData;
@@ -43,24 +45,24 @@ const EXTRA_COLUMN_LAYOUT: Record<
 > = {
   ref: {
     key: 'ref',
-    shortLabel: 'Ref.',
+    shortLabel: 'REF.',
     headClassName: `${EXTRA_REF_COL} ${EXTRA_HEAD_NOWRAP}`,
     cellClassName: `${WRAP} ${EXTRA_REF_COL} break-all`,
   },
   fecha_visitas_entrada: {
     key: 'fecha_visitas_entrada',
-    shortLabel: 'Visitas',
-    label: 'Fecha visitas / entrada',
-    ventaShortLabel: 'Video',
-    ventaLabel: 'Video Coconut // Link otra agencia',
+    shortLabel: 'ENTR. PISO',
+    label: 'FECHA ENTRADA AL PISO',
+    ventaShortLabel: 'ENTR. PISO',
+    ventaLabel: 'FECHA ENTRADA AL PISO',
     headClassName: `${EXTRA_VISITAS_COL} ${EXTRA_HEAD_NOWRAP}`,
     cellClassName: `${WRAP} ${EXTRA_VISITAS_COL}`,
   },
   captador_alquilado_por: {
     key: 'captador_alquilado_por',
-    shortLabel: 'Capt.',
-    label: 'Captador / Alquilado por',
-    ventaLabel: 'Captador / Vendido por',
+    shortLabel: 'CAPT.',
+    label: 'CAPTADOR / ALQUILADO POR',
+    ventaLabel: 'CAPTADOR / VENDIDO POR',
     headClassName: `${EXTRA_CAPT_COL} ${EXTRA_HEAD_NOWRAP}`,
     cellClassName: `${WRAP} ${EXTRA_CAPT_COL} break-words`,
   },
@@ -75,122 +77,215 @@ export function isInmuebleNarrowNumericKey(
   return (INMUEBLE_NARROW_NUMERIC_KEYS as readonly string[]).includes(key);
 }
 
+export function isInmuebleDenseNumericCellKey(
+  key: keyof InmuebleFormData,
+): boolean {
+  return (
+    isInmuebleNarrowNumericKey(key) ||
+    key === 'precio' ||
+    key === 'larga_estancia_temporada'
+  );
+}
+
 export function isInmuebleCompactHeadKey(
   key: keyof InmuebleFormData,
 ): boolean {
-  return key === 'status' || isInmuebleNarrowNumericKey(key);
+  return (
+    key === 'status' ||
+    key === 'distrito_ciudad' ||
+    isInmuebleNarrowNumericKey(key)
+  );
+}
+
+export function isInmuebleDenseLinkColumnKey(
+  key: keyof InmuebleFormData,
+): boolean {
+  return (
+    key === 'link_idealista' ||
+    key === 'link_espejo' ||
+    key === 'link_idealista_espejo'
+  );
 }
 
 const NARROW_NUMERIC_HEAD =
   'w-7 max-w-[1.75rem] px-0 whitespace-nowrap text-[9px] font-semibold leading-snug sm:text-[10px]';
 const NARROW_NUMERIC_COL = 'w-7 max-w-[1.75rem]';
 const NARROW_NUMERIC_CELL =
-  'w-7 max-w-[1.75rem] p-0 whitespace-nowrap text-center tabular-nums align-middle text-base font-bold leading-none text-slate-900';
+  'w-7 max-w-[1.75rem] p-0 whitespace-nowrap text-center tabular-nums align-middle text-sm font-bold leading-none text-slate-900 sm:text-base';
+
+/** Shared typography for PRECIO / HAB / BAN / M dense cells. */
+const DENSE_NUMERIC_CELL_TEXT =
+  'text-sm font-bold leading-none text-slate-900 tabular-nums sm:text-base';
+
+/** BCN / status column — slightly wider than HAB/BAN/M. */
+const STATUS_COL = 'w-10 min-w-[2.5rem] max-w-[2.75rem]';
+const STATUS_HEAD =
+  'w-10 min-w-[2.5rem] max-w-[2.75rem] px-0.5 whitespace-nowrap text-[9px] font-semibold leading-snug sm:text-[10px]';
+const STATUS_CELL = `${STATUS_COL} p-0 text-center align-middle`;
 
 /** Responsive width for Entrada / Espejo columns. */
 const IMAGE_COL_CLASS = 'w-[clamp(5rem,12vw,8.5rem)]';
 
-/** Slightly narrower Propi. / Barrio when extra columns are visible. */
-const IMAGE_COL_COMPACT = 'w-[clamp(3.75rem,8vw,6rem)]';
+/** Fixed widths when extra columns are visible (no vw — avoids squash on horizontal scroll). */
+const IMAGE_COL_EXTRA = 'w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem]';
+const PROPI_COL_EXTRA = 'w-[5rem] min-w-[5rem] max-w-[5rem]';
+const BARRIO_COL_EXTRA = 'w-[3.5rem] min-w-[3.5rem] max-w-[3.5rem]';
+const OBS_COL_EXTRA = 'w-[7rem] min-w-[7rem] max-w-[7rem]';
+
+/** Narrow text column for barrio names. */
+const BARRIO_COL = 'w-[clamp(3rem,5.5vw,4rem)] min-w-[3rem] max-w-[4.25rem]';
+const BARRIO_CELL = 'truncate px-0.5 text-center align-middle text-[9px] leading-tight sm:text-[10px]';
+/** Slightly smaller header so "DIST./CIUD." fits on one line. */
+const DISTRITO_CIUDAD_HEAD_TEXT =
+  'px-0.5 whitespace-nowrap text-[8px] font-semibold leading-none sm:text-[9px]';
 
 const PRECIO_COL = 'w-[3.75rem] max-w-[3.75rem] px-0.5';
+const PRECIO_CELL = `whitespace-nowrap text-center align-middle ${DENSE_NUMERIC_CELL_TEXT} ${PRECIO_COL}`;
+const VENTA_PRECIO_COL = 'px-1 whitespace-nowrap';
+const VENTA_PRECIO_CELL = `whitespace-nowrap text-center align-middle ${DENSE_NUMERIC_CELL_TEXT} ${VENTA_PRECIO_COL}`;
 const LT_COL = 'w-[2.5rem] max-w-[2.5rem] px-0';
 const LT_NUMERIC_HEAD =
   'w-[2.5rem] max-w-[2.5rem] px-0 whitespace-nowrap text-[9px] font-semibold leading-snug sm:text-[10px]';
 const LT_NUMERIC_CELL =
-  'w-[2.5rem] max-w-[2.5rem] p-0 whitespace-nowrap text-center tabular-nums align-middle text-base font-bold leading-none text-slate-900';
-const OBS_COL = 'min-w-[14rem] w-[22%] text-[9px] leading-tight sm:text-[10px]';
-const OBS_COL_COMPACT = 'min-w-[9rem] w-[14%] text-[9px] leading-tight sm:text-[10px]';
+  `w-[2.5rem] max-w-[2.5rem] p-0 whitespace-nowrap text-center align-middle ${DENSE_NUMERIC_CELL_TEXT}`;
+const LT_CELL = `whitespace-nowrap text-center align-middle ${DENSE_NUMERIC_CELL_TEXT} ${LT_COL}`;
+const MASKED_TEXT_WIDTH_COL = 'min-w-[7rem] w-[11%]';
+const MASKED_TEXT_COL_EXTRA = 'w-[7rem] min-w-[7rem] max-w-[7rem]';
+/** Cell body typography for masked text columns (observaciones, requisitos). */
+const MASKED_TEXT_CELL_TEXT = 'text-[9px] leading-tight sm:text-[10px]';
+const MASKED_TEXT_COL = `${MASKED_TEXT_WIDTH_COL} ${MASKED_TEXT_CELL_TEXT}`;
 
-const ACTIONS_COL = 'w-[5rem] min-w-[5rem] max-w-[5rem]';
+const ACTIONS_COL = 'w-[4.5rem] min-w-[4.5rem] max-w-[4.5rem]';
 
 export const INMUEBLE_DENSE_ACTIONS_COL_CLASS = ACTIONS_COL;
 
 /** Shared padding / typography for dense table header row. */
 export const INMUEBLE_DENSE_HEAD_CELL_CLASS =
-  'px-1.5 py-1.5 text-[10px] font-semibold leading-snug sm:px-2 sm:py-2 sm:text-xs sm:leading-tight';
+  'min-h-[3.5rem] px-2 py-3 text-[10px] font-semibold leading-snug sm:px-2.5 sm:py-3.5 sm:text-xs sm:leading-tight';
 
 const ALQUILER_TABLE_LAYOUT: LayoutConfig[] = [
-  { key: 'status', shortLabel: 'BCN', headClassName: NARROW_NUMERIC_HEAD, cellClassName: 'w-7 max-w-[1.75rem] p-0 text-center align-middle' },
+  { key: 'status', shortLabel: 'BCN', headClassName: STATUS_HEAD, cellClassName: STATUS_CELL },
   {
     key: 'nombre_propi',
-    shortLabel: 'Propi.',
-    label: 'Propietario',
+    shortLabel: 'PROPI.',
+    label: 'PROPIETARIO',
     headClassName: IMAGE_COL_CLASS,
     cellClassName: `${WRAP} p-1 ${IMAGE_COL_CLASS}`,
   },
   {
     key: 'fecha_entrada_inmueble',
-    shortLabel: 'Entrada',
-    label: 'Entrada, imagen y dirección',
+    shortLabel: 'ENTRADA',
+    label: 'ENTRADA, IMAGEN Y DIRECCIÓN',
     headClassName: IMAGE_COL_CLASS,
     cellClassName: `p-0 align-middle ${IMAGE_COL_CLASS}`,
     headAccent: true,
   },
   {
     key: 'foto_espejo',
-    shortLabel: 'Espejo',
-    label: 'Precio espejo, foto y dirección espejo',
+    shortLabel: 'ESPEJO',
+    label: 'PRECIO ESPEJO, FOTO Y DIRECCIÓN ESPEJO',
     headClassName: IMAGE_COL_CLASS,
     cellClassName: `p-0 align-middle ${IMAGE_COL_CLASS}`,
     headAccent: true,
   },
-  { key: 'precio', shortLabel: 'Precio', headClassName: PRECIO_COL, cellClassName: `${WRAP} tabular-nums font-bold ${PRECIO_COL}`, headAccent: true },
+  { key: 'precio', shortLabel: 'PRECIO', headClassName: PRECIO_COL, cellClassName: PRECIO_CELL, headAccent: true },
   { key: 'hab', shortLabel: 'HAB', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
   { key: 'banos', shortLabel: 'BAN', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
-  { key: 'metros', shortLabel: 'M', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
+  { key: 'metros', shortLabel: 'M²', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
+  { key: 'barrio_distrito', shortLabel: 'BARRIO', headClassName: BARRIO_COL, cellClassName: `${BARRIO_CELL} ${BARRIO_COL}` },
+  {
+    key: 'distrito_ciudad',
+    shortLabel: 'DIST./CIUD.',
+    label: 'DISTRITO / CIUDAD',
+    headClassName: `${BARRIO_COL} ${DISTRITO_CIUDAD_HEAD_TEXT}`,
+    cellClassName: `${BARRIO_CELL} ${BARRIO_COL}`,
+  },
+  { key: 'larga_estancia_temporada', shortLabel: 'L/T', headClassName: LT_COL, cellClassName: LT_CELL },
+  { key: 'ficha_del_piso_real', shortLabel: 'FICHA', label: 'FICHA PISO REAL', headClassName: PRECIO_COL, cellClassName: `${WRAP} ${PRECIO_COL}` },
+  {
+    key: 'link_idealista_espejo',
+    shortLabel: 'LINK\nIDEALISTA\nLINK\nESPEJO',
+    label: 'LINK IDEALISTA O LINK ESPEJO',
+    headClassName: PRECIO_COL,
+    cellClassName: `${WRAP} ${PRECIO_COL}`,
+    headAccent: true,
+  },
   {
     key: 'observaciones',
-    shortLabel: 'Observaciones',
-    label: 'Observaciones',
-    headClassName: OBS_COL,
-    cellClassName: `${WRAP} ${OBS_COL}`,
+    shortLabel: 'OBSERVACIONES',
+    label: 'OBSERVACIONES',
+    headClassName: MASKED_TEXT_WIDTH_COL,
+    cellClassName: `p-0 h-full align-middle ${MASKED_TEXT_COL}`,
   },
-  { key: 'barrio_distrito', shortLabel: 'Barrio', headClassName: IMAGE_COL_CLASS, cellClassName: `${WRAP} ${IMAGE_COL_CLASS}` },
-  { key: 'larga_estancia_temporada', shortLabel: 'L/T', headClassName: LT_COL, cellClassName: `text-center align-middle ${LT_COL}` },
-  { key: 'ficha_del_piso_real', shortLabel: 'Ficha', label: 'Ficha piso real', headClassName: PRECIO_COL, cellClassName: `${WRAP} ${PRECIO_COL}` },
-  { key: 'link_idealista_espejo', shortLabel: 'Link', label: 'Link Idealista o link espejo', headClassName: PRECIO_COL, cellClassName: `${WRAP} ${PRECIO_COL}`, headAccent: true },
+  {
+    key: 'requisitos_propietario',
+    shortLabel: 'REQ. PROPI.',
+    label: 'REQUISITOS DEL PROPIETARIO',
+    headClassName: MASKED_TEXT_WIDTH_COL,
+    cellClassName: `p-0 h-full align-middle ${MASKED_TEXT_COL}`,
+  },
 ];
 
 const VENTA_TABLE_LAYOUT: LayoutConfig[] = [
-  { key: 'status', shortLabel: 'BCN', headClassName: NARROW_NUMERIC_HEAD, cellClassName: 'w-7 max-w-[1.75rem] p-0 text-center align-middle' },
+  { key: 'status', shortLabel: 'BCN', headClassName: STATUS_HEAD, cellClassName: STATUS_CELL },
   {
     key: 'nombre_propi',
-    shortLabel: 'Propi.',
-    label: 'Propietario',
+    shortLabel: 'PROPI.',
+    label: 'PROPIETARIO',
     headClassName: IMAGE_COL_CLASS,
     cellClassName: `${WRAP} p-1 ${IMAGE_COL_CLASS}`,
   },
   {
     key: 'fecha_entrada_inmueble',
-    shortLabel: 'Entrada',
-    label: 'Entrada, imagen y dirección',
+    shortLabel: 'ENTRADA',
+    label: 'ENTRADA, IMAGEN Y DIRECCIÓN',
     headClassName: IMAGE_COL_CLASS,
     cellClassName: `p-0 align-middle ${IMAGE_COL_CLASS}`,
     headAccent: true,
   },
   {
     key: 'foto_espejo',
-    shortLabel: 'Espejo',
-    label: 'Precio espejo, foto y dirección espejo',
+    shortLabel: 'ESPEJO',
+    label: 'PRECIO ESPEJO, FOTO Y DIRECCIÓN ESPEJO',
     headClassName: IMAGE_COL_CLASS,
     cellClassName: `p-0 align-middle ${IMAGE_COL_CLASS}`,
     headAccent: true,
   },
-  { key: 'precio', shortLabel: 'Precio', headClassName: PRECIO_COL, cellClassName: `${WRAP} tabular-nums font-bold ${PRECIO_COL}`, headAccent: true },
+  { key: 'precio', shortLabel: 'PRECIO', headClassName: VENTA_PRECIO_COL, cellClassName: VENTA_PRECIO_CELL, headAccent: true },
   { key: 'hab', shortLabel: 'HAB', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
   { key: 'banos', shortLabel: 'BAN', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
-  { key: 'metros', shortLabel: 'M', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
+  { key: 'metros', shortLabel: 'M²', headClassName: LT_NUMERIC_HEAD, cellClassName: LT_NUMERIC_CELL },
+  { key: 'barrio_distrito', shortLabel: 'BARRIO', headClassName: BARRIO_COL, cellClassName: `${BARRIO_CELL} ${BARRIO_COL}` },
+  {
+    key: 'distrito_ciudad',
+    shortLabel: 'DIST./CIUD.',
+    label: 'DISTRITO / CIUDAD',
+    headClassName: `${BARRIO_COL} ${DISTRITO_CIUDAD_HEAD_TEXT}`,
+    cellClassName: `${BARRIO_CELL} ${BARRIO_COL}`,
+  },
+  { key: 'ficha_del_piso_real', shortLabel: 'FICHA', label: 'FICHA PISO REAL', headClassName: PRECIO_COL, cellClassName: `${WRAP} ${PRECIO_COL}` },
+  {
+    key: 'link_idealista',
+    shortLabel: 'LINK\nIDEALISTA',
+    label: 'LINK IDEALISTA',
+    headClassName: PRECIO_COL,
+    cellClassName: `${WRAP} ${PRECIO_COL}`,
+  },
+  {
+    key: 'link_espejo',
+    shortLabel: 'LINK\nESPEJO',
+    label: 'LINK ESPEJO',
+    headClassName: PRECIO_COL,
+    cellClassName: `${WRAP} ${PRECIO_COL}`,
+    headAccent: true,
+  },
   {
     key: 'observaciones',
-    shortLabel: 'Observaciones',
-    label: 'Observaciones',
-    headClassName: OBS_COL,
-    cellClassName: `${WRAP} ${OBS_COL}`,
+    shortLabel: 'OBSERVACIONES',
+    label: 'OBSERVACIONES',
+    headClassName: MASKED_TEXT_WIDTH_COL,
+    cellClassName: `p-0 h-full align-middle ${MASKED_TEXT_COL}`,
   },
-  { key: 'barrio_distrito', shortLabel: 'Barrio', headClassName: IMAGE_COL_CLASS, cellClassName: `${WRAP} ${IMAGE_COL_CLASS}` },
-  { key: 'ficha_del_piso_real', shortLabel: 'Ficha', label: 'Ficha piso real', headClassName: PRECIO_COL, cellClassName: `${WRAP} ${PRECIO_COL}` },
-  { key: 'link_idealista_espejo', shortLabel: 'Link', label: 'Link Idealista o link espejo', headClassName: PRECIO_COL, cellClassName: `${WRAP} ${PRECIO_COL}`, headAccent: true },
 ];
 
 function buildFieldsFromLayout(
@@ -260,22 +355,42 @@ export function getInmuebleDisplayedTableFields(
     if (field.key === 'nombre_propi') {
       return {
         ...field,
-        headClassName: `${IMAGE_COL_COMPACT} ${EXTRA_HEAD_NOWRAP}`,
-        cellClassName: `${WRAP} p-1 ${IMAGE_COL_COMPACT}`,
+        headClassName: `${PROPI_COL_EXTRA} ${EXTRA_HEAD_NOWRAP}`,
+        cellClassName: `${WRAP} p-1 ${PROPI_COL_EXTRA}`,
+      };
+    }
+    if (
+      field.key === 'fecha_entrada_inmueble' ||
+      field.key === 'foto_espejo'
+    ) {
+      return {
+        ...field,
+        headClassName: IMAGE_COL_EXTRA,
+        cellClassName: `p-0 align-middle ${IMAGE_COL_EXTRA}`,
       };
     }
     if (field.key === 'barrio_distrito') {
       return {
         ...field,
-        headClassName: IMAGE_COL_COMPACT,
-        cellClassName: `${WRAP} ${IMAGE_COL_COMPACT}`,
+        headClassName: BARRIO_COL_EXTRA,
+        cellClassName: `${BARRIO_CELL} ${BARRIO_COL_EXTRA}`,
       };
     }
-    if (field.key === 'observaciones') {
+    if (field.key === 'distrito_ciudad') {
       return {
         ...field,
-        headClassName: OBS_COL_COMPACT,
-        cellClassName: `${WRAP} ${OBS_COL_COMPACT}`,
+        headClassName: `${BARRIO_COL_EXTRA} ${DISTRITO_CIUDAD_HEAD_TEXT}`,
+        cellClassName: `${BARRIO_CELL} ${BARRIO_COL_EXTRA}`,
+      };
+    }
+    if (
+      field.key === 'observaciones' ||
+      field.key === 'requisitos_propietario'
+    ) {
+      return {
+        ...field,
+        headClassName: OBS_COL_EXTRA,
+        cellClassName: `p-0 h-full align-middle ${OBS_COL_EXTRA} ${MASKED_TEXT_CELL_TEXT}`,
       };
     }
     return field;
@@ -314,45 +429,203 @@ export function isAlquilerDenseInmuebleTable(tipoOperacion: TipoOperacion): bool
   return isDenseInmuebleTable(tipoOperacion);
 }
 
-export function getInmuebleTableHeaderClass(tipoOperacion: TipoOperacion): string {
-  return tipoOperacion === 'venta' ? 'bg-slate-900' : 'bg-emerald-800';
+/** Forest green for alquiler dense table header and BCN column. */
+export const INMUEBLE_DENSE_HEADER_COLOR = '#007a55';
+
+/** Dark blue for venta dense table header and BCN column. */
+export const INMUEBLE_VENTA_DENSE_HEADER_COLOR = '#1C4587';
+
+export function getInmuebleDenseHeaderColor(
+  tipoOperacion?: TipoOperacion,
+): string {
+  return tipoOperacion === 'venta'
+    ? INMUEBLE_VENTA_DENSE_HEADER_COLOR
+    : INMUEBLE_DENSE_HEADER_COLOR;
 }
 
-/** Wrapper for dense casas tables — no inner vertical scroll; page scrolls instead. */
+/** Header row band colors (match PROPI cell pills: fecha / propi / tlf). */
+export const INMUEBLE_HEAD_FECHA_BG = '#fde047';
+export const INMUEBLE_HEAD_PRIMARY_BG = '#ffffff';
+export const INMUEBLE_HEAD_SECONDARY_BG = '#ffffff';
+
+export function getInmuebleDenseHeaderStyle(
+  tipoOperacion?: TipoOperacion,
+): { backgroundColor: string } {
+  return { backgroundColor: getInmuebleDenseHeaderColor(tipoOperacion) };
+}
+
+export function getInmuebleDenseHeadCellBackground(
+  _fieldKey: keyof InmuebleFormData | 'actions',
+  _columnIndex: number,
+  tipoOperacion?: TipoOperacion,
+): string {
+  return getInmuebleDenseHeaderColor(tipoOperacion);
+}
+
+export function getInmuebleDenseHeadTextClass(
+  fieldKey: keyof InmuebleFormData | 'actions',
+  _background: string,
+): string {
+  if (fieldKey === 'status') return '';
+  return 'text-white';
+}
+
+export function getInmuebleTableHeaderClass(_tipoOperacion: TipoOperacion): string {
+  return '';
+}
+
+/** Wrapper for dense casas tables — clip horizontal bleed; page scrolls vertically. */
 export const INMUEBLE_DENSE_TABLE_WRAPPER_CLASS = 'overflow-x-clip';
+
+/** Horizontal scroll for extra columns without trapping vertical sticky headers. */
+export const INMUEBLE_DENSE_TABLE_WRAPPER_EXTRA_COLS_CLASS =
+  'max-w-full overflow-x-auto overflow-y-clip overscroll-x-contain';
+
+/** When extra columns are shown the table is wider than the viewport — scroll instead of squashing. */
+export function getInmuebleDenseTableWrapperClass(
+  extraColumnsVisible: boolean,
+): string {
+  return extraColumnsVisible
+    ? INMUEBLE_DENSE_TABLE_WRAPPER_EXTRA_COLS_CLASS
+    : INMUEBLE_DENSE_TABLE_WRAPPER_CLASS;
+}
+
+const EXTRA_MODE_COLUMN_WIDTHS: Partial<
+  Record<keyof InmuebleFormData, string>
+> = {
+  status: '2.5rem',
+  nombre_propi: '5rem',
+  fecha_entrada_inmueble: '5.5rem',
+  foto_espejo: '5.5rem',
+  precio: '3.75rem',
+  hab: '2rem',
+  banos: '2rem',
+  metros: '2rem',
+  barrio_distrito: '3.5rem',
+  distrito_ciudad: '3.5rem',
+  larga_estancia_temporada: '2.5rem',
+  ficha_del_piso_real: '3.75rem',
+  link_idealista_espejo: '3.75rem',
+  link_idealista: '3.75rem',
+  link_espejo: '3.75rem',
+  observaciones: '7rem',
+  requisitos_propietario: '7rem',
+  ref: '5rem',
+  fecha_visitas_entrada: '4.25rem',
+  captador_alquilado_por: '3.75rem',
+};
+
+export const INMUEBLE_DENSE_ACTIONS_COL_WIDTH = '4.5rem';
+
+export interface InmuebleDenseColOptions {
+  extraColumnsVisible?: boolean;
+  tipoOperacion?: TipoOperacion;
+  ventaPrecioColumnWidth?: string;
+}
+
+export function getInmuebleDenseTableClass(extraColumnsVisible: boolean): string {
+  const base =
+    'border-collapse border border-black text-center text-xs md:text-sm';
+  if (extraColumnsVisible) {
+    return `table-fixed ${base}`;
+  }
+  return EXCEL_TABLE_CLASS;
+}
+
+export function getInmuebleDenseTableStyle(
+  fieldKeys: (keyof InmuebleFormData)[],
+  extraColumnsVisible: boolean,
+  options?: Pick<InmuebleDenseColOptions, 'tipoOperacion' | 'ventaPrecioColumnWidth'>,
+): CSSProperties | undefined {
+  if (!extraColumnsVisible) return undefined;
+
+  let totalRem = parseFloat(INMUEBLE_DENSE_ACTIONS_COL_WIDTH);
+  for (const key of fieldKeys) {
+    const width = getInmuebleDenseColWidth(key, true, options);
+    if (width) {
+      if (width.endsWith('ch')) {
+        totalRem += parseFloat(width) * 0.55;
+      } else {
+        totalRem += parseFloat(width);
+      }
+    }
+  }
+
+  const width = `${totalRem}rem`;
+  return { width, minWidth: width };
+}
+
+export function getInmuebleDenseColWidth(
+  key: keyof InmuebleFormData,
+  extraColumnsVisible = false,
+  options?: Pick<InmuebleDenseColOptions, 'tipoOperacion' | 'ventaPrecioColumnWidth'>,
+): string | undefined {
+  if (
+    key === 'precio' &&
+    options?.tipoOperacion === 'venta' &&
+    options.ventaPrecioColumnWidth
+  ) {
+    return options.ventaPrecioColumnWidth;
+  }
+
+  if (extraColumnsVisible) {
+    return EXTRA_MODE_COLUMN_WIDTHS[key];
+  }
+
+  return undefined;
+}
+
+export function getInmuebleDenseColStyle(
+  key: keyof InmuebleFormData,
+  extraColumnsVisible: boolean,
+  options?: Pick<InmuebleDenseColOptions, 'tipoOperacion' | 'ventaPrecioColumnWidth'>,
+): { width: string; minWidth: string } | undefined {
+  const width = getInmuebleDenseColWidth(key, extraColumnsVisible, options);
+  return width ? { width, minWidth: width } : undefined;
+}
 
 /** Sticky offset below dashboard top nav (h-14 / sm:h-16). */
 export const INMUEBLE_STICKY_HEAD_TOP_CLASS = 'top-14 sm:top-16';
 
 export function getInmuebleStickyHeadClass(tipoOperacion: TipoOperacion): string {
-  return `sticky ${INMUEBLE_STICKY_HEAD_TOP_CLASS} z-20 ${getInmuebleTableHeaderClass(tipoOperacion)}`;
+  return `sticky z-20 ${getInmuebleTableHeaderClass(tipoOperacion)}`;
 }
 
 export function getInmuebleDenseColClass(
   key: keyof InmuebleFormData,
-  options?: { extraColumnsVisible?: boolean },
+  options?: InmuebleDenseColOptions,
 ): string | undefined {
   const extra = options?.extraColumnsVisible;
 
   if (key === 'status') {
-    return NARROW_NUMERIC_COL;
+    return STATUS_COL;
   }
   if (key === 'hab' || key === 'banos' || key === 'metros') {
     return LT_COL;
   }
+  if (key === 'nombre_propi') {
+    return extra ? PROPI_COL_EXTRA : IMAGE_COL_CLASS;
+  }
+  if (key === 'distrito_ciudad' || key === 'barrio_distrito') {
+    return extra ? BARRIO_COL_EXTRA : BARRIO_COL;
+  }
   if (key === 'fecha_entrada_inmueble' || key === 'foto_espejo') {
-    return IMAGE_COL_CLASS;
+    return extra ? IMAGE_COL_EXTRA : IMAGE_COL_CLASS;
   }
-  if (key === 'nombre_propi' || key === 'barrio_distrito') {
-    return extra ? IMAGE_COL_COMPACT : IMAGE_COL_CLASS;
+  if (key === 'precio') {
+    return options?.tipoOperacion === 'venta' ? VENTA_PRECIO_COL : PRECIO_COL;
   }
-  if (key === 'precio') return PRECIO_COL;
   if (key === 'larga_estancia_temporada') return LT_COL;
-  if (key === 'ficha_del_piso_real' || key === 'link_idealista_espejo') {
+  if (
+    key === 'ficha_del_piso_real' ||
+    key === 'link_idealista_espejo' ||
+    key === 'link_idealista' ||
+    key === 'link_espejo'
+  ) {
     return PRECIO_COL;
   }
-  if (key === 'observaciones') {
-    return extra ? OBS_COL_COMPACT : OBS_COL;
+  if (key === 'observaciones' || key === 'requisitos_propietario') {
+    return extra ? OBS_COL_EXTRA : MASKED_TEXT_WIDTH_COL;
   }
   if (key === 'ref') return EXTRA_REF_COL;
   if (key === 'fecha_visitas_entrada') return EXTRA_VISITAS_COL;

@@ -3,6 +3,7 @@ import { ClientesService } from './clientes.service';
 import { BulkDeleteClientesDto } from './dto/bulk-delete-clientes.dto';
 import { BulkAssignInmuebleDto } from './dto/bulk-assign-inmueble.dto';
 import { BulkAssignWorkerDto } from './dto/bulk-assign-worker.dto';
+import { BulkUnassignWorkerDto } from './dto/bulk-unassign-worker.dto';
 import { BulkImportClientesDto } from './dto/bulk-import-clientes.dto';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
@@ -13,6 +14,9 @@ export declare class ClientesController {
     findAll(): Promise<import("./interfaces/cliente.interface").Cliente[]>;
     bulkAssignWorker(dto: BulkAssignWorkerDto): Promise<{
         assigned: number;
+    }>;
+    bulkUnassignWorker(dto: BulkUnassignWorkerDto): Promise<{
+        unassigned: number;
     }>;
     bulkAssignInmueble(dto: BulkAssignInmuebleDto): Promise<{
         assigned: number;

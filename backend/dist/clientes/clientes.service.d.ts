@@ -16,6 +16,11 @@ export declare class ClientesService {
     bulkAssignWorker(dto: BulkAssignWorkerDto): Promise<{
         assigned: number;
     }>;
+    bulkUnassignWorker(dto: {
+        cliente_ids: string[];
+    }): Promise<{
+        unassigned: number;
+    }>;
     bulkAssignInmueble(dto: BulkAssignInmuebleDto): Promise<{
         assigned: number;
         skipped: number;

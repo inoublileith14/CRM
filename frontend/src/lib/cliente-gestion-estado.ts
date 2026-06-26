@@ -4,6 +4,7 @@ export type ClienteGestionEstadoAlquiler =
   | 'no_gestionando'
   | 'gestionando'
   | 'visita_concertada'
+  | 'reservado'
   | 'nc'
   | 'pendiente_cuadrar_docs'
   | 'perfil_no_encaja'
@@ -53,6 +54,12 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
     textColor: '#000000',
   },
   {
+    value: 'reservado',
+    label: 'RESERVADO',
+    backgroundColor: '#ffff00',
+    textColor: '#000000',
+  },
+  {
     value: 'nc',
     label: 'NC',
     backgroundColor: '#a9b8a0',
@@ -60,7 +67,7 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
   },
   {
     value: 'pendiente_cuadrar_docs',
-    label: 'PENDIENTE CUADRAR HORARIO/DOCS',
+    label: 'PENDIENTE DOCS',
     backgroundColor: '#5b9bd5',
     textColor: '#ffffff',
   },
@@ -144,12 +151,22 @@ const optionMaps = {
   ),
 } as const;
 
+const VIDEOLLAMADA_VALUE = 'videollamada' as const;
+
+function withVideollamadaLast(options: GestionOption[]): GestionOption[] {
+  const rest = options.filter((o) => o.value !== VIDEOLLAMADA_VALUE);
+  const videollamada = options.find((o) => o.value === VIDEOLLAMADA_VALUE);
+  return videollamada ? [...rest, videollamada] : rest;
+}
+
 export function getClienteGestionEstadoOptions(
   tipo: TipoOperacion,
 ): GestionOption[] {
-  return tipo === 'alquiler'
-    ? CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER
-    : CLIENTE_GESTION_ESTADO_OPTIONS_VENTA;
+  const options =
+    tipo === 'alquiler'
+      ? CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER
+      : CLIENTE_GESTION_ESTADO_OPTIONS_VENTA;
+  return withVideollamadaLast(options);
 }
 
 export function getDefaultClienteGestionEstado(

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Patch,
   Post,
@@ -27,8 +28,11 @@ export class AuthController {
   }
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(@Body() _dto: RegisterDto) {
+    throw new ForbiddenException({
+      message: 'El registro público está deshabilitado',
+      code: 'REGISTRATION_DISABLED',
+    });
   }
 
   @Post('logout')

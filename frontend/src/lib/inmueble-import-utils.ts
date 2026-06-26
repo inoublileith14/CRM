@@ -28,6 +28,9 @@ export const HEADER_ALIASES: Record<string, keyof InmuebleFormData> = {
   'barrio / distrito': 'barrio_distrito',
   'barrio distrito': 'barrio_distrito',
   barrio_distrito: 'barrio_distrito',
+  'distrito / ciudad': 'distrito_ciudad',
+  'distrito ciudad': 'distrito_ciudad',
+  distrito_ciudad: 'distrito_ciudad',
   precio: 'precio',
   'precio espejo': 'precio_espejo',
   precio_espejo: 'precio_espejo',
@@ -42,7 +45,10 @@ export const HEADER_ALIASES: Record<string, keyof InmuebleFormData> = {
   'larga estancia': 'larga_estancia_temporada',
   larga_estancia_temporada: 'larga_estancia_temporada',
   'fecha entrada alquiler': 'fecha_entrada_inmueble',
-  'fecha de visitas': 'fecha_visitas_entrada',
+  'fecha de visitas': 'fecha_visitas',
+  'fecha entrada al piso': 'fecha_visitas_entrada',
+  'fecha de entrada al piso': 'fecha_visitas_entrada',
+  'fecha entrada al crm': 'fecha_entrada_inmueble',
   'video link': 'fecha_visitas_entrada',
   'video coconut': 'fecha_visitas_entrada',
   'nombre propi': 'nombre_propi',
@@ -56,17 +62,23 @@ export const HEADER_ALIASES: Record<string, keyof InmuebleFormData> = {
   'ficha piso real': 'ficha_del_piso_real',
   ficha_del_piso_real: 'ficha_del_piso_real',
   'link idealista o link espejo': 'link_idealista_espejo',
-  'link idealista': 'link_idealista_espejo',
+  'link idealista': 'link_idealista',
+  link_idealista: 'link_idealista',
+  'link espejo': 'link_espejo',
+  link_espejo: 'link_espejo',
   link_idealista_espejo: 'link_idealista_espejo',
   'fecha de visitas // fecha de entrada': 'fecha_visitas_entrada',
   fecha_visitas_entrada: 'fecha_visitas_entrada',
   'video coconut // link otra agencia': 'fecha_visitas_entrada',
   observaciones: 'observaciones',
+  requisitos_propietario: 'requisitos_propietario',
   'amueblado (si o no)': 'amueblado',
   amueblado: 'amueblado',
   'captador // alquilado por': 'captador_alquilado_por',
   'captador // vendido por': 'captador_alquilado_por',
-  captador: 'captador_alquilado_por',
+  captador: 'captador',
+  'alquilado por': 'alquilado_por',
+  alquilado_por: 'alquilado_por',
   captador_alquilado_por: 'captador_alquilado_por',
   'alquiler o venta': 'tipo_operacion',
   'tipo operacion': 'tipo_operacion',
@@ -102,6 +114,7 @@ export function emptyInmuebleRow(): InmuebleFormData {
     foto_espejo: null,
     espejo_direccion: null,
     barrio_distrito: null,
+    distrito_ciudad: null,
     precio: null,
     precio_espejo: null,
     hab: null,
@@ -113,10 +126,16 @@ export function emptyInmuebleRow(): InmuebleFormData {
     nombre_propi: null,
     telf: null,
     ficha_del_piso_real: null,
+    link_idealista: null,
+    link_espejo: null,
     link_idealista_espejo: null,
+    fecha_visitas: null,
     fecha_visitas_entrada: null,
     observaciones: null,
+    requisitos_propietario: null,
     amueblado: null,
+    captador: null,
+    alquilado_por: null,
     captador_alquilado_por: null,
     status: null,
     row_color: null,
@@ -234,6 +253,9 @@ export function resolveHeaderKey(header: string): keyof InmuebleFormData | null 
   if (norm.includes('espejo') && norm.includes('direccion')) {
     return 'espejo_direccion';
   }
+  if (norm.includes('distrito') && norm.includes('ciudad')) {
+    return 'distrito_ciudad';
+  }
   if (norm.includes('barrio') || norm.includes('distrito')) {
     return 'barrio_distrito';
   }
@@ -259,6 +281,9 @@ export function resolveHeaderKey(header: string): keyof InmuebleFormData | null 
     return 'fecha_visitas_entrada';
   }
   if (norm.includes('telf') || norm.includes('telefono')) return 'telf';
+  if (norm.includes('requisit') && norm.includes('propi')) {
+    return 'requisitos_propietario';
+  }
   if (norm.includes('observ')) return 'observaciones';
 
   return null;

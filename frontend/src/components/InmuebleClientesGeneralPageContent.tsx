@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDown,
@@ -10,11 +11,15 @@ import {
   Building2,
   Loader2,
   Trash2,
-  UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClienteCopyContactsButton } from '@/components/ClienteCopyContactsButton';
 import { ClienteExcelImportButton } from '@/components/ClienteExcelImportButton';
+import { ClienteGestionEstadoBadge } from '@/components/ClienteGestionEstadoBadge';
+import {
+  getClienteGestionEstadoOption,
+  getGestionOptionStyle,
+} from '@/lib/cliente-gestion-estado';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { InmuebleAssignSearchSelect } from '@/components/InmuebleAssignSearchSelect';
 import { ClienteVentaRangeFiltersBar } from '@/components/ClienteVentaRangeFiltersBar';
@@ -22,7 +27,7 @@ import { ClienteVentaTableFieldCell } from '@/components/ClienteVentaTableFieldC
 import { ClienteFechaContactoCell } from '@/components/ClienteFechaContactoCell';
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
-import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
+import { TableColumnTextFilterHead } from '@/components/TableColumnTextFilterHead';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import { TablePagination } from '@/components/TablePagination';
@@ -32,29 +37,40 @@ import {
   useInmueblesQuery,
   useWorkersQuery,
 } from '@/hooks/use-dashboard-queries';
-import { usePagination } from '@/hooks/usePagination';
 import {
-  STABLE_EMPTY_COLUMN_FILTERS,
-  useResetPageOnFilterChange,
-  useTableColumnFilters,
-} from '@/hooks/useTableColumnFilters';
-import { applyTableColumnFilters } from '@/lib/table-column-filters';
+  ClientesGeneralPageSize,
+  CLIENTES_GENERAL_PAGE_SIZE_OPTIONS,
+  parseClientesGeneralPageSize,
+  resolveClientesGeneralPageSize,
+} from '@/hooks/usePagination';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { buildTableStateKey } from '@/lib/persisted-table-state';
+import { useResetPageOnFilterChange } from '@/hooks/useTableColumnFilters';
+import { TableSort } from '@/lib/table-column-filters';
 import { useQueryUiState } from '@/hooks/use-query-ui';
 import { buildVentaGlobalClienteTableColumns } from '@/lib/table-columns';
-import { EXCEL_CELL_ALIGN, EXCEL_CELL_BORDER, EXCEL_TABLE_CLASS } from '@/lib/excel-table-styles';
+import { formatTableHeaderLabel } from '@/lib/table-header-label';
+import { EXCEL_CELL_ALIGN, EXCEL_CELL_BORDER, EXCEL_TABLE_CLASS, TABLE_HEAD_PADDING_DENSE, TABLE_HEAD_TEXT_CLASS } from '@/lib/excel-table-styles';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
+import {
+  EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
+  filterClienteLinkRowsByText,
+  hasActiveClienteGlobalTextFilters,
+} from '@/lib/cliente-global-text-filters';
 import {
   EMPTY_VENTA_RANGE_FILTERS,
   filterRowsByVentaRange,
   hasActiveVentaRangeFilters,
 } from '@/lib/cliente-venta-range-filters';
-import { bulkAssignInmueble, bulkAssignWorker, bulkDeleteClientes } from '@/lib/clientes-api';
+import { bulkAssignInmueble, bulkAssignWorker, bulkDeleteClientes, bulkUnassignWorker } from '@/lib/clientes-api';
+import { INMUEBLE_CLIENTE_UNASSIGNED_WORKER } from '@/lib/inmueble-cliente-filters';
 import { getAssignableInmuebles, getInmuebleAssignLabel } from '@/lib/inmueble-assign-utils';
 import { queryKeys } from '@/lib/query-keys';
 import {
   Cliente,
 } from '@/types/cliente';
 import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
+import { ClientesByTipoListParams } from '@/types/clientes-by-tipo-page';
 import { TIPO_OPERACION_LABELS, TipoOperacion } from '@/types/inmueble';
 import { ClienteRefValue, clienteDenseTextClass } from '@/components/ClienteRefValue';
 import { getWorkerRolLabel } from '@/types/worker';
@@ -92,22 +108,97 @@ interface InmuebleClientesGeneralPageContentProps {
   inmuebleListPath: string;
 }
 
+const DEFAULT_CLIENTES_GENERAL_LIST_STATE = {
+  page: 1,
+  pageSize: 100 as ClientesGeneralPageSize,
+  tableSort: {
+    column: 'fecha_entrada_peticion',
+    direction: 'desc',
+  } as TableSort | null,
+  ventaRangeFilters: EMPTY_VENTA_RANGE_FILTERS,
+  textFilters: EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
+};
+
+type ClienteGlobalTextFilterColumn = keyof typeof EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS;
+
 export function InmuebleClientesGeneralPageContent({
   expectedTipo,
   inmuebleListPath,
 }: InmuebleClientesGeneralPageContentProps) {
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const { invalidateClientesByTipo, invalidateAllInmuebles } =
     useInvalidateDashboardQueries();
-  const rowsQuery = useClientesByTipoQuery(expectedTipo);
+
+  const [listState, setListState] = usePersistedState(
+    `${buildTableStateKey(pathname, expectedTipo)}:clientes-general`,
+    DEFAULT_CLIENTES_GENERAL_LIST_STATE,
+  );
+  const { page, tableSort, ventaRangeFilters, textFilters } = listState;
+  const pageSize = resolveClientesGeneralPageSize(listState.pageSize);
+
+  const setPage = useCallback((value: number) => {
+    setListState((prev) => {
+      if (prev.page === value) return prev;
+      return { ...prev, page: value };
+    });
+  }, [setListState]);
+  const setTableSort = (value: TableSort | null) =>
+    setListState((prev) => ({ ...prev, tableSort: value }));
+  const setVentaRangeFilters = (
+    value:
+      | typeof EMPTY_VENTA_RANGE_FILTERS
+      | ((
+          prev: typeof EMPTY_VENTA_RANGE_FILTERS,
+        ) => typeof EMPTY_VENTA_RANGE_FILTERS),
+  ) =>
+    setListState((prev) => ({
+      ...prev,
+      ventaRangeFilters:
+        typeof value === 'function' ? value(prev.ventaRangeFilters) : value,
+    }));
+  const setTextFilters = (
+    value:
+      | typeof EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS
+      | ((
+          prev: typeof EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
+        ) => typeof EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS),
+  ) =>
+    setListState((prev) => ({
+      ...prev,
+      textFilters:
+        typeof value === 'function' ? value(prev.textFilters) : value,
+    }));
+  const effectiveLimit = pageSize;
+
+  const listParams = useMemo((): ClientesByTipoListParams => {
+    const params: ClientesByTipoListParams = {
+      page,
+      limit: effectiveLimit,
+    };
+    if (tableSort?.column === 'fecha_entrada_peticion') {
+      params.sort = 'fecha_entrada';
+      params.dir = tableSort.direction;
+    }
+    return params;
+  }, [page, effectiveLimit, tableSort]);
+
+  const rowsQuery = useClientesByTipoQuery(expectedTipo, listParams);
   const workersQuery = useWorkersQuery(true);
-  const inmueblesQuery = useInmueblesQuery({ tipo_operacion: expectedTipo });
+  const [inmueblesNeeded, setInmueblesNeeded] = useState(false);
+  const inmueblesQuery = useInmueblesQuery(
+    { tipo_operacion: expectedTipo },
+    { enabled: inmueblesNeeded },
+  );
   const {
-    data: rows = [],
     showInitialLoading,
     isRefreshing,
     showError,
   } = useQueryUiState(rowsQuery);
+  const pageData = rowsQuery.data;
+  const rows = pageData?.rows ?? [];
+  const totalItems = pageData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / effectiveLimit));
   const workers = workersQuery.data ?? [];
   const inmuebles = inmueblesQuery.data ?? [];
   const assignableInmuebles = useMemo(
@@ -116,24 +207,30 @@ export function InmuebleClientesGeneralPageContent({
   );
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
-  const [assignWorkerId, setAssignWorkerId] = useState('');
   const [assignInmuebleId, setAssignInmuebleId] = useState('');
   const [assigningWorker, setAssigningWorker] = useState(false);
   const [assigningInmueble, setAssigningInmueble] = useState(false);
   const [deletingClientes, setDeletingClientes] = useState(false);
   const [assignConfirm, setAssignConfirm] = useState<
-    'worker' | 'inmueble' | 'delete' | null
+    'inmueble' | 'delete' | null
   >(null);
+  const [openTextFilterColumn, setOpenTextFilterColumn] =
+    useState<ClienteGlobalTextFilterColumn | null>(null);
   const assigningBusy = assigningWorker || assigningInmueble || deletingClientes;
-  const [ventaRangeFilters, setVentaRangeFilters] = useState(
-    EMPTY_VENTA_RANGE_FILTERS,
-  );
+  const tableAnchorRef = useRef<HTMLElement>(null);
+  const skipScrollOnPageRef = useRef(true);
 
   const rowsAfterRangeFilters = useMemo(() => {
     return filterRowsByVentaRange(rows, ventaRangeFilters);
   }, [rows, ventaRangeFilters]);
 
+  const rowsAfterTextFilters = useMemo(() => {
+    return filterClienteLinkRowsByText(rowsAfterRangeFilters, textFilters);
+  }, [rowsAfterRangeFilters, textFilters]);
+
   const ventaRangeFiltersActive = hasActiveVentaRangeFilters(ventaRangeFilters);
+  const textFiltersActive = hasActiveClienteGlobalTextFilters(textFilters);
+  const columnFiltersActive = ventaRangeFiltersActive || textFiltersActive;
 
   const selectedClientes = useMemo(() => {
     const seen = new Set<string>();
@@ -148,8 +245,8 @@ export function InmuebleClientesGeneralPageContent({
   }, [rows, selectedRowKeys]);
 
   const tableColumns = useMemo(
-    () => buildVentaGlobalClienteTableColumns(),
-    [],
+    () => buildVentaGlobalClienteTableColumns(expectedTipo),
+    [expectedTipo],
   );
 
   const isDenseClienteTable = true;
@@ -166,88 +263,74 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   function updateClienteById(clienteId: string, patch: Partial<Cliente>) {
-    queryClient.setQueryData<InmuebleClienteLinkRow[]>(
-      queryKeys.clientes.byTipo(expectedTipo),
-      (prev) =>
-        prev?.map((row) =>
-          row.cliente.id === clienteId
-            ? { ...row, cliente: { ...row.cliente, ...patch } }
-            : row,
-        ) ?? [],
+    queryClient.setQueryData(
+      queryKeys.clientes.byTipo(expectedTipo, listParams),
+      (prev: typeof pageData) =>
+        prev
+          ? {
+              ...prev,
+              rows: prev.rows.map((row) =>
+                row.cliente.id === clienteId
+                  ? { ...row, cliente: { ...row.cliente, ...patch } }
+                  : row,
+              ),
+            }
+          : prev,
     );
   }
 
-  const enableExcelColumnFilters = false;
+  const displayRows = rowsAfterTextFilters;
 
-  const {
-    columnFilters,
-    tableSort,
-    openFilterColumn,
-    setOpenFilterColumn,
-    columnUniqueValues,
-    filteredRows,
-    filtersActive,
-    clearFilters,
-    setColumnFilter,
-    clearSort,
-    setSort,
-    isFilterActiveForColumn,
-  } = useTableColumnFilters(rowsAfterRangeFilters, tableColumns);
+  function clearSort() {
+    setTableSort(null);
+    setPage(1);
+  }
 
   function toggleEntradaSort() {
+    setPage(1);
     if (
       tableSort?.column !== 'fecha_entrada_peticion' ||
       tableSort.direction === 'desc'
     ) {
-      setSort('fecha_entrada_peticion', 'asc');
+      setTableSort({ column: 'fecha_entrada_peticion', direction: 'asc' });
     } else {
-      setSort('fecha_entrada_peticion', 'desc');
+      setTableSort({ column: 'fecha_entrada_peticion', direction: 'desc' });
     }
   }
 
-  const effectiveFilteredRows = useMemo(() => {
-    if (enableExcelColumnFilters) return filteredRows;
-    if (tableSort?.column === 'fecha_entrada_peticion') {
-      return applyTableColumnFilters(
-        rowsAfterRangeFilters,
-        tableColumns,
-        {},
-        tableSort,
-      );
+  function changePageSize(size: ClientesGeneralPageSize) {
+    setListState((prev) => ({ ...prev, pageSize: size, page: 1 }));
+  }
+
+  useResetPageOnFilterChange([ventaRangeFilters, textFilters], setPage);
+
+  useEffect(() => {
+    setSelectedRowKeys(new Set());
+  }, [listParams]);
+
+  useEffect(() => {
+    if (skipScrollOnPageRef.current) {
+      skipScrollOnPageRef.current = false;
+      return;
     }
-    return rowsAfterRangeFilters;
-  }, [
-    enableExcelColumnFilters,
-    filteredRows,
-    rowsAfterRangeFilters,
-    tableColumns,
-    tableSort,
-  ]);
-  const effectiveFiltersActive = enableExcelColumnFilters ? filtersActive : false;
-
-  const {
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    totalItems,
-    totalPages,
-    paginatedItems: paginatedRows,
-  } = usePagination(effectiveFilteredRows, 50);
-
-  useResetPageOnFilterChange(
-    [
-      enableExcelColumnFilters ? columnFilters : STABLE_EMPTY_COLUMN_FILTERS,
-      tableSort,
-      ventaRangeFilters,
-    ],
-    setPage,
-  );
+    tableAnchorRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }, [page]);
 
   function clearAllFilters() {
-    if (enableExcelColumnFilters) clearFilters();
-    else clearSort();
+    clearSort();
     setVentaRangeFilters(EMPTY_VENTA_RANGE_FILTERS);
+    setTextFilters(EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS);
+  }
+
+  function setTextFilter(
+    column: ClienteGlobalTextFilterColumn,
+    value: string,
+  ) {
+    setPage(1);
+    setTextFilters((prev) => ({ ...prev, [column]: value }));
   }
 
   function toggleRowSelection(rowKey: string) {
@@ -281,58 +364,66 @@ export function InmuebleClientesGeneralPageContent({
     setSelectedRowKeys(new Set());
   }
 
-  function openAssignWorkerConfirm() {
+  async function handleAssignWorkerSelect(workerId: string) {
+    if (!workerId) return;
+
     if (selectedRowKeys.size === 0) {
       toast.error('Selecciona al menos un cliente');
       return;
     }
-    if (!assignWorkerId) {
-      toast.error('Selecciona el trabajador al que asignar');
-      return;
-    }
 
     const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
-    const assignableRows = selectedRows.filter((row) => Boolean(row.inmueble_id));
-
-    if (assignableRows.length === 0) {
-      toast.error('Los clientes sin inmueble no se pueden asignar desde aquí');
-      return;
-    }
-
-    setAssignConfirm('worker');
-  }
-
-  async function executeAssignWorker() {
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
-    const assignableRows = selectedRows.filter((row) => Boolean(row.inmueble_id));
-    const skippedUnlinked = selectedRows.length - assignableRows.length;
+    const uniqueClienteIds = [
+      ...new Set(selectedRows.map((row) => row.cliente.id)),
+    ];
+    const isUnassign = workerId === INMUEBLE_CLIENTE_UNASSIGNED_WORKER;
 
     setAssigningWorker(true);
 
     try {
-      const result = await bulkAssignWorker({
-        worker_id: assignWorkerId,
-        assignments: assignableRows.map((row) => ({
-          cliente_id: row.cliente.id,
-          inmueble_id: row.inmueble_id as string,
-        })),
-      });
-
-      toast.success(
-        `${result.assigned} fila${result.assigned !== 1 ? 's' : ''} asignada${result.assigned !== 1 ? 's' : ''}`,
-      );
-      if (skippedUnlinked > 0) {
-        toast.message(
-          `${skippedUnlinked} cliente${skippedUnlinked !== 1 ? 's' : ''} sin inmueble se omitió${skippedUnlinked !== 1 ? 'n' : ''}`,
+      if (isUnassign) {
+        const result = await bulkUnassignWorker({ cliente_ids: uniqueClienteIds });
+        toast.success(
+          `${result.unassigned} cliente${result.unassigned !== 1 ? 's' : ''} sin asignar`,
         );
+      } else {
+        const assignableRows = selectedRows.filter((row) =>
+          Boolean(row.inmueble_id),
+        );
+        const skippedUnlinked = selectedRows.length - assignableRows.length;
+
+        if (assignableRows.length === 0) {
+          toast.error('Los clientes sin inmueble no se pueden asignar desde aquí');
+          return;
+        }
+
+        const result = await bulkAssignWorker({
+          worker_id: workerId,
+          assignments: assignableRows.map((row) => ({
+            cliente_id: row.cliente.id,
+            inmueble_id: row.inmueble_id as string,
+          })),
+        });
+
+        toast.success(
+          `${result.assigned} fila${result.assigned !== 1 ? 's' : ''} asignada${result.assigned !== 1 ? 's' : ''}`,
+        );
+        if (skippedUnlinked > 0) {
+          toast.message(
+            `${skippedUnlinked} cliente${skippedUnlinked !== 1 ? 's' : ''} sin inmueble se omitió${skippedUnlinked !== 1 ? 'n' : ''}`,
+          );
+        }
       }
-      setAssignConfirm(null);
+
       clearSelection();
       await invalidateClientesByTipo(expectedTipo);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'No se pudieron asignar los clientes';
-      toast.error(message);
+      const defaultMessage = isUnassign
+        ? 'No se pudieron quitar las asignaciones'
+        : 'No se pudieron asignar los clientes';
+      toast.error(
+        error instanceof Error ? error.message : defaultMessage,
+      );
     } finally {
       setAssigningWorker(false);
     }
@@ -433,18 +524,7 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   const pageTheme = PAGE_THEMES[expectedTipo];
-
-  const workerAssignConfirmCopy = useMemo(() => {
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
-    const assignableRows = selectedRows.filter((row) => Boolean(row.inmueble_id));
-    const worker = workers.find((w) => w.id === assignWorkerId);
-    const count = assignableRows.length;
-
-    return {
-      title: 'Asignar a trabajador',
-      description: `¿Asignar ${count} fila${count !== 1 ? 's' : ''} a ${worker?.nombre ?? 'el trabajador seleccionado'}?`,
-    };
-  }, [rows, selectedRowKeys, assignWorkerId, workers]);
+  const filterAccent = expectedTipo === 'alquiler' ? 'emerald' : 'blue';
 
   const inmuebleAssignConfirmCopy = useMemo(() => {
     const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
@@ -471,21 +551,6 @@ export function InmuebleClientesGeneralPageContent({
 
   const selectClass = `rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition ${pageTheme.accentSelectFocus} disabled:opacity-60`;
 
-  if (showInitialLoading) {
-    return (
-      <div
-        className="-mx-4 -mt-5 rounded-b-xl p-12 text-center sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8"
-        style={{
-          backgroundColor: pageTheme.background,
-          borderColor: pageTheme.border,
-          color: pageTheme.muted,
-        }}
-      >
-        Cargando clientes…
-      </div>
-    );
-  }
-
   if (showError) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center sm:p-8">
@@ -506,10 +571,10 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   const allRowsSelected =
-    effectiveFilteredRows.length > 0 &&
-    effectiveFilteredRows.every((row) => selectedRowKeys.has(row.row_key));
+    displayRows.length > 0 &&
+    displayRows.every((row) => selectedRowKeys.has(row.row_key));
   const someRowsSelected =
-    effectiveFilteredRows.some((row) => selectedRowKeys.has(row.row_key)) &&
+    displayRows.some((row) => selectedRowKeys.has(row.row_key)) &&
     !allRowsSelected;
 
   const title =
@@ -555,16 +620,19 @@ export function InmuebleClientesGeneralPageContent({
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section
+        ref={tableAnchorRef}
+        className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm scroll-mt-20 sm:scroll-mt-24"
+      >
         <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:px-6">
           <div>
             <h2 className="font-semibold text-slate-900">
-              Clientes ({rows.length})
+              Clientes ({totalItems})
             </h2>
           </div>
         </div>
 
-        {rows.length > 0 && (
+        {totalItems > 0 && (
           <ClienteVentaRangeFiltersBar
             filters={ventaRangeFilters}
             onChange={setVentaRangeFilters}
@@ -575,7 +643,7 @@ export function InmuebleClientesGeneralPageContent({
           />
         )}
 
-        {rows.length > 0 && (
+        {totalItems > 0 && (
           <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:px-6">
             <span className="text-sm text-slate-600">
               {selectedRowKeys.size > 0
@@ -588,41 +656,34 @@ export function InmuebleClientesGeneralPageContent({
                 disabled={assigningBusy}
               />
               <select
-                value={assignWorkerId}
-                onChange={(e) => setAssignWorkerId(e.target.value)}
-                disabled={assigningBusy}
+                value=""
+                onChange={(e) => void handleAssignWorkerSelect(e.target.value)}
+                disabled={
+                  assigningBusy || selectedRowKeys.size === 0
+                }
                 className={`w-full sm:w-auto ${selectClass}`}
                 aria-label="Trabajador para asignar"
               >
-                <option value="">Asignar a trabajador…</option>
+                <option value="" disabled>
+                  {assigningWorker ? 'Asignando…' : 'Asignar a trabajador…'}
+                </option>
+                <option value={INMUEBLE_CLIENTE_UNASSIGNED_WORKER}>
+                  Sin asignar
+                </option>
                 {workers.map((worker) => (
                   <option key={worker.id} value={worker.id}>
                     {worker.nombre} ({getWorkerRolLabel(worker.rol)})
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={openAssignWorkerConfirm}
-                disabled={
-                  assigningBusy ||
-                  selectedRowKeys.size === 0 ||
-                  !assignWorkerId
-                }
-                className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60 sm:w-auto ${pageTheme.accentButton}`}
-              >
-                {assigningWorker ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="h-4 w-4" />
-                )}
-                Asignar seleccionados
-              </button>
               <InmuebleAssignSearchSelect
                 inmuebles={assignableInmuebles}
                 value={assignInmuebleId}
                 onChange={setAssignInmuebleId}
                 disabled={assigningBusy || inmueblesQuery.isLoading}
+                onOpenChange={(open) => {
+                  if (open) setInmueblesNeeded(true);
+                }}
               />
               <button
                 type="button"
@@ -658,23 +719,25 @@ export function InmuebleClientesGeneralPageContent({
           </div>
         )}
 
-        {rows.length === 0 ? (
+        {showInitialLoading ? (
+          <p className="py-10 text-center text-slate-500">Cargando clientes…</p>
+        ) : totalItems === 0 ? (
           <p className="py-10 text-center text-slate-500">
             No hay clientes vinculados a inmuebles de{' '}
             {expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}.
           </p>
-        ) : filteredRows.length === 0 ? (
+        ) : displayRows.length === 0 ? (
           <TableFilterEmptyState
-            onClear={ventaRangeFiltersActive ? clearAllFilters : clearFilters}
+            onClear={columnFiltersActive ? clearAllFilters : clearSort}
           />
         ) : (
           <>
-            {(effectiveFiltersActive || ventaRangeFiltersActive) && (
+            {columnFiltersActive && (
               <TableFilterBar
-                filteredCount={effectiveFilteredRows.length}
-                totalCount={rowsAfterRangeFilters.length}
+                filteredCount={displayRows.length}
+                totalCount={rows.length}
                 entityLabel="clientes"
-                hasSort={enableExcelColumnFilters ? !!tableSort : false}
+                hasSort={!!tableSort}
                 onClear={clearAllFilters}
               />
             )}
@@ -704,7 +767,7 @@ export function InmuebleClientesGeneralPageContent({
                     <th
                       className={
                         isDenseClienteTable
-                          ? `w-8 px-3 py-2.5 text-center ${EXCEL_CELL_BORDER}`
+                          ? `w-8 ${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER}`
                           : 'w-10 px-3 py-3'
                       }
                     >
@@ -716,114 +779,119 @@ export function InmuebleClientesGeneralPageContent({
                             el.indeterminate = someRowsSelected;
                           }
                         }}
-                        onChange={() => toggleSelectAllFiltered(effectiveFilteredRows)}
+                        onChange={() => toggleSelectAllFiltered(displayRows)}
                         disabled={assigningBusy}
                         className={`h-4 w-4 rounded border-slate-300 ${pageTheme.accentCheckbox}`}
                         aria-label="Seleccionar todos los clientes (todas las páginas)"
                       />
                     </th>
-                    {tableColumns.map((col) =>
-                      enableExcelColumnFilters ? (
-                        <TableColumnFilterHead
-                          key={col.key}
-                          label={col.label}
-                          shortLabel={col.shortLabel}
-                          fieldType={col.fieldType ?? 'text'}
-                          uniqueValues={columnUniqueValues.get(col.key) ?? []}
-                          filter={columnFilters[col.key]}
-                          sortDirection={
-                            tableSort?.column === col.key
-                              ? tableSort.direction
-                              : null
-                          }
-                          isSortColumn={tableSort?.column === col.key}
-                          isOpen={openFilterColumn === col.key}
-                          isFilterActive={isFilterActiveForColumn(col.key)}
-                          onOpenChange={(open) =>
-                            setOpenFilterColumn(open ? col.key : null)
-                          }
-                          onApply={(next) => setColumnFilter(col.key, next)}
-                          onSort={(direction) => setSort(col.key, direction)}
-                          variant="slate"
-                          className={
-                            isDenseClienteTable
-                              ? `px-3 py-2.5 normal-case text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
-                              : 'px-4 normal-case'
-                          }
-                        />
-                      ) : col.key === 'fecha_entrada_peticion' ? (
-                        <th
-                          key={col.key}
-                          className={`whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-slate-600 ${
-                            isDenseClienteTable
-                              ? `px-3 py-2.5 normal-case text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
-                              : 'px-4 py-3'
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            onClick={toggleEntradaSort}
-                            className="inline-flex w-full items-center justify-center gap-0.5 leading-tight text-slate-600 transition hover:text-slate-900"
-                            title={
-                              tableSort?.column === 'fecha_entrada_peticion'
-                                ? tableSort.direction === 'asc'
-                                  ? 'Más antigua primero — clic para más reciente'
-                                  : 'Más reciente primero — clic para más antigua'
-                                : 'Clic para ordenar por fecha de entrada'
-                            }
+                    {tableColumns.map((col) => {
+                      if (col.key === 'fecha_entrada_peticion') {
+                        return (
+                          <th
+                            key={col.key}
+                            className={`whitespace-nowrap ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${
+                              isDenseClienteTable
+                                ? `${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
+                                : 'px-4 py-4'
+                            }`}
                           >
-                            <span className="break-words whitespace-normal">
-                              {isDenseClienteTable
-                                ? col.shortLabel ?? col.label
-                                : col.label}
-                            </span>
-                            {tableSort?.column === 'fecha_entrada_peticion' ? (
-                              tableSort.direction === 'asc' ? (
-                                <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
+                            <button
+                              type="button"
+                              onClick={toggleEntradaSort}
+                              className="inline-flex w-full items-center justify-center gap-0.5 uppercase leading-tight text-slate-600 transition hover:text-slate-900"
+                              title={
+                                tableSort?.column === 'fecha_entrada_peticion'
+                                  ? tableSort.direction === 'asc'
+                                    ? 'Más antigua primero — clic para más reciente'
+                                    : 'Más reciente primero — clic para más antigua'
+                                  : 'Clic para ordenar por fecha de entrada'
+                              }
+                            >
+                              <span className="break-words whitespace-normal">
+                                {formatTableHeaderLabel(
+                                  isDenseClienteTable
+                                    ? col.shortLabel ?? col.label
+                                    : col.label,
+                                )}
+                              </span>
+                              {tableSort?.column === 'fecha_entrada_peticion' ? (
+                                tableSort.direction === 'asc' ? (
+                                  <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
+                                ) : (
+                                  <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
+                                )
                               ) : (
-                                <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="h-3 w-3 shrink-0 opacity-70"
-                                aria-hidden
-                              />
-                            )}
-                          </button>
-                        </th>
-                      ) : (
+                                <ArrowUpDown
+                                  className="h-3 w-3 shrink-0 opacity-70"
+                                  aria-hidden
+                                />
+                              )}
+                            </button>
+                          </th>
+                        );
+                      }
+
+                      if (col.key === 'nombre' || col.key === 'telefono') {
+                        const filterKey = col.key as ClienteGlobalTextFilterColumn;
+                        return (
+                          <TableColumnTextFilterHead
+                            key={col.key}
+                            label={col.label}
+                            shortLabel={col.shortLabel}
+                            value={textFilters[filterKey]}
+                            placeholder={
+                              col.key === 'nombre'
+                                ? 'Buscar nombre…'
+                                : 'Buscar teléfono…'
+                            }
+                            isOpen={openTextFilterColumn === filterKey}
+                            isFilterActive={textFilters[filterKey].trim() !== ''}
+                            onOpenChange={(open) =>
+                              setOpenTextFilterColumn(open ? filterKey : null)
+                            }
+                            onApply={(value) => setTextFilter(filterKey, value)}
+                            accent={filterAccent}
+                            className={col.headClassName ?? ''}
+                          />
+                        );
+                      }
+
+                      return (
                         <th
                           key={col.key}
-                          className={`whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-slate-600 ${
+                          className={`whitespace-nowrap ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${
                             isDenseClienteTable
-                              ? `px-3 py-2.5 normal-case text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
-                              : 'px-4 py-3'
+                              ? `${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
+                              : 'px-4 py-4'
                           }`}
-                          title={col.label}
+                          title={formatTableHeaderLabel(col.label)}
                         >
                           <span className="inline-flex max-w-[10rem] items-center">
                             <span className="break-words">
-                              {isDenseClienteTable
-                                ? col.shortLabel ?? col.label
-                                : col.label}
+                              {formatTableHeaderLabel(
+                                isDenseClienteTable
+                                  ? col.shortLabel ?? col.label
+                                  : col.label,
+                              )}
                             </span>
                           </span>
                         </th>
-                      ),
-                    )}
+                      );
+                    })}
                     <th
                       className={
                         isDenseClienteTable
-                          ? `w-[3.75rem] px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600 ${EXCEL_CELL_BORDER}`
-                          : 'px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600'
+                          ? `w-[3.75rem] ${TABLE_HEAD_PADDING_DENSE} text-center ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${EXCEL_CELL_BORDER}`
+                          : `px-4 py-4 ${TABLE_HEAD_TEXT_CLASS} text-slate-600`
                       }
                     >
-                      {isDenseClienteTable ? 'Ver' : 'Acciones'}
+                      {isDenseClienteTable ? 'VER' : 'ACCIONES'}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRows.map((row) => {
+                  {displayRows.map((row) => {
                     const { cliente } = row;
                     const isSelected = selectedRowKeys.has(row.row_key);
                     const parsedRef = parseRefCliente(cliente.ref_cliente);
@@ -843,12 +911,26 @@ export function InmuebleClientesGeneralPageContent({
                             aria-label={`Seleccionar ${cliente.nombre}`}
                           />
                         </td>
-                        <td className={denseCellClass('fecha_ultima_gestion')}>
+                        <td
+                          className={denseCellClass('fecha_ultima_gestion')}
+                          style={getGestionOptionStyle(
+                            getClienteGestionEstadoOption(
+                              cliente.gestion_estado,
+                              expectedTipo,
+                            ),
+                          )}
+                        >
                           <ClienteFechaUltimaGestionCell
                             clienteId={cliente.id}
                             value={cliente.fecha_ultima_gestion}
                             disabled={assigningBusy}
                             compact
+                            gestionStyle={getGestionOptionStyle(
+                              getClienteGestionEstadoOption(
+                                cliente.gestion_estado,
+                                expectedTipo,
+                              ),
+                            )}
                             onUpdated={(fechaUltimaGestion) =>
                               updateClienteById(cliente.id, {
                                 fecha_ultima_gestion: fechaUltimaGestion,
@@ -885,6 +967,12 @@ export function InmuebleClientesGeneralPageContent({
                           className={denseCellClass('telefono', 'text-slate-600')}
                         >
                           {cliente.telefono || '—'}
+                        </td>
+                        <td className={denseCellClass('gestion_estado')}>
+                          <ClienteGestionEstadoBadge
+                            value={cliente.gestion_estado}
+                            tipoOperacion={expectedTipo}
+                          />
                         </td>
                         <td
                           className={denseCellClass(
@@ -991,22 +1079,14 @@ export function InmuebleClientesGeneralPageContent({
               totalItems={totalItems}
               totalPages={totalPages}
               onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              onPageSizeChange={(size) =>
+                changePageSize(parseClientesGeneralPageSize(String(size)))
+              }
+              pageSizeOptions={CLIENTES_GENERAL_PAGE_SIZE_OPTIONS}
             />
           </>
         )}
       </section>
-
-      <ConfirmDialog
-        open={assignConfirm === 'worker'}
-        title={workerAssignConfirmCopy.title}
-        description={workerAssignConfirmCopy.description}
-        confirmLabel="Asignar"
-        confirmButtonClassName={pageTheme.accentButton}
-        loading={assigningWorker}
-        onConfirm={() => void executeAssignWorker()}
-        onCancel={() => setAssignConfirm(null)}
-      />
 
       <ConfirmDialog
         open={assignConfirm === 'inmueble'}

@@ -9,6 +9,7 @@ class CreateInmuebleDto {
     foto_espejo;
     espejo_direccion;
     barrio_distrito;
+    distrito_ciudad;
     precio;
     precio_espejo;
     hab;
@@ -20,10 +21,16 @@ class CreateInmuebleDto {
     nombre_propi;
     telf;
     ficha_del_piso_real;
+    link_idealista;
+    link_espejo;
     link_idealista_espejo;
+    fecha_visitas;
     fecha_visitas_entrada;
     observaciones;
+    requisitos_propietario;
     amueblado;
+    captador;
+    alquilado_por;
     captador_alquilado_por;
     status;
     row_color;

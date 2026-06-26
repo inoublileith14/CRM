@@ -419,7 +419,7 @@ export class WhatsAppService {
       .getAdmin()
       .from('inmuebles')
       .select(
-        'id, tipo_operacion, link_idealista_espejo, ficha_del_piso_real, imagen_real, foto_espejo',
+        'id, tipo_operacion, link_idealista, link_espejo, link_idealista_espejo, ficha_del_piso_real, imagen_real, foto_espejo',
       )
       .eq('id', inmuebleId)
       .maybeSingle();
@@ -436,6 +436,8 @@ export class WhatsAppService {
     }
 
     const propertyLink =
+      (inmueble.link_idealista as string | null)?.trim() ||
+      (inmueble.link_espejo as string | null)?.trim() ||
       (inmueble.link_idealista_espejo as string | null)?.trim() ||
       (inmueble.ficha_del_piso_real as string | null)?.trim() ||
       '';

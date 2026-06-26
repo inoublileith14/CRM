@@ -6,6 +6,7 @@ export declare class UpdateInmuebleDto {
     foto_espejo?: string | null;
     espejo_direccion?: string | null;
     barrio_distrito?: string | null;
+    distrito_ciudad?: string | null;
     precio?: number | null;
     precio_espejo?: number | null;
     hab?: number | null;
@@ -20,10 +21,16 @@ export declare class UpdateInmuebleDto {
     nombre_propi?: string | null;
     telf?: string | null;
     ficha_del_piso_real?: string | null;
+    link_idealista?: string | null;
+    link_espejo?: string | null;
     link_idealista_espejo?: string | null;
+    fecha_visitas?: string | null;
     fecha_visitas_entrada?: string | null;
     observaciones?: string | null;
+    requisitos_propietario?: string | null;
     amueblado?: 'si' | 'no' | null;
+    captador?: string | null;
+    alquilado_por?: string | null;
     captador_alquilado_por?: string | null;
     status?: 'I' | 'P' | 'I-M' | null;
     row_color?: string | null;

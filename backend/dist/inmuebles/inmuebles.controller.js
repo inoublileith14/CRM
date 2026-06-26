@@ -25,17 +25,30 @@ let InmueblesController = class InmueblesController {
     constructor(inmueblesService) {
         this.inmueblesService = inmueblesService;
     }
+    assertAdmin(req) {
+        if (req.user.rol !== 'admin') {
+            throw new common_1.ForbiddenException('Solo admin');
+        }
+    }
     findAll(tipo_operacion, propietario_id) {
         return this.inmueblesService.findAll({
             tipo_operacion,
             propietario_id,
         });
     }
-    findClientesByTipo(tipo_operacion) {
+    findClientesByTipo(tipo_operacion, page, limit, sort, dir) {
         if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
             throw new common_1.BadRequestException('tipo_operacion debe ser alquiler o venta');
         }
-        return this.inmueblesService.findClientesByTipoOperacion(tipo_operacion);
+        const pageNum = Math.max(1, Number.parseInt(page ?? '1', 10) || 1);
+        const parsedLimit = Number.parseInt(limit ?? '100', 10);
+        const limitNum = Math.min(Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 100), 10_000);
+        return this.inmueblesService.findClientesByTipoOperacionPaginated(tipo_operacion, {
+            page: pageNum,
+            limit: limitNum,
+            sort: sort === 'fecha_entrada' ? 'fecha_entrada' : undefined,
+            dir: dir === 'asc' || dir === 'desc' ? dir : undefined,
+        });
     }
     updateClienteGestionEstado(inmuebleId, clienteId, dto) {
         return this.inmueblesService.updateClienteGestionEstado(inmuebleId, clienteId, dto.gestion_estado);
@@ -46,13 +59,16 @@ let InmueblesController = class InmueblesController {
     findOne(id) {
         return this.inmueblesService.findOne(id);
     }
-    create(dto) {
+    create(req, dto) {
+        this.assertAdmin(req);
         return this.inmueblesService.create(dto);
     }
-    update(id, dto) {
+    update(req, id, dto) {
+        this.assertAdmin(req);
         return this.inmueblesService.update(id, dto);
     }
-    remove(id) {
+    remove(req, id) {
+        this.assertAdmin(req);
         return this.inmueblesService.remove(id);
     }
 };
@@ -68,8 +84,12 @@ __decorate([
 __decorate([
     (0, common_1.Get)('clientes/by-tipo'),
     __param(0, (0, common_1.Query)('tipo_operacion')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('sort')),
+    __param(4, (0, common_1.Query)('dir')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "findClientesByTipo", null);
 __decorate([
@@ -99,24 +119,27 @@ __decorate([
 ], InmueblesController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Post)(),
-    __param(0, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_inmueble_dto_1.CreateInmuebleDto]),
+    __metadata("design:paramtypes", [Object, create_inmueble_dto_1.CreateInmuebleDto]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "create", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_inmueble_dto_1.UpdateInmuebleDto]),
+    __metadata("design:paramtypes", [Object, String, update_inmueble_dto_1.UpdateInmuebleDto]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "remove", null);
 exports.InmueblesController = InmueblesController = __decorate([

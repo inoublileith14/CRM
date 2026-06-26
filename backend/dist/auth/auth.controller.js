@@ -29,8 +29,11 @@ let AuthController = class AuthController {
     login(dto) {
         return this.authService.login(dto);
     }
-    register(dto) {
-        return this.authService.register(dto);
+    register(_dto) {
+        throw new common_1.ForbiddenException({
+            message: 'El registro público está deshabilitado',
+            code: 'REGISTRATION_DISABLED',
+        });
     }
     logout() {
         return { mensaje: 'Sesión cerrada correctamente' };

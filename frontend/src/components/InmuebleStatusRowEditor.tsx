@@ -10,7 +10,8 @@ import {
   INMUEBLE_STATUS_OPTIONS,
   normalizeRowColor,
   resolveInmuebleRowColor,
-  DEFAULT_ALQUILER_ROW_COLOR,
+  DEFAULT_DENSE_ROW_COLOR,
+  DEFAULT_VENTA_DENSE_ROW_COLOR,
   type InmuebleStatus,
 } from '@/lib/inmueble-status';
 import { updateInmueble } from '@/lib/inmuebles-api';
@@ -23,6 +24,7 @@ interface InmuebleStatusRowEditorProps {
   tipoOperacion?: TipoOperacion;
   compact?: boolean;
   fillCell?: boolean;
+  onAccentBackground?: boolean;
   disabled?: boolean;
   onUpdated: (patch: { status: Inmueble['status']; row_color: string | null }) => void;
 }
@@ -34,6 +36,7 @@ export function InmuebleStatusRowEditor({
   tipoOperacion,
   compact,
   fillCell = false,
+  onAccentBackground = false,
   disabled,
   onUpdated,
 }: InmuebleStatusRowEditorProps) {
@@ -139,9 +142,12 @@ export function InmuebleStatusRowEditor({
   async function handleRowColorSelect(next: string | null) {
     const normalized = normalizeRowColor(next);
     let toSave: string | null = normalized;
+    if (tipoOperacion === 'alquiler' && normalized === DEFAULT_DENSE_ROW_COLOR) {
+      toSave = null;
+    }
     if (
-      tipoOperacion === 'alquiler' &&
-      normalized === DEFAULT_ALQUILER_ROW_COLOR
+      tipoOperacion === 'venta' &&
+      normalized === DEFAULT_VENTA_DENSE_ROW_COLOR
     ) {
       toSave = null;
     }
@@ -154,7 +160,9 @@ export function InmuebleStatusRowEditor({
   }
 
   const labelClass = fillCell
-    ? 'text-base font-extrabold leading-none sm:text-lg'
+    ? `text-base font-extrabold leading-none sm:text-lg${
+        onAccentBackground ? ' text-white' : ' text-slate-900'
+      }`
     : compact
       ? 'text-sm font-bold'
       : 'text-sm font-bold';
@@ -235,7 +243,9 @@ export function InmuebleStatusRowEditor({
       >
         {tipoOperacion === 'alquiler'
           ? 'Restaurar verde por defecto'
-          : 'Quitar color de fila'}
+          : tipoOperacion === 'venta'
+            ? 'Restaurar azul por defecto'
+            : 'Quitar color de fila'}
       </button>
     </div>
   ) : null;
@@ -254,7 +264,11 @@ export function InmuebleStatusRowEditor({
         onClick={() => setOpen((prev) => !prev)}
         className={
           fillCell
-            ? `absolute inset-0 flex cursor-pointer items-center justify-center bg-transparent text-slate-900 transition hover:bg-black/5 disabled:opacity-60 ${labelClass}`
+            ? `absolute inset-0 flex cursor-pointer items-center justify-center bg-transparent transition disabled:opacity-60 ${labelClass} ${
+                onAccentBackground
+                  ? 'hover:bg-white/10'
+                  : 'hover:bg-black/5'
+              }`
             : `inline-flex items-center justify-center bg-transparent text-slate-900 transition hover:opacity-80 disabled:opacity-60 ${labelClass}`
         }
         aria-haspopup="dialog"

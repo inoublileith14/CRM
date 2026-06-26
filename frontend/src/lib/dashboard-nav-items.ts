@@ -16,6 +16,7 @@ export type DashboardNavLink = {
   href: string;
   labelKey: MessageKey;
   icon: LucideIcon;
+  adminOnly?: boolean;
 };
 
 export type DashboardNavGroup = {
@@ -80,6 +81,7 @@ export const dashboardNavEntries: DashboardNavEntry[] = [
     href: '/dashboard/workers',
     labelKey: 'nav.workers',
     icon: Briefcase,
+    adminOnly: true,
   },
   {
     type: 'link',
@@ -88,6 +90,18 @@ export const dashboardNavEntries: DashboardNavEntry[] = [
     icon: MessageSquare,
   },
 ];
+
+export function getDashboardNavEntries(options?: {
+  isAdmin?: boolean;
+}): DashboardNavEntry[] {
+  const isAdmin = options?.isAdmin ?? false;
+  return dashboardNavEntries.filter((entry) => {
+    if (entry.type === 'link' && entry.adminOnly && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
+}
 
 export function isNavItemActive(pathname: string, href: string): boolean {
   return href === '/dashboard'

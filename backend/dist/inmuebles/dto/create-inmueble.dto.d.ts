@@ -6,6 +6,7 @@ export declare class CreateInmuebleDto {
     foto_espejo?: string;
     espejo_direccion?: string;
     barrio_distrito?: string;
+    distrito_ciudad?: string;
     precio?: number;
     precio_espejo?: number;
     hab?: number;
@@ -20,10 +21,16 @@ export declare class CreateInmuebleDto {
     nombre_propi?: string;
     telf?: string;
     ficha_del_piso_real?: string;
+    link_idealista?: string;
+    link_espejo?: string;
     link_idealista_espejo?: string;
+    fecha_visitas?: string;
     fecha_visitas_entrada?: string;
     observaciones?: string;
+    requisitos_propietario?: string;
     amueblado?: 'si' | 'no';
+    captador?: string;
+    alquilado_por?: string;
     captador_alquilado_por?: string;
     status?: 'I' | 'P' | 'I-M';
     row_color?: string;

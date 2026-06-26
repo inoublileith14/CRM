@@ -23,6 +23,11 @@ let WorkersController = class WorkersController {
     constructor(workersService) {
         this.workersService = workersService;
     }
+    assertAdmin(req) {
+        if (req.user.rol !== 'admin') {
+            throw new common_1.ForbiddenException('Solo admin');
+        }
+    }
     findAll(activo) {
         const activoOnly = activo === 'true';
         return this.workersService.findAll(activoOnly);
@@ -31,19 +36,24 @@ let WorkersController = class WorkersController {
         const worker_id = await this.workersService.findIdByProfileId(req.user.id);
         return { worker_id };
     }
-    findOne(id) {
+    findOne(req, id) {
+        this.assertAdmin(req);
         return this.workersService.findOne(id);
     }
-    create(dto) {
+    create(req, dto) {
+        this.assertAdmin(req);
         return this.workersService.create(dto);
     }
-    resendInvitation(id) {
+    resendInvitation(req, id) {
+        this.assertAdmin(req);
         return this.workersService.resendInvitation(id);
     }
-    update(id, dto) {
+    update(req, id, dto) {
+        this.assertAdmin(req);
         return this.workersService.update(id, dto);
     }
-    remove(id) {
+    remove(req, id) {
+        this.assertAdmin(req);
         return this.workersService.remove(id);
     }
 };
@@ -64,38 +74,43 @@ __decorate([
 ], WorkersController.prototype, "findMe", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], WorkersController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Post)(),
-    __param(0, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_worker_dto_1.CreateWorkerDto]),
+    __metadata("design:paramtypes", [Object, create_worker_dto_1.CreateWorkerDto]),
     __metadata("design:returntype", void 0)
 ], WorkersController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)(':id/reenviar-invitacion'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], WorkersController.prototype, "resendInvitation", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_worker_dto_1.UpdateWorkerDto]),
+    __metadata("design:paramtypes", [Object, String, update_worker_dto_1.UpdateWorkerDto]),
     __metadata("design:returntype", void 0)
 ], WorkersController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], WorkersController.prototype, "remove", null);
 exports.WorkersController = WorkersController = __decorate([

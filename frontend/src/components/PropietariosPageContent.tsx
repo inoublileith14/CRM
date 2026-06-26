@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { PropietarioForm } from '@/components/PropietarioForm';
@@ -50,6 +51,7 @@ interface PropietariosPageContentProps {
 export function PropietariosPageContent({
   expectedTipo,
 }: PropietariosPageContentProps) {
+  const pathname = usePathname();
   const { invalidatePropietarios } = useInvalidateDashboardQueries();
   const propietariosQuery = usePropietariosQuery();
   const {
@@ -82,7 +84,10 @@ export function PropietariosPageContent({
     setColumnFilter,
     setSort,
     isFilterActiveForColumn,
-  } = useTableColumnFilters(propietariosByTipo, tableColumns);
+  } = useTableColumnFilters(propietariosByTipo, tableColumns, {
+    pathname,
+    storageScope: expectedTipo,
+  });
 
   const {
     page,
@@ -92,7 +97,10 @@ export function PropietariosPageContent({
     totalItems,
     totalPages,
     paginatedItems,
-  } = usePagination(filteredPropietarios);
+  } = usePagination(filteredPropietarios, undefined, {
+    pathname,
+    storageScope: expectedTipo,
+  });
 
   useResetPageOnFilterChange([columnFilters, tableSort], setPage);
 
@@ -227,8 +235,8 @@ export function PropietariosPageContent({
                         className="px-4"
                       />
                     ))}
-                    <th className="px-4 py-3 text-xs font-semibold uppercase">
-                      Acciones
+                    <th className="px-4 py-4 text-xs font-semibold uppercase">
+                      ACCIONES
                     </th>
                   </tr>
                 </thead>

@@ -268,6 +268,19 @@ function matchesColumnFilter<T>(
   return true;
 }
 
+function getCalendarSortKey(iso: string): number {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return (
+      Number(match[1]) * 10_000 +
+      Number(match[2]) * 100 +
+      Number(match[3])
+    );
+  }
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 function compareRows<T>(
   a: T,
   b: T,
@@ -275,9 +288,19 @@ function compareRows<T>(
   direction: SortDirection,
 ): number {
   const mult = direction === 'asc' ? 1 : -1;
+  const fieldType = column.fieldType ?? 'text';
+
+  if (fieldType === 'date') {
+    const isoA = column.getDateIso?.(a);
+    const isoB = column.getDateIso?.(b);
+    if (!isoA && !isoB) return 0;
+    if (!isoA) return 1 * mult;
+    if (!isoB) return -1 * mult;
+    return (getCalendarSortKey(isoA) - getCalendarSortKey(isoB)) * mult;
+  }
+
   const displayA = column.getDisplayValue(a);
   const displayB = column.getDisplayValue(b);
-  const fieldType = column.fieldType ?? 'text';
 
   if (displayA === BLANK_FILTER_VALUE && displayB !== BLANK_FILTER_VALUE) {
     return 1 * mult;
@@ -297,19 +320,6 @@ function compareRows<T>(
     if (na === null) return 1 * mult;
     if (nb === null) return -1 * mult;
     return (na - nb) * mult;
-  }
-
-  if (fieldType === 'date') {
-    const da = column.getDateIso?.(a)
-      ? new Date(column.getDateIso(a)!).getTime()
-      : NaN;
-    const db = column.getDateIso?.(b)
-      ? new Date(column.getDateIso(b)!).getTime()
-      : NaN;
-    if (Number.isNaN(da) && Number.isNaN(db)) return 0;
-    if (Number.isNaN(da)) return 1 * mult;
-    if (Number.isNaN(db)) return -1 * mult;
-    return (da - db) * mult;
   }
 
   return (

@@ -16,6 +16,7 @@ interface InmuebleAssignSearchSelectProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function InmuebleAssignSearchSelect({
@@ -25,6 +26,7 @@ export function InmuebleAssignSearchSelect({
   disabled,
   placeholder = 'Asignar a piso…',
   className = '',
+  onOpenChange,
 }: InmuebleAssignSearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -72,7 +74,13 @@ export function InmuebleAssignSearchSelect({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          setOpen((prev) => {
+            const next = !prev;
+            onOpenChange?.(next);
+            return next;
+          });
+        }}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-900 outline-none transition hover:bg-slate-50 disabled:opacity-60"
         aria-expanded={open}
         aria-haspopup="listbox"

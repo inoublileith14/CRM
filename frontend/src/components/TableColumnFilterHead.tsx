@@ -1,12 +1,14 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { CSSProperties, ReactNode } from 'react';
 import { SheetColumnFilterMenu } from '@/components/SheetColumnFilterMenu';
 import {
   ColumnFilterFieldType,
   ColumnFilterState,
   SortDirection,
 } from '@/lib/table-column-filters';
+import { formatTableHeaderLabel } from '@/lib/table-header-label';
+import { TABLE_HEAD_PADDING, TABLE_HEAD_TEXT_CLASS } from '@/lib/excel-table-styles';
 
 type HeadVariant = 'emerald' | 'slate' | 'inherit';
 
@@ -25,6 +27,8 @@ interface TableColumnFilterHeadProps {
   onSort: (direction: SortDirection) => void;
   variant?: HeadVariant;
   className?: string;
+  style?: CSSProperties;
+  labelClassName?: string;
   children?: ReactNode;
 }
 
@@ -61,18 +65,22 @@ export function TableColumnFilterHead({
   onSort,
   variant = 'emerald',
   className = '',
+  style,
+  labelClassName = '',
   children,
 }: TableColumnFilterHeadProps) {
   const styles = VARIANT_STYLES[variant];
   const isSlate = variant === 'slate';
   const isInherit = variant === 'inherit';
 
-  const displayLabel = shortLabel ?? label;
+  const displayLabel = formatTableHeaderLabel(shortLabel ?? label);
+  const titleLabel = formatTableHeaderLabel(label);
 
   return (
     <th
+      style={style}
       className={`${
-        isInherit ? '' : 'whitespace-nowrap px-3 py-3 text-xs font-semibold uppercase tracking-wide'
+        isInherit ? '' : `whitespace-nowrap ${TABLE_HEAD_PADDING} ${TABLE_HEAD_TEXT_CLASS}`
       } ${
         isFilterActive || (isSortColumn && sortDirection)
           ? styles.thActive
@@ -80,15 +88,18 @@ export function TableColumnFilterHead({
       } ${className}`}
     >
       <span
-        className={`inline-flex items-center gap-1 ${shortLabel ? 'max-w-[5.5rem]' : 'max-w-[12rem]'}`}
+        className={`inline-flex items-center justify-center gap-1 ${shortLabel ? 'max-w-[5.5rem]' : 'max-w-[12rem]'}`}
       >
         {children ?? (
-          <span className="truncate" title={label}>
+          <span
+            className={`truncate ${labelClassName}`.trim()}
+            title={titleLabel}
+          >
             {displayLabel}
           </span>
         )}
         <SheetColumnFilterMenu
-          columnLabel={label}
+          columnLabel={titleLabel}
           fieldType={fieldType}
           uniqueValues={uniqueValues}
           filter={filter}

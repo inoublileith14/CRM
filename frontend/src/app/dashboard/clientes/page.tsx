@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClienteExcelImportButton } from '@/components/ClienteExcelImportButton';
@@ -62,6 +63,7 @@ function formatCell(cliente: Cliente, key: string): string {
 }
 
 export default function ClientesPage() {
+  const pathname = usePathname();
   const { invalidateClientes } = useInvalidateDashboardQueries();
   const clientesQuery = useClientesQuery();
   const {
@@ -90,7 +92,7 @@ export default function ClientesPage() {
     setColumnFilter,
     setSort,
     isFilterActiveForColumn,
-  } = useTableColumnFilters(clientes, tableColumns);
+  } = useTableColumnFilters(clientes, tableColumns, { pathname });
 
   const {
     page,
@@ -100,7 +102,7 @@ export default function ClientesPage() {
     totalItems,
     totalPages,
     paginatedItems,
-  } = usePagination(filteredClientes);
+  } = usePagination(filteredClientes, undefined, { pathname });
 
   useResetPageOnFilterChange([columnFilters, tableSort], setPage);
 
@@ -239,8 +241,8 @@ export default function ClientesPage() {
                       onSort={(direction) => setSort(field.key, direction)}
                     />
                   ))}
-                  <th className="sticky right-0 bg-emerald-800 px-3 py-3 text-xs font-semibold uppercase">
-                    Acciones
+                  <th className="sticky right-0 bg-emerald-800 px-3 py-4 text-xs font-semibold uppercase">
+                    ACCIONES
                   </th>
                 </tr>
               </thead>

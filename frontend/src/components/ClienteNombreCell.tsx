@@ -108,13 +108,13 @@ export function ClienteNombreCell({
         event.stopPropagation();
         setEditing(true);
       }}
-      className="group w-full rounded px-1 py-0.5 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-100 disabled:opacity-60"
+      className="group w-full min-w-0 max-w-full rounded px-1 py-0.5 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-100 disabled:opacity-60"
       title={preview ? `${preview} — clic para editar` : 'Clic para editar nombre'}
     >
       {saving ? (
         <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
       ) : preview ? (
-        <span className="block break-words whitespace-normal leading-snug">
+        <span className="block line-clamp-3 break-words whitespace-normal leading-snug">
           {preview}
         </span>
       ) : (

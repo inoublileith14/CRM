@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { ArrowLeft, Mail, Pencil, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { resendWorkerInvitation } from '@/lib/workers-api';
@@ -14,11 +14,14 @@ import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import { useWorkerQuery } from '@/hooks/use-dashboard-queries';
 import { useQueryUiState } from '@/hooks/use-query-ui';
 import { useTableColumnFilters } from '@/hooks/useTableColumnFilters';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { buildTableStateKey } from '@/lib/persisted-table-state';
 import { WORKER_CLIENTE_TABLE_COLUMNS } from '@/lib/table-columns';
 import { getWorkerRolLabel, workerAccountStatus } from '@/types/worker';
 
 export default function WorkerDetailPage() {
   const params = useParams();
+  const pathname = usePathname();
   const id = params.id as string;
   const workerQuery = useWorkerQuery(id);
   const {
@@ -28,7 +31,10 @@ export default function WorkerDetailPage() {
     showError,
   } = useQueryUiState(workerQuery);
   const [resending, setResending] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
+  const [clientSearch, setClientSearch] = usePersistedState(
+    `${buildTableStateKey(pathname)}:client-search`,
+    '',
+  );
 
   const clientes = useMemo(() => worker?.clientes ?? [], [worker?.clientes]);
   const clientQuery = clientSearch.trim().toLowerCase();
@@ -68,7 +74,7 @@ export default function WorkerDetailPage() {
     setColumnFilter,
     setSort,
     isFilterActiveForColumn,
-  } = useTableColumnFilters(searchedClientes, tableColumns);
+  } = useTableColumnFilters(searchedClientes, tableColumns, { pathname });
 
   if (showInitialLoading) {
     return (
@@ -247,11 +253,11 @@ export default function WorkerDetailPage() {
                       onApply={(next) => setColumnFilter(col.key, next)}
                       onSort={(direction) => setSort(col.key, direction)}
                       variant="slate"
-                      className="px-4 normal-case"
+                      className="px-4"
                     />
                   ))}
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Acciones
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    ACCIONES
                   </th>
                 </tr>
               </thead>

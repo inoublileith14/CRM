@@ -9,6 +9,10 @@ import {
   padPropietarioFormSlots,
   parsePropietariosFromForm,
 } from '@/lib/inmueble-propietarios';
+import {
+  hydrateInmuebleSplitFields,
+  normalizeInmuebleSplitFieldsForSave,
+} from '@/lib/inmueble-split-fields';
 import { toInmuebleCellValue } from '@/lib/inmueble-table-utils';
 import {
   INMUEBLE_FIELDS,
@@ -49,7 +53,7 @@ const FORM_SECTIONS: {
   },
   {
     title: 'Ubicación',
-    keys: ['direccion_piso_real', 'espejo_direccion', 'barrio_distrito'],
+    keys: ['direccion_piso_real', 'espejo_direccion', 'barrio_distrito', 'distrito_ciudad'],
   },
   {
     title: 'Características',
@@ -72,15 +76,18 @@ const FORM_SECTIONS: {
   {
     title: 'Enlaces y captación',
     keys: [
-      'captador_alquilado_por',
+      'captador',
+      'alquilado_por',
       'ficha_del_piso_real',
-      'link_idealista_espejo',
+      'link_idealista',
+      'link_espejo',
+      'fecha_visitas',
       'fecha_visitas_entrada',
     ],
   },
   {
-    title: 'Observaciones',
-    keys: ['observaciones'],
+    title: 'Observaciones y requisitos',
+    keys: ['observaciones', 'requisitos_propietario'],
   },
 ];
 
@@ -93,6 +100,17 @@ function toFormValue(value: string | number | null | undefined): string {
   return String(value);
 }
 
+function toDateInputValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  const raw = String(value);
+  const isoMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export function InmuebleForm({
   initial,
   onSubmit,
@@ -101,7 +119,7 @@ export function InmuebleForm({
   loading = false,
   fixedTipoOperacion,
 }: InmuebleFormProps) {
-  const defaults = initial ?? emptyInmuebleForm();
+  const defaults = hydrateInmuebleSplitFields(initial ?? emptyInmuebleForm());
   const [propietarioSlots, setPropietarioSlots] = useState(() =>
     padPropietarioFormSlots(getInmueblePropietarios(defaults)),
   );
@@ -123,7 +141,7 @@ export function InmuebleForm({
     const propietariosContactos = parsePropietariosFromForm(propietarioSlots);
     const firstOwner = propietariosContactos[0];
 
-    const data: InmuebleFormData = {
+    const data = normalizeInmuebleSplitFieldsForSave({
       ref: (form.get('ref') as string) || null,
       fecha_entrada_inmueble:
         (form.get('fecha_entrada_inmueble') as string) || null,
@@ -132,6 +150,7 @@ export function InmuebleForm({
       foto_espejo: (form.get('foto_espejo') as string) || null,
       espejo_direccion: (form.get('espejo_direccion') as string) || null,
       barrio_distrito: (form.get('barrio_distrito') as string) || null,
+      distrito_ciudad: (form.get('distrito_ciudad') as string) || null,
       precio: form.get('precio') ? Number(form.get('precio')) : null,
       precio_espejo: form.get('precio_espejo')
         ? Number(form.get('precio_espejo'))
@@ -146,18 +165,23 @@ export function InmuebleForm({
       nombre_propi: firstOwner?.nombre ?? null,
       telf: firstOwner?.telf ?? null,
       ficha_del_piso_real: (form.get('ficha_del_piso_real') as string) || null,
-      link_idealista_espejo:
-        (form.get('link_idealista_espejo') as string) || null,
+      link_idealista: (form.get('link_idealista') as string) || null,
+      link_espejo: (form.get('link_espejo') as string) || null,
+      link_idealista_espejo: null,
+      fecha_visitas: (form.get('fecha_visitas') as string) || null,
       fecha_visitas_entrada:
         (form.get('fecha_visitas_entrada') as string) || null,
       observaciones: (form.get('observaciones') as string) || null,
+      requisitos_propietario:
+        (form.get('requisitos_propietario') as string) || null,
       amueblado: (form.get('amueblado') as 'si' | 'no') || null,
-      captador_alquilado_por:
-        (form.get('captador_alquilado_por') as string) || null,
+      captador: (form.get('captador') as string) || null,
+      alquilado_por: (form.get('alquilado_por') as string) || null,
+      captador_alquilado_por: null,
       status: (form.get('status') as 'I' | 'P' | 'I-M') || null,
       row_color: defaults.row_color ?? null,
       tipo_operacion: tipoOperacion,
-    };
+    });
 
     if (!data.tipo_operacion) {
       toast.error('Selecciona alquiler o venta');
@@ -309,6 +333,17 @@ export function InmuebleForm({
             name={field.key}
             rows={4}
             defaultValue={toFormValue(toInmuebleCellValue(defaults[field.key]))}
+            disabled={loading}
+            className={inputClass}
+          />
+        ) : field.type === 'date' ? (
+          <input
+            id={field.key}
+            name={field.key}
+            type="date"
+            defaultValue={toDateInputValue(
+              defaults[field.key] as string | null | undefined,
+            )}
             disabled={loading}
             className={inputClass}
           />

@@ -14,8 +14,27 @@ export const INMUEBLE_STATUS_OPTIONS: InmuebleStatusOption[] = [
   { value: null, label: '—' },
 ];
 
-/** Default row background for casas alquiler when no custom color is set. */
-export const DEFAULT_ALQUILER_ROW_COLOR = '#c1d8ac';
+export const INMUEBLE_STATUS_DISPLAY_LABELS: Record<InmuebleStatus, string> = {
+  P: 'PUBLICADO',
+  I: 'INTERNO',
+  'I-M': 'INTERNO EN MADRID',
+};
+
+export function formatInmuebleStatusDisplay(
+  value: Inmueble['status'],
+): string {
+  if (!value) return '—';
+  return INMUEBLE_STATUS_DISPLAY_LABELS[value] ?? '—';
+}
+
+/** Default row background for dense alquiler tables when no custom color is set. */
+export const DEFAULT_DENSE_ROW_COLOR = '#c1d8ad';
+
+/** Default row background for dense venta tables when no custom color is set. */
+export const DEFAULT_VENTA_DENSE_ROW_COLOR = '#A4C2F4';
+
+/** @deprecated Use DEFAULT_DENSE_ROW_COLOR */
+export const DEFAULT_ALQUILER_ROW_COLOR = DEFAULT_DENSE_ROW_COLOR;
 
 export const INMUEBLE_ROW_COLOR_PRESETS: Array<{
   value: string;
@@ -24,7 +43,7 @@ export const INMUEBLE_ROW_COLOR_PRESETS: Array<{
   { value: '#ffff00', label: 'Amarillo' },
   { value: '#8b00ff', label: 'Morado' },
   { value: '#00ffff', label: 'Cian' },
-  { value: '#c1d8ac', label: 'Verde claro' },
+  { value: '#c1d8ad', label: 'Verde claro' },
   { value: '#fff2cc', label: 'Amarillo suave' },
   { value: '#ddebf7', label: 'Azul claro' },
   { value: '#f2f2f2', label: 'Gris' },
@@ -57,7 +76,8 @@ export function resolveInmuebleRowColor(
 ): string | null {
   const normalized = normalizeRowColor(rowColor);
   if (normalized) return normalized;
-  if (tipoOperacion === 'alquiler') return DEFAULT_ALQUILER_ROW_COLOR;
+  if (tipoOperacion === 'venta') return DEFAULT_VENTA_DENSE_ROW_COLOR;
+  if (tipoOperacion === 'alquiler') return DEFAULT_DENSE_ROW_COLOR;
   return null;
 }
 

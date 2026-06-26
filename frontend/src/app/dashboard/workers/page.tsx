@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
@@ -15,6 +16,8 @@ import {
   useTableColumnFilters,
 } from '@/hooks/useTableColumnFilters';
 import { usePagination } from '@/hooks/usePagination';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { buildTableStateKey } from '@/lib/persisted-table-state';
 import { WORKER_TABLE_COLUMNS } from '@/lib/table-columns';
 import {
   useInvalidateDashboardQueries,
@@ -45,6 +48,8 @@ const ROL_STYLES: Record<WorkerRol, string> = {
 };
 
 export default function WorkersPage() {
+  const pathname = usePathname();
+  const toolbarKey = `${buildTableStateKey(pathname)}:toolbar`;
   const { invalidateWorkers } = useInvalidateDashboardQueries();
   const workersQuery = useWorkersQuery(false);
   const {
@@ -55,8 +60,16 @@ export default function WorkersPage() {
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [listFilter, setListFilter] = useState<WorkerListFilter>('all');
+  const [toolbar, setToolbar] = usePersistedState(toolbarKey, {
+    search: '',
+    listFilter: 'all' as WorkerListFilter,
+  });
+  const search = toolbar.search;
+  const listFilter = toolbar.listFilter;
+  const setSearch = (value: string) =>
+    setToolbar((prev) => ({ ...prev, search: value }));
+  const setListFilter = (value: WorkerListFilter) =>
+    setToolbar((prev) => ({ ...prev, listFilter: value }));
 
   const searchedWorkers = useMemo(
     () => filterWorkers(workers, search, listFilter),
@@ -75,7 +88,9 @@ export default function WorkersPage() {
     setColumnFilter,
     setSort,
     isFilterActiveForColumn,
-  } = useTableColumnFilters(searchedWorkers, WORKER_TABLE_COLUMNS);
+  } = useTableColumnFilters(searchedWorkers, WORKER_TABLE_COLUMNS, {
+    pathname,
+  });
 
   const {
     page,
@@ -85,9 +100,14 @@ export default function WorkersPage() {
     totalItems,
     totalPages,
     paginatedItems,
-  } = usePagination(filteredWorkers);
+  } = usePagination(filteredWorkers, undefined, { pathname });
 
+  const skipToolbarPageResetRef = useRef(true);
   useEffect(() => {
+    if (skipToolbarPageResetRef.current) {
+      skipToolbarPageResetRef.current = false;
+      return;
+    }
     setPage(1);
   }, [search, listFilter, setPage]);
 
@@ -239,8 +259,8 @@ export default function WorkersPage() {
                     className="px-4"
                   />
                 ))}
-                <th className="px-4 py-3 text-xs font-semibold uppercase">
-                  Acciones
+                <th className="px-4 py-4 text-xs font-semibold uppercase">
+                  ACCIONES
                 </th>
               </tr>
             </thead>

@@ -92,37 +92,37 @@ export function buildClienteTableColumns(
 export const WORKER_TABLE_COLUMNS: TableColumnDef<Worker>[] = [
   {
     key: 'nombre',
-    label: 'Nombre',
+    label: 'NOMBRE',
     getDisplayValue: (w) => toFilterDisplay(w.nombre),
   },
   {
     key: 'telf',
-    label: 'Teléfono',
+    label: 'TELÉFONO',
     getDisplayValue: (w) => toFilterDisplay(w.telf),
   },
   {
     key: 'email',
-    label: 'Email',
+    label: 'EMAIL',
     getDisplayValue: (w) => toFilterDisplay(w.email),
   },
   {
     key: 'rol',
-    label: 'Rol',
+    label: 'ROL',
     getDisplayValue: (w) => getWorkerRolLabel(w.rol),
   },
   {
     key: 'activo',
-    label: 'Estado',
+    label: 'ESTADO',
     getDisplayValue: (w) => (w.activo ? 'Activo' : 'Inactivo'),
   },
   {
     key: 'usuario',
-    label: 'Usuario',
+    label: 'USUARIO',
     getDisplayValue: (w) => workerAccountStatus(w).label,
   },
   {
     key: 'clientes_count',
-    label: 'Clientes',
+    label: 'CLIENTES',
     fieldType: 'number',
     getDisplayValue: (w) => String(w.clientes_count ?? 0),
     getNumberValue: (w) => w.clientes_count ?? 0,
@@ -132,28 +132,28 @@ export const WORKER_TABLE_COLUMNS: TableColumnDef<Worker>[] = [
 export const PROPIETARIO_TABLE_COLUMNS: TableColumnDef<Propietario>[] = [
   {
     key: 'nombre',
-    label: 'Nombre',
+    label: 'NOMBRE',
     getDisplayValue: (p) => toFilterDisplay(p.nombre),
   },
   {
     key: 'tipo_operacion',
-    label: 'Tipo',
+    label: 'TIPO',
     getDisplayValue: (p) =>
       p.tipo_operacion ? TIPO_OPERACION_LABELS[p.tipo_operacion] : '—',
   },
   {
     key: 'telf',
-    label: 'Teléfono',
+    label: 'TELÉFONO',
     getDisplayValue: (p) => toFilterDisplay(p.telf),
   },
   {
     key: 'email',
-    label: 'Email',
+    label: 'EMAIL',
     getDisplayValue: (p) => toFilterDisplay(p.email),
   },
   {
     key: 'inmuebles_count',
-    label: 'Inmuebles',
+    label: 'INMUEBLES',
     fieldType: 'number',
     getDisplayValue: (p) => String(p.inmuebles_count ?? 0),
     getNumberValue: (p) => p.inmuebles_count ?? 0,
@@ -163,22 +163,22 @@ export const PROPIETARIO_TABLE_COLUMNS: TableColumnDef<Propietario>[] = [
 export const WORKER_CLIENTE_TABLE_COLUMNS: TableColumnDef<Cliente>[] = [
   {
     key: 'nombre',
-    label: 'Nombre',
+    label: 'NOMBRE',
     getDisplayValue: (c) => toFilterDisplay(c.nombre),
   },
   {
     key: 'email',
-    label: 'Email',
+    label: 'EMAIL',
     getDisplayValue: (c) => toFilterDisplay(c.email),
   },
   {
     key: 'telefono',
-    label: 'Teléfono',
+    label: 'TELÉFONO',
     getDisplayValue: (c) => toFilterDisplay(c.telefono),
   },
   {
     key: 'estado',
-    label: 'Estado',
+    label: 'ESTADO',
     getDisplayValue: (c) => CLIENTE_ESTADO_LABELS[c.estado],
   },
 ];
@@ -186,17 +186,17 @@ export const WORKER_CLIENTE_TABLE_COLUMNS: TableColumnDef<Cliente>[] = [
 export const PROPIETARIO_INMUEBLE_TABLE_COLUMNS: TableColumnDef<Inmueble>[] = [
   {
     key: 'direccion',
-    label: 'Dirección',
+    label: 'DIRECCIÓN',
     getDisplayValue: (i) => toFilterDisplay(i.direccion_piso_real),
   },
   {
     key: 'barrio',
-    label: 'Barrio',
+    label: 'BARRIO',
     getDisplayValue: (i) => toFilterDisplay(i.barrio_distrito),
   },
   {
     key: 'tipo',
-    label: 'Tipo',
+    label: 'TIPO',
     getDisplayValue: (i) =>
       i.tipo_operacion
         ? TIPO_OPERACION_LABELS[i.tipo_operacion]
@@ -204,7 +204,7 @@ export const PROPIETARIO_INMUEBLE_TABLE_COLUMNS: TableColumnDef<Inmueble>[] = [
   },
   {
     key: 'precio',
-    label: 'Precio',
+    label: 'PRECIO',
     fieldType: 'number',
     getDisplayValue: (i) =>
       i.precio != null ? formatInmueblePrecio(i.precio) : toFilterDisplay(null),
@@ -219,21 +219,23 @@ export function buildInmuebleClienteTableColumns(
   return [
     {
       key: 'fecha_ultima_gestion',
-      label: 'Última gestión',
+      label: 'ÚLTIMA GESTIÓN',
+      shortLabel: 'ÚLTIMA\nGESTIÓN',
       fieldType: 'date',
       getDisplayValue: (c) => formatClienteDate(c.fecha_ultima_gestion),
       getDateIso: (c) => c.fecha_ultima_gestion ?? null,
     },
     {
       key: 'fecha_contacto',
-      label: 'Fecha entrada',
+      label: 'FECHA ENTRADA',
+      shortLabel: 'FECHA\nENTRADA',
       fieldType: 'date',
       getDisplayValue: (c) => formatClienteEntradaDate(c.fecha_contacto),
       getDateIso: (c) => resolveClienteEntradaIso(c.fecha_contacto),
     },
     {
       key: 'nombre',
-      label: 'Nombre',
+      label: 'NOMBRE',
       getDisplayValue: (c) => toFilterDisplay(c.nombre),
     },
     {
@@ -243,23 +245,23 @@ export function buildInmuebleClienteTableColumns(
     },
     {
       key: 'telefono',
-      label: 'Teléfono',
+      label: 'TELÉFONO',
       getDisplayValue: (c) => toFilterDisplay(c.telefono),
     },
     {
       key: 'gestion_estado',
-      label: 'Gestión',
+      label: 'GESTIÓN',
       getDisplayValue: (c) =>
         getClienteGestionEstadoOption(c.gestion_estado, tipoOperacion).label,
     },
     {
       key: 'notas',
-      label: 'Notas',
+      label: 'NOTAS',
       getDisplayValue: (c) => toFilterDisplay(c.notas),
     },
     {
       key: 'trabajador',
-      label: 'Trabajador',
+      label: 'TRABAJADOR',
       getDisplayValue: workerLabelFn,
     },
   ];
@@ -272,13 +274,15 @@ function formatClienteDate(value: string | null | undefined): string {
   }).format(new Date(value));
 }
 
-export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] {
+export function buildVentaDenseClienteTableColumns(
+  tipoOperacion: TipoOperacion = 'venta',
+): TableColumnDef<Cliente>[] {
   const center = 'text-center align-middle';
   return [
     {
       key: 'fecha_ultima_gestion',
-      label: 'Fecha última gestión',
-      shortLabel: 'Últ. gest.',
+      label: 'FECHA ÚLTIMA GESTIÓN',
+      shortLabel: 'ÚLT. GEST.',
       headClassName: 'w-[4.75rem] text-center',
       cellClassName: `w-[4.75rem] ${center}`,
       fieldType: 'date',
@@ -287,8 +291,8 @@ export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] 
     },
     {
       key: 'fecha_entrada_peticion',
-      label: 'Fecha entrada petición',
-      shortLabel: 'Entrada',
+      label: 'FECHA ENTRADA PETICIÓN',
+      shortLabel: 'ENTRADA',
       headClassName: 'w-[4.25rem] text-center',
       cellClassName: `w-[4.25rem] ${center}`,
       fieldType: 'date',
@@ -298,38 +302,48 @@ export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] 
     {
       key: 'ref_cliente',
       label: 'REFERENCES',
-      shortLabel: 'Ref.',
+      shortLabel: 'REF.',
       headClassName: 'w-[7.5rem] text-center',
       cellClassName: `max-w-[7.5rem] ${center}`,
       getDisplayValue: (cliente) => toFilterDisplay(cliente.ref_cliente),
     },
     {
       key: 'nombre',
-      label: 'Nombre',
+      label: 'NOMBRE',
       headClassName: 'w-[7.5rem] text-center',
       cellClassName: `max-w-[7.5rem] ${center}`,
       getDisplayValue: (cliente) => toFilterDisplay(cliente.nombre),
     },
     {
       key: 'telefono',
-      label: 'Teléfono',
-      shortLabel: 'Tel.',
+      label: 'TELÉFONO',
+      shortLabel: 'TEL.',
       headClassName: 'w-[6.25rem] text-center',
       cellClassName: `whitespace-nowrap ${center}`,
       getDisplayValue: (cliente) => toFilterDisplay(cliente.telefono),
     },
     {
+      key: 'gestion_estado',
+      label: 'GESTIÓN',
+      shortLabel: 'GEST.',
+      headClassName: 'w-[5.5rem] text-center',
+      cellClassName: `max-w-[5.5rem] ${center}`,
+      fieldType: 'text',
+      getDisplayValue: (cliente) =>
+        getClienteGestionEstadoOption(cliente.gestion_estado, tipoOperacion).label,
+    },
+    {
       key: 'presupuesto_maximo',
-      label: 'Presupuesto máximo',
-      shortLabel: 'P. máx.',
+      label: 'PRESUPUESTO MÁXIMO',
+      shortLabel: 'P. MÁX.',
       headClassName: 'w-[4.25rem] text-center',
       cellClassName: `whitespace-nowrap tabular-nums ${center}`,
       getDisplayValue: (cliente) => toFilterDisplay(cliente.presupuesto_maximo),
     },
     {
       key: 'presupuesto_peticion',
-      label: 'Presupuesto de petición',
-      shortLabel: 'P. pet.',
+      label: 'PRESUPUESTO DE PETICIÓN',
+      shortLabel: 'P. PET.',
       headClassName: 'w-[4.25rem] text-center',
       cellClassName: `whitespace-nowrap tabular-nums ${center}`,
       getDisplayValue: (cliente) =>
@@ -337,8 +351,8 @@ export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] 
     },
     {
       key: 'habitaciones',
-      label: 'Habitaciones',
-      shortLabel: 'Hab.',
+      label: 'HABITACIONES',
+      shortLabel: 'HAB.',
       headClassName: 'w-[3rem] text-center',
       cellClassName: `text-center tabular-nums align-middle`,
       fieldType: 'number',
@@ -351,8 +365,8 @@ export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] 
     },
     {
       key: 'banos',
-      label: 'Baños',
-      shortLabel: 'Bañ.',
+      label: 'BAÑOS',
+      shortLabel: 'BAÑ.',
       headClassName: 'w-[3rem] text-center',
       cellClassName: `text-center tabular-nums align-middle`,
       fieldType: 'number',
@@ -368,8 +382,8 @@ export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] 
     },
     {
       key: 'metros',
-      label: 'Metros',
-      shortLabel: 'm²',
+      label: 'METROS',
+      shortLabel: 'M²',
       headClassName: 'w-[3rem] text-center',
       cellClassName: `text-center tabular-nums align-middle`,
       fieldType: 'number',
@@ -381,7 +395,7 @@ export function buildVentaDenseClienteTableColumns(): TableColumnDef<Cliente>[] 
     },
     {
       key: 'zona',
-      label: 'Zona',
+      label: 'ZONA',
       headClassName: 'min-w-0 text-center',
       cellClassName: `min-w-0 ${center}`,
       getDisplayValue: (cliente) =>
@@ -398,12 +412,16 @@ export function buildAlquilerInmuebleClienteTableColumns(): TableColumnDef<Clien
   return buildVentaDenseClienteTableColumns();
 }
 
-export function buildAlquilerGlobalClienteTableColumns(): TableColumnDef<InmuebleClienteLinkRow>[] {
-  return buildVentaGlobalClienteTableColumns();
+export function buildAlquilerGlobalClienteTableColumns(
+  tipoOperacion: TipoOperacion = 'alquiler',
+): TableColumnDef<InmuebleClienteLinkRow>[] {
+  return buildVentaGlobalClienteTableColumns(tipoOperacion);
 }
 
-export function buildVentaGlobalClienteTableColumns(): TableColumnDef<InmuebleClienteLinkRow>[] {
-  return buildVentaDenseClienteTableColumns().map(adaptClienteColumn);
+export function buildVentaGlobalClienteTableColumns(
+  tipoOperacion: TipoOperacion = 'venta',
+): TableColumnDef<InmuebleClienteLinkRow>[] {
+  return buildVentaDenseClienteTableColumns(tipoOperacion).map(adaptClienteColumn);
 }
 
 export function buildGeneralInmuebleClienteTableColumns(
@@ -414,7 +432,7 @@ export function buildGeneralInmuebleClienteTableColumns(
 
   const inmuebleColumn: TableColumnDef<InmuebleClienteLinkRow> = {
     key: 'inmueble',
-    label: 'Inmueble',
+    label: 'INMUEBLE',
     getDisplayValue: (row) => toFilterDisplay(row.inmueble_label),
   };
 

@@ -5,7 +5,7 @@ import {
   INMUEBLE_CLIENTE_UNASSIGNED_WORKER,
   InmuebleClienteFilters,
 } from '@/lib/inmueble-cliente-filters';
-import { getClienteGestionEstadoOptions } from '@/lib/cliente-gestion-estado';
+import { ClienteGestionEstadoFilterSelect } from '@/components/ClienteGestionEstadoFilterSelect';
 import { TipoOperacion } from '@/types/inmueble';
 import { Worker, getWorkerRolLabel } from '@/types/worker';
 
@@ -30,7 +30,6 @@ export function InmuebleClienteFiltersBar({
   disabled,
   compact = false,
 }: InmuebleClienteFiltersBarProps) {
-  const gestionOptions = getClienteGestionEstadoOptions(tipoOperacion);
   const focusRingClass =
     tipoOperacion === 'alquiler'
       ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20'
@@ -64,25 +63,13 @@ export function InmuebleClienteFiltersBar({
         className={compact ? `w-[7.5rem] sm:w-28 ${inputClass}` : `w-full sm:w-52 ${inputClass}`}
         aria-label="Buscar por nombre o teléfono"
       />
-      <select
+      <ClienteGestionEstadoFilterSelect
         value={filters.gestion_estado}
-        onChange={(e) =>
-          patch({
-            gestion_estado: e.target.value as InmuebleClienteFilters['gestion_estado'],
-          })
-        }
+        onChange={(gestion_estado) => patch({ gestion_estado })}
+        tipoOperacion={tipoOperacion}
         disabled={disabled}
-        className={compact ? `max-w-[6.5rem] sm:max-w-[7.5rem] ${inputClass}` : `w-full sm:w-56 ${inputClass}`}
-        aria-label="Filtrar por gestión"
-        title={compact ? 'Filtrar por gestión' : undefined}
-      >
-        <option value="">{compact ? 'Gestión' : 'Todas las gestiones'}</option>
-        {gestionOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        compact={compact}
+      />
       <select
         value={filters.worker_id}
         onChange={(e) => patch({ worker_id: e.target.value })}

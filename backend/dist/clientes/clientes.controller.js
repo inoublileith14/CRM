@@ -21,6 +21,7 @@ const clientes_service_1 = require("./clientes.service");
 const bulk_delete_clientes_dto_1 = require("./dto/bulk-delete-clientes.dto");
 const bulk_assign_inmueble_dto_1 = require("./dto/bulk-assign-inmueble.dto");
 const bulk_assign_worker_dto_1 = require("./dto/bulk-assign-worker.dto");
+const bulk_unassign_worker_dto_1 = require("./dto/bulk-unassign-worker.dto");
 const bulk_import_clientes_dto_1 = require("./dto/bulk-import-clientes.dto");
 const create_cliente_dto_1 = require("./dto/create-cliente.dto");
 const update_cliente_dto_1 = require("./dto/update-cliente.dto");
@@ -37,6 +38,9 @@ let ClientesController = class ClientesController {
     }
     bulkAssignWorker(dto) {
         return this.clientesService.bulkAssignWorker(dto);
+    }
+    bulkUnassignWorker(dto) {
+        return this.clientesService.bulkUnassignWorker(dto);
     }
     bulkAssignInmueble(dto) {
         return this.clientesService.bulkAssignInmueble(dto);
@@ -87,6 +91,13 @@ __decorate([
     __metadata("design:paramtypes", [bulk_assign_worker_dto_1.BulkAssignWorkerDto]),
     __metadata("design:returntype", void 0)
 ], ClientesController.prototype, "bulkAssignWorker", null);
+__decorate([
+    (0, common_1.Post)('bulk-unassign-worker'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [bulk_unassign_worker_dto_1.BulkUnassignWorkerDto]),
+    __metadata("design:returntype", void 0)
+], ClientesController.prototype, "bulkUnassignWorker", null);
 __decorate([
     (0, common_1.Post)('bulk-assign-inmueble'),
     __param(0, (0, common_1.Body)()),

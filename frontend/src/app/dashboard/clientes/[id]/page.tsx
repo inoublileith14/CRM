@@ -8,6 +8,8 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
 import { useClienteQuery } from '@/hooks/use-dashboard-queries';
 import { useQueryUiState } from '@/hooks/use-query-ui';
+import { useCurrentUser } from '@/contexts/CurrentUserContext';
+import { isAdminUser } from '@/lib/auth-roles';
 import { CLIENTE_ORIGEN_LABELS } from '@/types/cliente';
 import { TIPO_OPERACION_LABELS } from '@/types/inmueble';
 import { getWorkerRolLabel } from '@/types/worker';
@@ -23,6 +25,8 @@ export default function ClienteDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const clienteQuery = useClienteQuery(id);
+  const { user } = useCurrentUser();
+  const canManageWorkers = isAdminUser(user?.rol);
   const {
     data: cliente,
     showInitialLoading,
@@ -154,12 +158,18 @@ export default function ClienteDetailPage() {
               <ul className="space-y-2 text-sm">
                 {workers.map((worker) => (
                   <li key={worker.id}>
-                    <Link
-                      href={`/dashboard/workers/${worker.id}`}
-                      className="font-medium text-emerald-600 hover:text-emerald-500"
-                    >
-                      {worker.nombre} ({getWorkerRolLabel(worker.rol)})
-                    </Link>
+                    {canManageWorkers ? (
+                      <Link
+                        href={`/dashboard/workers/${worker.id}`}
+                        className="font-medium text-emerald-600 hover:text-emerald-500"
+                      >
+                        {worker.nombre} ({getWorkerRolLabel(worker.rol)})
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-slate-800">
+                        {worker.nombre} ({getWorkerRolLabel(worker.rol)})
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -2,6 +2,7 @@ export const CLIENTE_GESTION_ESTADOS_ALQUILER = [
   'no_gestionando',
   'gestionando',
   'visita_concertada',
+  'reservado',
   'nc',
   'pendiente_cuadrar_docs',
   'perfil_no_encaja',

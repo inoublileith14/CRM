@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { bulkAssignWorker } from '@/lib/clientes-api';
+import { bulkAssignWorker, bulkUnassignWorker } from '@/lib/clientes-api';
 import { TipoOperacion } from '@/types/inmueble';
 import { Worker, getWorkerRolLabel } from '@/types/worker';
 
@@ -28,6 +28,16 @@ function filterWorkers(workers: Worker[], query: string): Worker[] {
     const email = worker.email?.toLowerCase() ?? '';
     return nombre.includes(q) || rol.includes(q) || email.includes(q);
   });
+}
+
+function matchesUnassignOption(query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    'sin asignar'.includes(q) ||
+    q.includes('sin') ||
+    q.includes('asignar')
+  );
 }
 
 export function ClienteTrabajadorCell({
@@ -56,6 +66,12 @@ export function ClienteTrabajadorCell({
     () => filterWorkers(workers, searchQuery),
     [workers, searchQuery],
   );
+  const showUnassignOption = useMemo(
+    () => matchesUnassignOption(searchQuery),
+    [searchQuery],
+  );
+  const listItemCount =
+    (showUnassignOption ? 1 : 0) + filteredWorkers.length;
 
   const focusRingClass =
     tipoOperacion === 'alquiler'
@@ -71,7 +87,7 @@ export function ClienteTrabajadorCell({
       const rect = triggerRef.current!.getBoundingClientRect();
       const margin = 8;
       const panelWidth = Math.max(rect.width, 220);
-      const estimatedHeight = Math.min(filteredWorkers.length * 44 + 52, 300);
+      const estimatedHeight = Math.min(listItemCount * 44 + 52, 300);
       const spaceBelow = window.innerHeight - rect.bottom - margin;
       const spaceAbove = rect.top - margin;
       const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
@@ -95,7 +111,7 @@ export function ClienteTrabajadorCell({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, filteredWorkers.length]);
+  }, [open, listItemCount]);
 
   useEffect(() => {
     if (!open) {
@@ -128,6 +144,25 @@ export function ClienteTrabajadorCell({
       document.removeEventListener('keydown', handleEscape);
     };
   }, [open]);
+
+  async function handleUnassign() {
+    setOpen(false);
+    if (!currentWorker) return;
+
+    setSaving(true);
+    try {
+      await bulkUnassignWorker({ cliente_ids: [clienteId] });
+      onUpdated([]);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo quitar la asignación',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleSelect(workerId: string) {
     setOpen(false);
@@ -186,14 +221,36 @@ export function ClienteTrabajadorCell({
           </div>
         </div>
         <ul role="listbox" className="overflow-y-auto py-1">
+          {showUnassignOption && (
+            <li role="option" aria-selected={unassigned}>
+              <button
+                type="button"
+                onClick={() => void handleUnassign()}
+                className={`block w-full px-3 py-2 text-left text-xs transition ${hoverClass} ${
+                  unassigned
+                    ? 'bg-slate-100 font-semibold text-amber-700'
+                    : 'text-amber-700'
+                }`}
+              >
+                <span className="block truncate">Sin asignar</span>
+                <span className="block text-[10px] font-normal text-slate-500">
+                  Quitar trabajador
+                </span>
+              </button>
+            </li>
+          )}
           {workers.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-slate-500">
-              No hay trabajadores activos
-            </li>
+            !showUnassignOption ? (
+              <li className="px-3 py-2 text-xs text-slate-500">
+                No hay trabajadores activos
+              </li>
+            ) : null
           ) : filteredWorkers.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-slate-500">
-              Sin resultados
-            </li>
+            !showUnassignOption ? (
+              <li className="px-3 py-2 text-xs text-slate-500">
+                Sin resultados
+              </li>
+            ) : null
           ) : (
             filteredWorkers.map((worker) => (
               <li
@@ -227,7 +284,9 @@ export function ClienteTrabajadorCell({
       <button
         ref={triggerRef}
         type="button"
-        disabled={disabled || saving || workers.length === 0}
+        disabled={
+          disabled || saving || (workers.length === 0 && !currentWorker)
+        }
         onClick={() => setOpen((prev) => !prev)}
         className={`inline-flex min-w-[6.5rem] max-w-[10rem] items-center justify-between gap-1 rounded px-1.5 py-1 text-left text-xs transition hover:bg-slate-100 disabled:opacity-60 ${
           unassigned ? 'font-medium text-amber-600' : 'text-slate-700'

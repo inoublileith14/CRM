@@ -16,13 +16,75 @@ import { CreateInmuebleDto } from './dto/create-inmueble.dto';
 import { UpdateInmuebleDto } from './dto/update-inmueble.dto';
 import { normalizePropietariosContactos } from './inmueble-propietarios.util';
 import { InmuebleClienteLinkRow } from './interfaces/inmueble-cliente-link.interface';
+import {
+  ClientesByTipoPageQuery,
+  ClientesByTipoPageResult,
+} from './interfaces/clientes-by-tipo-page.interface';
+import { getClienteEntradaSortKey } from './cliente-entrada-sort.util';
 import { Inmueble } from './interfaces/inmueble.interface';
 
+import { normalizeInmuebleSplitFields } from './inmueble-split-fields';
 const SELECT_FIELDS =
-  'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista_espejo, fecha_visitas_entrada, observaciones, amueblado, captador_alquilado_por, status, row_color, tipo_operacion, created_at, updated_at';
+  'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, distrito_ciudad, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista, link_espejo, link_idealista_espejo, fecha_visitas, fecha_visitas_entrada, observaciones, requisitos_propietario, amueblado, captador, alquilado_por, captador_alquilado_por, status, row_color, tipo_operacion, created_at, updated_at';
 
 const SELECT_DETAIL =
   `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))` as const;
+
+const CLIENTE_GLOBAL_FIELDS = `
+  id,
+  nombre,
+  email,
+  telefono,
+  ciudad,
+  estado,
+  origen,
+  estado_contacto,
+  ref_cliente,
+  fecha_contacto,
+  fecha_ultima_gestion,
+  presupuesto_maximo,
+  banos,
+  notas,
+  tipo_operacion,
+  created_at,
+  updated_at
+`;
+
+const CLIENTE_INMUEBLE_LINK_SELECT = `
+  cliente_id,
+  inmueble_id,
+  gestion_estado,
+  fecha_ultima_gestion,
+  clientes(${CLIENTE_GLOBAL_FIELDS}),
+  inmuebles!inner(id, ref, direccion_piso_real, barrio_distrito, tipo_operacion)
+`;
+
+const CLIENTE_UNLINKED_SELECT = `
+  ${CLIENTE_GLOBAL_FIELDS},
+  cliente_inmuebles(inmueble_id)
+`;
+
+const LINK_INDEX_SELECT = `
+  cliente_id,
+  inmueble_id,
+  clientes!inner(fecha_contacto),
+  inmuebles!inner(tipo_operacion)
+`;
+
+const UNLINKED_INDEX_SELECT = `
+  id,
+  fecha_contacto,
+  cliente_inmuebles(inmueble_id)
+`;
+
+const MAX_CLIENTES_BY_TIPO_LIMIT = 10_000;
+
+interface ClientesByTipoIndexItem {
+  row_key: string;
+  cliente_id: string;
+  inmueble_id: string | null;
+  sort_key: number;
+}
 
 const CLIENTE_SELECT = `
   id,
@@ -60,7 +122,9 @@ async function fetchAll<T>(
   for (let from = 0; ; from += pageSize) {
     const to = from + pageSize - 1;
     const { data, error } = await queryFactory(from, to);
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message || JSON.stringify(error));
+    }
     const chunk = data ?? [];
     all.push(...chunk);
     if (chunk.length < pageSize) break;
@@ -68,9 +132,28 @@ async function fetchAll<T>(
   return all;
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (size <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/** Above this many linked rows, avoid huge `.in()` filters (URL limits). */
+const HYDRATE_LINKED_FULL_SCAN_THRESHOLD = 120;
+const HYDRATE_LINKED_IN_BATCH_SIZE = 80;
+const HYDRATE_UNLINKED_IN_BATCH_SIZE = 200;
+
 @Injectable()
 export class InmueblesService {
   private readonly logger = new Logger(InmueblesService.name);
+  private readonly clientesByTipoIndexCache = new Map<
+    string,
+    { expiresAt: number; items: ClientesByTipoIndexItem[] }
+  >();
+  private static readonly INDEX_CACHE_TTL_MS = 60_000;
 
   constructor(private supabase: SupabaseService) {}
 
@@ -105,57 +188,48 @@ export class InmueblesService {
   async findClientesByTipoOperacion(
     tipoOperacion: 'alquiler' | 'venta',
   ): Promise<InmuebleClienteLinkRow[]> {
-    const { data, error } = await this.supabase
-      .getAdmin()
-      .from('inmuebles')
-      .select(SELECT_DETAIL)
-      .eq('tipo_operacion', tipoOperacion)
-      .order('created_at', { ascending: false });
+    const defaultGestion = getDefaultClienteGestionEstado(tipoOperacion);
+    const rows: InmuebleClienteLinkRow[] = [];
 
-    if (error) {
-      if (this.isMissingClienteInmuebles(error.message)) {
+    let linkedLinks: Record<string, unknown>[] = [];
+    try {
+      linkedLinks = await fetchAll<Record<string, unknown>>((from, to) =>
+        this.supabase
+          .getAdmin()
+          .from('cliente_inmuebles')
+          .select(CLIENTE_INMUEBLE_LINK_SELECT)
+          .eq('inmuebles.tipo_operacion', tipoOperacion)
+          .range(from, to),
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (this.isMissingClienteInmuebles(message)) {
         return [];
       }
       this.logger.error(
-        `Error al listar clientes por tipo ${tipoOperacion}: ${error.message}`,
+        `Error al listar clientes vinculados por tipo ${tipoOperacion}: ${message}`,
       );
       throw new InternalServerErrorException(
         'No se pudieron cargar los clientes',
       );
     }
 
-    const rows: InmuebleClienteLinkRow[] = [];
     const linkedClienteIds = new Set<string>();
 
-    for (const inmuebleRow of data ?? []) {
-      const inmueble = this.mapWithClientes(
-        inmuebleRow as unknown as Record<string, unknown>,
-      );
-      const label =
-        inmueble.direccion_piso_real ||
-        inmueble.barrio_distrito ||
-        'Inmueble sin dirección';
-
-      for (const cliente of inmueble.clientes ?? []) {
-        linkedClienteIds.add(cliente.id);
-        rows.push({
-          row_key: `${inmueble.id}-${cliente.id}`,
-          inmueble_id: inmueble.id,
-          inmueble_label: label,
-          inmueble_ref: inmueble.ref,
-          cliente,
-        });
-      }
+    for (const linkRow of linkedLinks) {
+      const mapped = this.mapLinkedClienteRow(linkRow, defaultGestion);
+      if (!mapped) continue;
+      linkedClienteIds.add(mapped.cliente.id);
+      rows.push(mapped);
     }
 
-    // Also include "unlinked" clientes (tipo_operacion matches, no cliente_inmuebles rows)
     let rawClientes: Record<string, unknown>[] = [];
     try {
       rawClientes = await fetchAll<Record<string, unknown>>((from, to) =>
         this.supabase
           .getAdmin()
           .from('clientes')
-          .select(CLIENTE_SELECT)
+          .select(CLIENTE_UNLINKED_SELECT)
           .eq('tipo_operacion', tipoOperacion)
           .range(from, to),
       );
@@ -168,9 +242,23 @@ export class InmueblesService {
     }
 
     for (const row of rawClientes ?? []) {
-      const cliente = this.mapCliente(row as unknown as Record<string, unknown>);
-      const hasLinks = (cliente.inmueble_ids?.length ?? 0) > 0;
-      if (linkedClienteIds.has(cliente.id) || hasLinks) continue;
+      const clienteInmuebles = (row.cliente_inmuebles ?? []) as Array<{
+        inmueble_id: string;
+      }>;
+      if (linkedClienteIds.has(row.id as string) || clienteInmuebles.length > 0) {
+        continue;
+      }
+
+      const { cliente_inmuebles: _ci, ...rest } = row;
+      const cliente = {
+        ...(rest as unknown as Cliente),
+        inmueble_ids: [],
+        worker_ids: [],
+        inmuebles_count: 0,
+        workers_count: 0,
+        workers: [],
+        gestion_estado: null,
+      };
 
       rows.push({
         row_key: `unlinked-${cliente.id}`,
@@ -182,6 +270,351 @@ export class InmueblesService {
     }
 
     return rows;
+  }
+
+  async findClientesByTipoOperacionPaginated(
+    tipoOperacion: 'alquiler' | 'venta',
+    query: ClientesByTipoPageQuery,
+  ): Promise<ClientesByTipoPageResult> {
+    const page = Math.max(1, query.page);
+    const limit = Math.min(
+      Math.max(1, query.limit),
+      MAX_CLIENTES_BY_TIPO_LIMIT,
+    );
+    const sortDir =
+      query.sort === 'fecha_entrada' && query.dir === 'asc' ? 'asc' : 'desc';
+
+    const index = await this.buildClientesByTipoIndex(tipoOperacion);
+    const sorted = [...index].sort((a, b) => {
+      if (a.sort_key !== b.sort_key) {
+        return sortDir === 'asc'
+          ? a.sort_key - b.sort_key
+          : b.sort_key - a.sort_key;
+      }
+      return a.row_key.localeCompare(b.row_key);
+    });
+
+    const total = sorted.length;
+    const offset = (page - 1) * limit;
+    const slice = sorted.slice(offset, offset + limit);
+    const defaultGestion = getDefaultClienteGestionEstado(tipoOperacion);
+    const rows = await this.hydrateClientesByTipoPage(
+      slice,
+      tipoOperacion,
+      defaultGestion,
+    );
+
+    return { rows, total, page, limit };
+  }
+
+  private async buildClientesByTipoIndex(
+    tipoOperacion: 'alquiler' | 'venta',
+  ): Promise<ClientesByTipoIndexItem[]> {
+    const cacheKey = tipoOperacion;
+    const cached = this.clientesByTipoIndexCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.items;
+    }
+
+    const items: ClientesByTipoIndexItem[] = [];
+    const linkedClienteIds = new Set<string>();
+
+    let linkedIndex: Record<string, unknown>[] = [];
+    try {
+      linkedIndex = await fetchAll<Record<string, unknown>>((from, to) =>
+        this.supabase
+          .getAdmin()
+          .from('cliente_inmuebles')
+          .select(LINK_INDEX_SELECT)
+          .eq('inmuebles.tipo_operacion', tipoOperacion)
+          .range(from, to),
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (this.isMissingClienteInmuebles(message)) {
+        return [];
+      }
+      this.logger.error(
+        `Error al indexar clientes vinculados (${tipoOperacion}): ${message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudieron cargar los clientes',
+      );
+    }
+
+    for (const linkRow of linkedIndex) {
+      const inmuebleId = linkRow.inmueble_id as string | undefined;
+      const clienteId = linkRow.cliente_id as string | undefined;
+      const clienteRaw = linkRow.clientes as
+        | { fecha_contacto?: string | null }
+        | null;
+      if (!inmuebleId || !clienteId) continue;
+
+      linkedClienteIds.add(clienteId);
+      items.push({
+        row_key: `${inmuebleId}-${clienteId}`,
+        cliente_id: clienteId,
+        inmueble_id: inmuebleId,
+        sort_key: getClienteEntradaSortKey(clienteRaw?.fecha_contacto ?? null),
+      });
+    }
+
+    let rawClientes: Record<string, unknown>[] = [];
+    try {
+      rawClientes = await fetchAll<Record<string, unknown>>((from, to) =>
+        this.supabase
+          .getAdmin()
+          .from('clientes')
+          .select(UNLINKED_INDEX_SELECT)
+          .eq('tipo_operacion', tipoOperacion)
+          .range(from, to),
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      this.logger.error(
+        `Error al indexar clientes sin inmueble (${tipoOperacion}): ${message}`,
+      );
+      throw new InternalServerErrorException('No se pudieron cargar los clientes');
+    }
+
+    for (const row of rawClientes) {
+      const clienteId = row.id as string;
+      const clienteInmuebles = (row.cliente_inmuebles ?? []) as Array<{
+        inmueble_id: string;
+      }>;
+      if (linkedClienteIds.has(clienteId) || clienteInmuebles.length > 0) {
+        continue;
+      }
+
+      items.push({
+        row_key: `unlinked-${clienteId}`,
+        cliente_id: clienteId,
+        inmueble_id: null,
+        sort_key: getClienteEntradaSortKey(
+          row.fecha_contacto as string | null | undefined,
+        ),
+      });
+    }
+
+    this.clientesByTipoIndexCache.set(cacheKey, {
+      items,
+      expiresAt: Date.now() + InmueblesService.INDEX_CACHE_TTL_MS,
+    });
+
+    return items;
+  }
+
+  private async hydrateClientesByTipoPage(
+    slice: ClientesByTipoIndexItem[],
+    tipoOperacion: 'alquiler' | 'venta',
+    defaultGestion: ClienteGestionEstado,
+  ): Promise<InmuebleClienteLinkRow[]> {
+    if (slice.length === 0) return [];
+
+    const linkedItems = slice.filter((item) => item.inmueble_id);
+    const unlinkedIds = slice
+      .filter((item) => !item.inmueble_id)
+      .map((item) => item.cliente_id);
+
+    const rowByKey = new Map<string, InmuebleClienteLinkRow>();
+
+    if (linkedItems.length > 0) {
+      const pairKeys = new Set(
+        linkedItems.map((item) => `${item.inmueble_id}:${item.cliente_id}`),
+      );
+
+      let linkedRows: Record<string, unknown>[] = [];
+      try {
+        linkedRows = await this.fetchLinkedRowsForHydration(
+          tipoOperacion,
+          linkedItems,
+          pairKeys,
+        );
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        this.logger.error(
+          `Error al hidratar clientes vinculados (${tipoOperacion}): ${message || '(sin detalle)'}`,
+        );
+        throw new InternalServerErrorException(
+          'No se pudieron cargar los clientes',
+        );
+      }
+
+      for (const linkRow of linkedRows) {
+        const inmuebleId = linkRow.inmueble_id as string | undefined;
+        const clienteId = linkRow.cliente_id as string | undefined;
+        if (!inmuebleId || !clienteId) continue;
+        if (!pairKeys.has(`${inmuebleId}:${clienteId}`)) continue;
+
+        const mapped = this.mapLinkedClienteRow(linkRow, defaultGestion);
+        if (mapped) rowByKey.set(mapped.row_key, mapped);
+      }
+    }
+
+    if (unlinkedIds.length > 0) {
+      let unlinkedRows: Record<string, unknown>[] = [];
+      try {
+        unlinkedRows = await this.fetchClientesByIds(unlinkedIds);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        this.logger.error(
+          `Error al hidratar clientes sin inmueble (${tipoOperacion}): ${message || '(sin detalle)'}`,
+        );
+        throw new InternalServerErrorException(
+          'No se pudieron cargar los clientes',
+        );
+      }
+
+      for (const row of unlinkedRows) {
+        const cliente = {
+          ...(row as unknown as Cliente),
+          inmueble_ids: [],
+          worker_ids: [],
+          inmuebles_count: 0,
+          workers_count: 0,
+          workers: [],
+          gestion_estado: null,
+        };
+        rowByKey.set(`unlinked-${cliente.id}`, {
+          row_key: `unlinked-${cliente.id}`,
+          inmueble_id: null,
+          inmueble_label: '—',
+          inmueble_ref: null,
+          cliente,
+        });
+      }
+    }
+
+    return slice
+      .map((item) => rowByKey.get(item.row_key))
+      .filter((row): row is InmuebleClienteLinkRow => row != null);
+  }
+
+  private async fetchLinkedRowsForHydration(
+    tipoOperacion: 'alquiler' | 'venta',
+    linkedItems: ClientesByTipoIndexItem[],
+    pairKeys: Set<string>,
+  ): Promise<Record<string, unknown>[]> {
+    const fetchByTipo = () =>
+      fetchAll<Record<string, unknown>>((from, to) =>
+        this.supabase
+          .getAdmin()
+          .from('cliente_inmuebles')
+          .select(CLIENTE_INMUEBLE_LINK_SELECT)
+          .eq('inmuebles.tipo_operacion', tipoOperacion)
+          .range(from, to),
+      );
+
+    if (linkedItems.length > HYDRATE_LINKED_FULL_SCAN_THRESHOLD) {
+      const all = await fetchByTipo();
+      return all.filter((linkRow) => {
+        const inmuebleId = linkRow.inmueble_id as string | undefined;
+        const clienteId = linkRow.cliente_id as string | undefined;
+        return (
+          Boolean(inmuebleId && clienteId) &&
+          pairKeys.has(`${inmuebleId}:${clienteId}`)
+        );
+      });
+    }
+
+    const linkedRows: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
+
+    for (const batch of chunkArray(linkedItems, HYDRATE_LINKED_IN_BATCH_SIZE)) {
+      const clienteIds = [...new Set(batch.map((item) => item.cliente_id))];
+      const inmuebleIds = [
+        ...new Set(batch.map((item) => item.inmueble_id as string)),
+      ];
+
+      const batchRows = await fetchAll<Record<string, unknown>>((from, to) =>
+        this.supabase
+          .getAdmin()
+          .from('cliente_inmuebles')
+          .select(CLIENTE_INMUEBLE_LINK_SELECT)
+          .eq('inmuebles.tipo_operacion', tipoOperacion)
+          .in('cliente_id', clienteIds)
+          .in('inmueble_id', inmuebleIds)
+          .range(from, to),
+      );
+
+      for (const linkRow of batchRows) {
+        const inmuebleId = linkRow.inmueble_id as string | undefined;
+        const clienteId = linkRow.cliente_id as string | undefined;
+        if (!inmuebleId || !clienteId) continue;
+        const key = `${inmuebleId}:${clienteId}`;
+        if (!pairKeys.has(key) || seen.has(key)) continue;
+        seen.add(key);
+        linkedRows.push(linkRow);
+      }
+    }
+
+    return linkedRows;
+  }
+
+  private async fetchClientesByIds(
+    ids: string[],
+  ): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+
+    for (const batch of chunkArray(ids, HYDRATE_UNLINKED_IN_BATCH_SIZE)) {
+      const { data, error } = await this.supabase
+        .getAdmin()
+        .from('clientes')
+        .select(CLIENTE_GLOBAL_FIELDS)
+        .in('id', batch);
+
+      if (error) {
+        throw new Error(error.message || JSON.stringify(error));
+      }
+
+      rows.push(...((data as Record<string, unknown>[] | null) ?? []));
+    }
+
+    return rows;
+  }
+
+  private mapLinkedClienteRow(
+    linkRow: Record<string, unknown>,
+    defaultGestion: ClienteGestionEstado,
+  ): InmuebleClienteLinkRow | null {
+    const inmueble = linkRow.inmuebles as
+      | {
+          id: string;
+          ref: string | null;
+          direccion_piso_real: string | null;
+          barrio_distrito: string | null;
+        }
+      | null;
+    const clienteRaw = linkRow.clientes as Record<string, unknown> | null;
+    if (!inmueble?.id || !clienteRaw?.id) return null;
+
+    const cliente = {
+      ...(clienteRaw as unknown as Cliente),
+      fecha_ultima_gestion:
+        (clienteRaw.fecha_ultima_gestion as string | null) ??
+        (linkRow.fecha_ultima_gestion as string | null) ??
+        null,
+      gestion_estado:
+        (linkRow.gestion_estado as ClienteGestionEstado | null) ?? defaultGestion,
+      inmueble_ids: [inmueble.id],
+      worker_ids: [],
+      inmuebles_count: 1,
+      workers_count: 0,
+      workers: [],
+    } as Cliente;
+
+    const label =
+      inmueble.direccion_piso_real ||
+      inmueble.barrio_distrito ||
+      'Inmueble sin dirección';
+
+    return {
+      row_key: `${inmueble.id}-${cliente.id}`,
+      inmueble_id: inmueble.id,
+      inmueble_label: label,
+      inmueble_ref: inmueble.ref,
+      cliente,
+    };
   }
 
   private mapCliente(row: Record<string, unknown>): Cliente {
@@ -266,10 +699,10 @@ export class InmueblesService {
 
   async create(dto: CreateInmuebleDto): Promise<Inmueble> {
     const ownerFields = normalizePropietariosContactos(dto);
-    const payload = {
+    const payload = normalizeInmuebleSplitFields({
       ...dto,
       ...ownerFields,
-    };
+    });
 
     const { data, error } = await this.supabase
       .getAdmin()
@@ -299,11 +732,13 @@ export class InmueblesService {
     const { data, error } = await this.supabase
       .getAdmin()
       .from('inmuebles')
-      .update({
-        ...dto,
-        ...ownerFields,
-        updated_at: new Date().toISOString(),
-      })
+      .update(
+        normalizeInmuebleSplitFields({
+          ...dto,
+          ...ownerFields,
+          updated_at: new Date().toISOString(),
+        }),
+      )
       .eq('id', id)
       .select(SELECT_FIELDS)
       .single();

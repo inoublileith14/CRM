@@ -52,6 +52,16 @@ export function bulkAssignWorker(data: {
   });
 }
 
+export function bulkUnassignWorker(data: {
+  cliente_ids: string[];
+}): Promise<{ unassigned: number }> {
+  return request<{ unassigned: number }>('/api/clientes/bulk-unassign-worker', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
 export function bulkAssignInmueble(data: {
   inmueble_id: string;
   cliente_ids: string[];

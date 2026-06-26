@@ -1,3 +1,4 @@
+import { ClientesByTipoListParams } from '@/types/clientes-by-tipo-page';
 import { InmueblesFilters } from '@/lib/inmuebles-api';
 import { TipoOperacion } from '@/types/inmueble';
 
@@ -8,7 +9,8 @@ export const queryKeys = {
   clientes: {
     all: ['clientes'] as const,
     detail: (id: string) => ['clientes', id] as const,
-    byTipo: (tipo: TipoOperacion) => ['clientes-by-tipo', tipo] as const,
+    byTipo: (tipo: TipoOperacion, params?: ClientesByTipoListParams) =>
+      ['clientes-by-tipo', tipo, params ?? {}] as const,
   },
   inmuebles: {
     all: (filters?: InmueblesFilters) =>

@@ -11,7 +11,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <CurrentUserProvider>
         <div className="flex min-h-screen flex-col bg-slate-50">
           <DashboardTopNav />
-          <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-x-clip px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+          <main className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 overflow-x-clip px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
             {children}
           </main>
           <ChatbotWidget />

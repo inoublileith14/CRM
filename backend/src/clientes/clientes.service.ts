@@ -404,6 +404,69 @@ export class ClientesService {
     return { assigned: assignments.length };
   }
 
+  async bulkUnassignWorker(
+    dto: { cliente_ids: string[] },
+  ): Promise<{ unassigned: number }> {
+    const clienteIds = [...new Set((dto.cliente_ids ?? []).filter(Boolean))];
+    if (clienteIds.length === 0) {
+      throw new BadRequestException('Debes indicar al menos un cliente');
+    }
+
+    const admin = this.supabase.getAdmin();
+
+    const { data: existingClientes, error: clientesError } = await admin
+      .from('clientes')
+      .select('id')
+      .in('id', clienteIds);
+
+    if (clientesError) {
+      this.logger.error(
+        `Error al validar clientes: ${clientesError.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudieron validar los clientes',
+      );
+    }
+
+    const foundClienteIds = new Set(
+      (existingClientes ?? []).map((row) => row.id as string),
+    );
+    const missingClienteIds = clienteIds.filter((id) => !foundClienteIds.has(id));
+    if (missingClienteIds.length > 0) {
+      throw new NotFoundException(
+        `Cliente(s) no encontrado(s): ${missingClienteIds.join(', ')}`,
+      );
+    }
+
+    const { error: delWorkerError } = await admin
+      .from('cliente_workers')
+      .delete()
+      .in('cliente_id', clienteIds);
+
+    if (delWorkerError) {
+      this.logger.error(
+        `Error al quitar trabajadores: ${delWorkerError.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudieron quitar los trabajadores',
+      );
+    }
+
+    const now = new Date().toISOString();
+    const { error: touchError } = await admin
+      .from('clientes')
+      .update({ updated_at: now })
+      .in('id', clienteIds);
+
+    if (touchError) {
+      this.logger.warn(
+        `Desasignación OK pero no se actualizó updated_at: ${touchError.message}`,
+      );
+    }
+
+    return { unassigned: clienteIds.length };
+  }
+
   async bulkAssignInmueble(
     dto: BulkAssignInmuebleDto,
   ): Promise<{ assigned: number; skipped: number }> {

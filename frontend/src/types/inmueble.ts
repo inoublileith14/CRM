@@ -14,6 +14,7 @@ export interface Inmueble {
   foto_espejo: string | null;
   espejo_direccion: string | null;
   barrio_distrito: string | null;
+  distrito_ciudad: string | null;
   precio: number | null;
   precio_espejo: number | null;
   hab: number | null;
@@ -25,10 +26,16 @@ export interface Inmueble {
   nombre_propi: string | null;
   telf: string | null;
   ficha_del_piso_real: string | null;
+  link_idealista: string | null;
+  link_espejo: string | null;
   link_idealista_espejo: string | null;
+  fecha_visitas: string | null;
   fecha_visitas_entrada: string | null;
   observaciones: string | null;
+  requisitos_propietario: string | null;
   amueblado: 'si' | 'no' | null;
+  captador: string | null;
+  alquilado_por: string | null;
   captador_alquilado_por: string | null;
   status: 'I' | 'P' | 'I-M' | null;
   row_color: string | null;
@@ -60,12 +67,12 @@ export const INMUEBLE_FIELDS: {
     ],
   },
   { key: 'ref', label: 'Idealista ref', type: 'text' },
-  { key: 'fecha_entrada_inmueble', label: 'Fecha entrada inmueble', type: 'date' },
   { key: 'imagen_real', label: 'Imagen real', type: 'image' },
   { key: 'direccion_piso_real', label: 'Dirección piso real', type: 'text' },
   { key: 'foto_espejo', label: 'Foto espejo', type: 'image' },
   { key: 'espejo_direccion', label: 'Espejo dirección', type: 'text' },
   { key: 'barrio_distrito', label: 'Barrio / Distrito', type: 'text' },
+  { key: 'distrito_ciudad', label: 'Distrito / Ciudad', type: 'text' },
   { key: 'precio', label: 'Precio', type: 'number' },
   { key: 'precio_espejo', label: 'Precio espejo', type: 'number' },
   { key: 'hab', label: 'Hab', type: 'number' },
@@ -83,13 +90,30 @@ export const INMUEBLE_FIELDS: {
   { key: 'nombre_propi', label: 'Nombre propi', type: 'text' },
   { key: 'telf', label: 'Telf', type: 'text' },
   { key: 'ficha_del_piso_real', label: 'Ficha del piso real', type: 'text' },
-  { key: 'link_idealista_espejo', label: 'Link Idealista o link espejo', type: 'text' },
+  { key: 'link_idealista', label: 'Link Idealista', type: 'text' },
+  { key: 'link_espejo', label: 'Link espejo', type: 'text' },
   {
-    key: 'fecha_visitas_entrada',
-    label: 'Fecha de visitas // Fecha de entrada',
+    key: 'link_idealista_espejo',
+    label: 'Link Idealista o link espejo',
     type: 'text',
   },
+  { key: 'fecha_visitas', label: 'Fecha de visitas', type: 'date' },
+  {
+    key: 'fecha_entrada_inmueble',
+    label: 'Fecha entrada al CRM',
+    type: 'date',
+  },
+  {
+    key: 'fecha_visitas_entrada',
+    label: 'Fecha entrada al piso',
+    type: 'date',
+  },
   { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
+  {
+    key: 'requisitos_propietario',
+    label: 'Requisitos del propietario',
+    type: 'textarea',
+  },
   {
     key: 'amueblado',
     label: 'Amueblado (si o no)',
@@ -99,15 +123,21 @@ export const INMUEBLE_FIELDS: {
       { value: 'no', label: 'No' },
     ],
   },
-  { key: 'captador_alquilado_por', label: 'Captador // Alquilado por', type: 'text' },
+  { key: 'captador', label: 'Captador', type: 'text' },
+  { key: 'alquilado_por', label: 'Alquilado por', type: 'text' },
+  {
+    key: 'captador_alquilado_por',
+    label: 'Captador // Alquilado por',
+    type: 'text',
+  },
   {
     key: 'status',
     label: 'Status',
     type: 'select',
     options: [
-      { value: 'I', label: 'I' },
-      { value: 'P', label: 'P' },
-      { value: 'I-M', label: 'I-M' },
+      { value: 'I', label: 'INTERNO' },
+      { value: 'P', label: 'PUBLICADO' },
+      { value: 'I-M', label: 'INTERNO EN MADRID' },
     ],
   },
 ];
@@ -120,6 +150,7 @@ export const emptyInmuebleForm = (): InmuebleFormData => ({
   foto_espejo: null,
   espejo_direccion: null,
   barrio_distrito: null,
+  distrito_ciudad: null,
   precio: null,
   precio_espejo: null,
   hab: null,
@@ -131,10 +162,16 @@ export const emptyInmuebleForm = (): InmuebleFormData => ({
   nombre_propi: null,
   telf: null,
   ficha_del_piso_real: null,
+  link_idealista: null,
+  link_espejo: null,
   link_idealista_espejo: null,
+  fecha_visitas: null,
   fecha_visitas_entrada: null,
   observaciones: null,
+  requisitos_propietario: null,
   amueblado: null,
+  captador: null,
+  alquilado_por: null,
   captador_alquilado_por: null,
   status: null,
   row_color: null,

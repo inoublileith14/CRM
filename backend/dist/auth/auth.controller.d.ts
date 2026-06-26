@@ -19,17 +19,7 @@ export declare class AuthController {
             avatar_url: string | null;
         };
     }>;
-    register(dto: RegisterDto): Promise<{
-        access_token: string;
-        user: {
-            id: string;
-            email: string;
-            nombre: string;
-            rol: string;
-        };
-        mensaje: string;
-        code: string;
-    }>;
+    register(_dto: RegisterDto): void;
     logout(): {
         mensaje: string;
     };

@@ -72,19 +72,19 @@ export const CLIENTE_TABLE_FIELDS: {
   key: keyof ClienteFormData | 'inmuebles_count' | 'workers_count';
   label: string;
 }[] = [
-  { key: 'tipo_operacion', label: 'Tipo' },
-  { key: 'origen', label: 'Origen' },
-  { key: 'estado_contacto', label: 'Estado contacto' },
-  { key: 'descripcion', label: 'Descripción' },
-  { key: 'ref_cliente', label: 'Ref. cliente' },
-  { key: 'nombre', label: 'Usuario' },
-  { key: 'email', label: 'Email' },
-  { key: 'telefono', label: 'Teléfono' },
-  { key: 'mensaje', label: 'Mensaje' },
-  { key: 'fecha_contacto', label: 'Fecha' },
-  { key: 'estado', label: 'Estado CRM' },
-  { key: 'inmuebles_count', label: 'Inmuebles' },
-  { key: 'workers_count', label: 'Trabajadores' },
+  { key: 'tipo_operacion', label: 'TIPO' },
+  { key: 'origen', label: 'ORIGEN' },
+  { key: 'estado_contacto', label: 'ESTADO CONTACTO' },
+  { key: 'descripcion', label: 'DESCRIPCIÓN' },
+  { key: 'ref_cliente', label: 'REF. CLIENTE' },
+  { key: 'nombre', label: 'USUARIO' },
+  { key: 'email', label: 'EMAIL' },
+  { key: 'telefono', label: 'TELÉFONO' },
+  { key: 'mensaje', label: 'MENSAJE' },
+  { key: 'fecha_contacto', label: 'FECHA' },
+  { key: 'estado', label: 'ESTADO CRM' },
+  { key: 'inmuebles_count', label: 'INMUEBLES' },
+  { key: 'workers_count', label: 'TRABAJADORES' },
 ];
 
 export const emptyClienteForm = (): ClienteFormData => ({

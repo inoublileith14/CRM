@@ -36,7 +36,10 @@ const NUMBER_KEYS = new Set<keyof InmuebleFormData>([
   'metros',
 ]);
 
-const DATE_KEYS = new Set<keyof InmuebleFormData>(['fecha_entrada_inmueble']);
+const DATE_KEYS = new Set<keyof InmuebleFormData>([
+  'fecha_entrada_inmueble',
+  'fecha_visitas',
+]);
 
 export function getColumnFilterFieldType(
   key: keyof InmuebleFormData,

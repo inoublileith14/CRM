@@ -2,18 +2,21 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
+  CLIENTES_GENERAL_PAGE_SIZE_OPTIONS,
   PAGE_SIZE_OPTIONS,
   PageSize,
-  parsePageSize,
+  ClientesGeneralPageSize,
 } from '@/hooks/usePagination';
 
 interface TablePaginationProps {
   page: number;
-  pageSize: PageSize;
+  pageSize: PageSize | ClientesGeneralPageSize;
   totalItems: number;
   totalPages: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: PageSize) => void;
+  /** Defaults to PAGE_SIZE_OPTIONS (includes "Todas"). */
+  pageSizeOptions?: readonly (PageSize | ClientesGeneralPageSize)[];
 }
 
 export function TablePagination({
@@ -23,6 +26,7 @@ export function TablePagination({
   totalPages,
   onPageChange,
   onPageSizeChange,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
 }: TablePaginationProps) {
   if (totalItems === 0) return null;
 
@@ -43,10 +47,17 @@ export function TablePagination({
           <span>Por página</span>
           <select
             value={pageSize}
-            onChange={(e) => onPageSizeChange(parsePageSize(e.target.value))}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === 'all') {
+                onPageSizeChange('all');
+                return;
+              }
+              onPageSizeChange(Number(raw) as PageSize);
+            }}
             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           >
-            {PAGE_SIZE_OPTIONS.map((size) => (
+            {pageSizeOptions.map((size) => (
               <option key={String(size)} value={size}>
                 {size === 'all' ? 'Todas' : size}
               </option>

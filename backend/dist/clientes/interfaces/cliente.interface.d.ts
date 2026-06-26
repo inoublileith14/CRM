@@ -2,7 +2,7 @@ import { Inmueble } from '../../inmuebles/interfaces/inmueble.interface';
 import { Worker } from '../../workers/interfaces/worker.interface';
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
-export type ClienteGestionEstado = 'no_gestionando' | 'gestionando' | 'visita_concertada' | 'nc' | 'pendiente_cuadrar_docs' | 'no_gestionado' | 'gestionando_w' | 'pendiente_cuadrar_visita' | 'ya_compro';
+export type ClienteGestionEstado = 'no_gestionando' | 'gestionando' | 'visita_concertada' | 'reservado' | 'nc' | 'pendiente_cuadrar_docs' | 'no_gestionado' | 'gestionando_w' | 'pendiente_cuadrar_visita' | 'ya_compro';
 export interface Cliente {
     id: string;
     nombre: string;
