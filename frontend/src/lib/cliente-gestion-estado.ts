@@ -208,3 +208,9 @@ export function getGestionOptionStyle(option: GestionOption): {
     color: option.textColor,
   };
 }
+
+export function requiresCalendarEventDialog(
+  estado: ClienteGestionEstado,
+): estado is 'visita_concertada' | 'videollamada' {
+  return estado === 'visita_concertada' || estado === 'videollamada';
+}

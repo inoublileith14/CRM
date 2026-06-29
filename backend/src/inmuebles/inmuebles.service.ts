@@ -36,11 +36,16 @@ const CLIENTE_GLOBAL_FIELDS = `
   email,
   telefono,
   ciudad,
+  barrio,
+  distrito,
+  tipo_nomina,
+  tipo_cliente,
   estado,
   origen,
   estado_contacto,
   ref_cliente,
   fecha_contacto,
+  fecha_entrada_inmueble,
   fecha_ultima_gestion,
   presupuesto_maximo,
   banos,
@@ -755,6 +760,7 @@ export class InmueblesService {
     inmuebleId: string,
     clienteId: string,
     gestionEstado: string,
+    fechaUltimaGestion?: string,
   ): Promise<{
     gestion_estado: ClienteGestionEstado;
     fecha_ultima_gestion: string;
@@ -778,12 +784,16 @@ export class InmueblesService {
     }
 
     const now = new Date().toISOString();
+    const resolvedFechaUltimaGestion =
+      fechaUltimaGestion && !Number.isNaN(Date.parse(fechaUltimaGestion))
+        ? new Date(fechaUltimaGestion).toISOString()
+        : now;
     const { data, error } = await this.supabase
       .getAdmin()
       .from('cliente_inmuebles')
       .update({
         gestion_estado: gestionEstado,
-        fecha_ultima_gestion: now,
+        fecha_ultima_gestion: resolvedFechaUltimaGestion,
       })
       .eq('inmueble_id', inmuebleId)
       .eq('cliente_id', clienteId)

@@ -10,5 +10,7 @@ export async function POST() {
 
   const response = NextResponse.json({ mensaje: 'Sesión cerrada' });
   response.cookies.delete('cocount_token');
+  response.cookies.delete('coconut_sb_access');
+  response.cookies.delete('coconut_sb_refresh');
   return response;
 }

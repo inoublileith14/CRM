@@ -92,6 +92,24 @@ export function CalendarPageContent() {
     }
   }
 
+  async function handleReconnect() {
+    setBusy(true);
+    try {
+      await fetch('/api/calendar/disconnect', { method: 'DELETE' });
+      const res = await fetch('/api/calendar/connect', { cache: 'no-store' });
+      const data = (await res.json()) as { url?: string };
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setBanner('error');
+    } catch {
+      setBanner('error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleDisconnect() {
     setBusy(true);
     try {
@@ -126,6 +144,16 @@ export function CalendarPageContent() {
 
         {status?.connected && (
           <div className="flex flex-wrap gap-2">
+            {status.canCreateEvents === false ? (
+              <button
+                type="button"
+                onClick={() => void handleReconnect()}
+                disabled={busy}
+                className="rounded-lg border border-blue-700 bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
+              >
+                Reconectar Google Calendar
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void invalidateCalendar()}
@@ -188,6 +216,13 @@ export function CalendarPageContent() {
         </div>
       ) : (
         <div className="space-y-4">
+          {status.canCreateEvents === false ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Tu cuenta está conectada solo con permiso de lectura. Pulsa{' '}
+              <strong>Reconectar Google Calendar</strong> arriba para poder crear
+              visitas desde Coconut.
+            </p>
+          ) : null}
           <p className="text-sm text-slate-600">
             {t('settings.calendarLinkedAs')}{' '}
             <span className="font-medium text-slate-900">

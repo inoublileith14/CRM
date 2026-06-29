@@ -5,6 +5,7 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PasswordInput } from '@/components/PasswordInput';
 import { login } from '@/lib/api';
+import { saveSupabaseSession } from '@/lib/supabase-session';
 import { getAuthHashRedirectPath } from '@/lib/auth-hash-redirect';
 import {
   dismissLoginLoading,
@@ -59,9 +60,12 @@ function LoginForm() {
     toastLoginLoading();
 
     try {
-      const { user } = await login(email, password);
+      const result = await login(email, password);
+      if (result.supabase_session) {
+        saveSupabaseSession(result.supabase_session);
+      }
       dismissLoginLoading();
-      toastLoginSuccess(user.nombre || user.email);
+      toastLoginSuccess(result.user.nombre || result.user.email);
       router.push('/dashboard');
       router.refresh();
     } catch (error) {

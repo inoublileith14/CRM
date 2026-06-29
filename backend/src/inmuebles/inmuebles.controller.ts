@@ -85,6 +85,7 @@ export class InmueblesController {
       inmuebleId,
       clienteId,
       dto.gestion_estado,
+      dto.fecha_ultima_gestion,
     );
   }
 

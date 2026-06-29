@@ -10,6 +10,9 @@ export type MessageKey =
   | 'nav.ownersRent'
   | 'nav.ownersSell'
   | 'nav.workers'
+  | 'nav.users'
+  | 'nav.admins'
+  | 'nav.asesores'
   | 'nav.rentals'
   | 'nav.rentalsShort'
   | 'nav.rentalGroup'
@@ -67,6 +70,9 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.ownersRent': 'Prop. alquiler',
     'nav.ownersSell': 'Prop. venta',
     'nav.workers': 'Trabajadores',
+    'nav.users': 'Usuarios',
+    'nav.admins': 'Admins',
+    'nav.asesores': 'Asesores',
     'nav.rentals': 'Propi alquiler',
     'nav.rentalsShort': 'Pisos',
     'nav.rentalGroup': 'Alquiler',
@@ -126,6 +132,9 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.ownersRent': 'Owners rent',
     'nav.ownersSell': 'Owners sell',
     'nav.workers': 'Workers',
+    'nav.users': 'Users',
+    'nav.admins': 'Admins',
+    'nav.asesores': 'Advisors',
     'nav.rentals': 'Propi rent',
     'nav.rentalsShort': 'Flats',
     'nav.rentalGroup': 'Rent',

@@ -23,6 +23,30 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-spin {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
+.animated-border {
+  background: conic-gradient(
+    from var(--border-angle),
+    transparent 0%,
+    #0f172a 18%,
+    #f59e0b 38%,
+    transparent 55%,
+    transparent 100%
+  );
+  animation: border-spin 5s linear infinite;
+}
+
 /* Next.js dev tools badge (bottom-left) overlaps the sidebar */
 button[data-nextjs-dev-tools-button],
 [data-nextjs-dev-tools-button] {

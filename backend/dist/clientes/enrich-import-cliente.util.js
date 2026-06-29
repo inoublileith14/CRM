@@ -8,6 +8,7 @@ function enrichClienteImportRow(raw) {
         ...raw,
         presupuesto_maximo: raw.presupuesto_maximo ?? parsed.presupuesto,
         banos: raw.banos ?? parsed.banos,
+        barrio: raw.barrio ?? parsed.zona,
     };
 }
 //# sourceMappingURL=enrich-import-cliente.util.js.map

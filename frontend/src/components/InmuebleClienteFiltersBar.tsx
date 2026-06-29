@@ -56,7 +56,7 @@ export function InmuebleClienteFiltersBar({
     >
       <input
         type="search"
-        value={filters.search}
+        value={filters.search ?? ''}
         onChange={(e) => patch({ search: e.target.value })}
         placeholder={compact ? 'Nombre o tel.' : 'Buscar nombre o teléfono…'}
         disabled={disabled}

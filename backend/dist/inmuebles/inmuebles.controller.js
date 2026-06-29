@@ -51,7 +51,7 @@ let InmueblesController = class InmueblesController {
         });
     }
     updateClienteGestionEstado(inmuebleId, clienteId, dto) {
-        return this.inmueblesService.updateClienteGestionEstado(inmuebleId, clienteId, dto.gestion_estado);
+        return this.inmueblesService.updateClienteGestionEstado(inmuebleId, clienteId, dto.gestion_estado, dto.fecha_ultima_gestion);
     }
     updateClienteFechaUltimaGestion(inmuebleId, clienteId, dto) {
         return this.inmueblesService.updateClienteFechaUltimaGestion(inmuebleId, clienteId, dto.fecha_ultima_gestion);

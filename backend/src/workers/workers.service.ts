@@ -24,9 +24,9 @@ const SELECT_LIST = `${SELECT_FIELDS}, cliente_workers(count)` as const;
 const SELECT_LIST_LEGACY = `${SELECT_FIELDS_LEGACY}, cliente_workers(count)` as const;
 
 const SELECT_DETAIL =
-  `${SELECT_FIELDS}, cliente_workers(cliente_id, clientes(*))` as const;
+  `${SELECT_FIELDS}, cliente_workers(cliente_id, clientes(*, cliente_inmuebles(inmueble_id, gestion_estado, fecha_ultima_gestion)))` as const;
 const SELECT_DETAIL_LEGACY =
-  `${SELECT_FIELDS_LEGACY}, cliente_workers(cliente_id, clientes(*))` as const;
+  `${SELECT_FIELDS_LEGACY}, cliente_workers(cliente_id, clientes(*, cliente_inmuebles(inmueble_id, gestion_estado, fecha_ultima_gestion)))` as const;
 
 const MIGRATION_HINT =
   'Ejecuta supabase/migration-workers-profile.sql en el SQL Editor de Supabase.';
@@ -455,11 +455,40 @@ export class WorkersService {
 
   private mapWithClientes(row: Record<string, unknown>): Worker {
     const clienteWorkers = row.cliente_workers as
-      | { cliente_id: string; clientes: Cliente | null }[]
+      | {
+          cliente_id: string;
+          clientes: (Cliente & {
+            cliente_inmuebles?: Array<{
+              inmueble_id: string;
+              gestion_estado: string | null;
+              fecha_ultima_gestion: string | null;
+            }>;
+          }) | null;
+        }[]
       | undefined;
     const { cliente_workers: _omit, ...rest } = row;
     const clientes = (clienteWorkers ?? [])
-      .map((link) => link.clientes)
+      .map((link) => {
+        const raw = link.clientes;
+        if (!raw) return null;
+        const links = raw.cliente_inmuebles ?? [];
+        const { cliente_inmuebles: _ci, ...clienteRest } = raw;
+        const inmuebleGestionLinks = links.map((item) => ({
+          inmueble_id: item.inmueble_id,
+          gestion_estado: item.gestion_estado,
+          fecha_ultima_gestion: item.fecha_ultima_gestion,
+        }));
+        return {
+          ...clienteRest,
+          inmueble_ids: links.map((item) => item.inmueble_id),
+          inmuebles_count: links.length,
+          inmueble_gestion_links: inmuebleGestionLinks,
+          gestion_estado: this.pickPrimaryGestionEstado(
+            links,
+            clienteRest.tipo_operacion,
+          ),
+        } as Cliente;
+      })
       .filter((cliente): cliente is Cliente => cliente != null);
 
     return {
@@ -467,6 +496,47 @@ export class WorkersService {
       clientes_count: clientes.length,
       clientes,
     };
+  }
+
+  private pickPrimaryGestionEstado(
+    links: Array<{ gestion_estado: string | null }>,
+    tipo: Cliente['tipo_operacion'],
+  ): Cliente['gestion_estado'] {
+    const priority: Record<string, number> = {
+      ya_compro: 100,
+      ya_encontro_piso: 100,
+      reservado: 95,
+      visita_concertada: 90,
+      pendiente_cuadrar_docs: 75,
+      pendiente_cuadrar_visita: 75,
+      videollamada: 70,
+      gestionando: 60,
+      gestionando_w: 60,
+      nc: 40,
+      perfil_no_encaja: 20,
+      no_gestionando: 10,
+      no_gestionado: 10,
+    };
+
+    let best: string | null = null;
+    let bestScore = -1;
+    for (const link of links) {
+      const estado = link.gestion_estado;
+      if (!estado) continue;
+      const score = priority[estado] ?? 30;
+      if (score > bestScore) {
+        bestScore = score;
+        best = estado;
+      }
+    }
+
+    if (best) {
+      return best as Cliente['gestion_estado'];
+    }
+
+    if (tipo === 'venta') return 'no_gestionado';
+    if (tipo === 'alquiler') return 'no_gestionando';
+    return null;
   }
 
   private withProfileDefaults(rest: Record<string, unknown>): Worker {

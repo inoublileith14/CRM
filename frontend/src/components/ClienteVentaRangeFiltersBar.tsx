@@ -170,16 +170,28 @@ export function ClienteVentaRangeFiltersBar({
           compact
           focusRingClass={focusRingClass}
         />
-        <div className="min-w-[10rem] flex-1">
-          <p className="mb-1 text-xs font-medium text-slate-600">Zona</p>
+        <div className="min-w-[9rem] flex-1">
+          <p className="mb-1 text-xs font-medium text-slate-600">Barrio</p>
           <input
             type="text"
-            value={filters.zona}
-            onChange={(e) => patch({ zona: e.target.value })}
-            placeholder="Buscar zona…"
+            value={filters.barrio}
+            onChange={(e) => patch({ barrio: e.target.value })}
+            placeholder="Buscar barrio…"
             disabled={disabled}
             className={`w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${focusRingClass} disabled:opacity-60`}
-            aria-label="Filtrar por zona"
+            aria-label="Filtrar por barrio"
+          />
+        </div>
+        <div className="min-w-[9rem] flex-1">
+          <p className="mb-1 text-xs font-medium text-slate-600">Distrito</p>
+          <input
+            type="text"
+            value={filters.distrito}
+            onChange={(e) => patch({ distrito: e.target.value })}
+            placeholder="Buscar distrito…"
+            disabled={disabled}
+            className={`w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${focusRingClass} disabled:opacity-60`}
+            aria-label="Filtrar por distrito"
           />
         </div>
       </div>

@@ -16,9 +16,14 @@ const config_1 = require("@nestjs/config");
 const supabase_service_1 = require("../supabase/supabase.service");
 const calendar_oauth_state_1 = require("./calendar-oauth.state");
 const GOOGLE_OAUTH_SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
+const CALENDAR_WRITE_SCOPES = new Set([
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/calendar.events',
+]);
 let CalendarService = CalendarService_1 = class CalendarService {
     config;
     supabase;
@@ -89,13 +94,24 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 googleEmail: null,
                 calendarId: null,
                 connectedAt: null,
+                canCreateEvents: false,
             };
+        }
+        let canCreateEvents = false;
+        try {
+            const accessToken = await this.getValidAccessToken(userId);
+            const scopes = await this.fetchTokenScopes(accessToken);
+            canCreateEvents = this.hasCalendarWriteScope(scopes);
+        }
+        catch {
+            canCreateEvents = false;
         }
         return {
             connected: true,
             googleEmail: row.google_email,
             calendarId: row.calendar_id,
             connectedAt: row.connected_at,
+            canCreateEvents,
         };
     }
     async disconnect(userId) {
@@ -183,6 +199,89 @@ let CalendarService = CalendarService_1 = class CalendarService {
             };
         });
     }
+    async createEvent(userId, dto) {
+        const summary = dto.summary?.trim();
+        if (!summary) {
+            throw new common_1.BadRequestException({
+                message: 'El título del evento es obligatorio',
+                code: 'CALENDAR_EVENT_TITLE_REQUIRED',
+            });
+        }
+        if (!dto.start?.trim() || !dto.end?.trim()) {
+            throw new common_1.BadRequestException({
+                message: 'La fecha y hora de inicio y fin son obligatorias',
+                code: 'CALENDAR_EVENT_DATETIME_REQUIRED',
+            });
+        }
+        const startMs = Date.parse(dto.start);
+        const endMs = Date.parse(dto.end);
+        if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+            throw new common_1.BadRequestException({
+                message: 'Fecha u hora no válida',
+                code: 'CALENDAR_EVENT_DATETIME_INVALID',
+            });
+        }
+        if (endMs <= startMs) {
+            throw new common_1.BadRequestException({
+                message: 'La hora de fin debe ser posterior a la de inicio',
+                code: 'CALENDAR_EVENT_END_BEFORE_START',
+            });
+        }
+        const row = await this.findByUserId(userId);
+        if (!row) {
+            throw new common_1.BadRequestException({
+                message: 'Google Calendar no está conectado',
+                code: 'CALENDAR_NOT_CONNECTED',
+            });
+        }
+        const accessToken = await this.getValidAccessToken(userId);
+        const calendarId = row.calendar_id || 'primary';
+        const timeZone = dto.timeZone?.trim() || 'Europe/Madrid';
+        const body = {
+            summary,
+            start: { dateTime: dto.start, timeZone },
+            end: { dateTime: dto.end, timeZone },
+        };
+        if (dto.description?.trim()) {
+            body.description = dto.description.trim();
+        }
+        if (dto.location?.trim()) {
+            body.location = dto.location.trim();
+        }
+        if (dto.colorId?.trim()) {
+            body.colorId = dto.colorId.trim();
+        }
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = (await res.json().catch(() => ({})));
+        if (!res.ok) {
+            const errorMessage = data.error?.message ?? '';
+            this.logger.warn(`Google event create failed: ${errorMessage || res.status}`);
+            if (this.isInsufficientScopeError(errorMessage)) {
+                throw new common_1.BadRequestException({
+                    message: 'Tu conexión con Google Calendar no tiene permiso para crear eventos. Ve a Ajustes, desconecta Google Calendar y vuelve a conectar.',
+                    code: 'CALENDAR_SCOPE_INSUFFICIENT',
+                });
+            }
+            throw new common_1.BadRequestException({
+                message: errorMessage || 'No se pudo crear el evento en Google Calendar',
+                code: 'CALENDAR_EVENT_CREATE_FAILED',
+            });
+        }
+        return {
+            id: data.id ?? '',
+            title: data.summary ?? summary,
+            start: data.start?.dateTime ?? data.start?.date ?? dto.start,
+            end: data.end?.dateTime ?? data.end?.date ?? dto.end,
+            htmlLink: data.htmlLink ?? null,
+        };
+    }
     async findByUserId(userId) {
         const admin = this.supabase.getAdmin();
         const { data, error } = await admin
@@ -249,6 +348,27 @@ let CalendarService = CalendarService_1 = class CalendarService {
             });
         }
         return data;
+    }
+    async fetchTokenScopes(accessToken) {
+        const res = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
+        if (!res.ok) {
+            this.logger.warn(`Google tokeninfo failed: ${res.status}`);
+            return null;
+        }
+        const data = (await res.json());
+        return data.scope ?? null;
+    }
+    hasCalendarWriteScope(scope) {
+        if (!scope)
+            return false;
+        return scope
+            .split(/\s+/)
+            .some((value) => CALENDAR_WRITE_SCOPES.has(value));
+    }
+    isInsufficientScopeError(message) {
+        const normalized = message.toLowerCase();
+        return (normalized.includes('insufficient authentication scopes') ||
+            normalized.includes('insufficientpermissions'));
     }
     async fetchGoogleEmail(accessToken) {
         const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {

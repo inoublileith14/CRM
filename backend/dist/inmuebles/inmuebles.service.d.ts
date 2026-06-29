@@ -28,7 +28,7 @@ export declare class InmueblesService {
     private isMissingClienteInmuebles;
     create(dto: CreateInmuebleDto): Promise<Inmueble>;
     update(id: string, dto: UpdateInmuebleDto): Promise<Inmueble>;
-    updateClienteGestionEstado(inmuebleId: string, clienteId: string, gestionEstado: string): Promise<{
+    updateClienteGestionEstado(inmuebleId: string, clienteId: string, gestionEstado: string, fechaUltimaGestion?: string): Promise<{
         gestion_estado: ClienteGestionEstado;
         fecha_ultima_gestion: string;
     }>;

@@ -24,17 +24,32 @@ export const EMPTY_INMUEBLE_CLIENTE_FILTERS: InmuebleClienteFilters = {
   fecha_ultima_gestion: '',
 };
 
+/** Guard against partial objects from persisted table state (shallow merge). */
+export function normalizeInmuebleClienteFilters(
+  filters: Partial<InmuebleClienteFilters> | undefined | null,
+): InmuebleClienteFilters {
+  return {
+    ...EMPTY_INMUEBLE_CLIENTE_FILTERS,
+    ...filters,
+    search: filters?.search ?? '',
+    gestion_estado: filters?.gestion_estado ?? '',
+    worker_id: filters?.worker_id ?? '',
+    fecha_ultima_gestion: filters?.fecha_ultima_gestion ?? '',
+  };
+}
+
 export type InmuebleClienteFechaSort = 'asc' | 'desc' | null;
 
 export function hasActiveInmuebleClienteFilters(
   filters: InmuebleClienteFilters,
   fechaSort: InmuebleClienteFechaSort,
 ): boolean {
+  const normalized = normalizeInmuebleClienteFilters(filters);
   return (
-    filters.search.trim() !== '' ||
-    filters.gestion_estado !== '' ||
-    filters.worker_id !== '' ||
-    filters.fecha_ultima_gestion.trim() !== '' ||
+    normalized.search.trim() !== '' ||
+    normalized.gestion_estado !== '' ||
+    normalized.worker_id !== '' ||
+    normalized.fecha_ultima_gestion.trim() !== '' ||
     fechaSort !== null
   );
 }
@@ -48,28 +63,29 @@ export function filterInmuebleClientes(
   filters: InmuebleClienteFilters,
   tipoOperacion: TipoOperacion,
 ): Cliente[] {
-  const search = filters.search.trim().toLowerCase();
+  const normalized = normalizeInmuebleClienteFilters(filters);
+  const search = normalized.search.trim().toLowerCase();
   const searchDigits = normalizePhoneDigits(search);
 
   return clientes.filter((cliente) => {
-    if (filters.gestion_estado) {
+    if (normalized.gestion_estado) {
       const estado = normalizeClienteGestionEstado(
         cliente.gestion_estado,
         tipoOperacion,
       );
-      if (estado !== filters.gestion_estado) return false;
+      if (estado !== normalized.gestion_estado) return false;
     }
 
-    if (filters.worker_id) {
+    if (normalized.worker_id) {
       const workerIds = cliente.workers?.map((worker) => worker.id) ?? [];
-      if (filters.worker_id === INMUEBLE_CLIENTE_UNASSIGNED_WORKER) {
+      if (normalized.worker_id === INMUEBLE_CLIENTE_UNASSIGNED_WORKER) {
         if (workerIds.length > 0) return false;
-      } else if (!workerIds.includes(filters.worker_id)) {
+      } else if (!workerIds.includes(normalized.worker_id)) {
         return false;
       }
     }
 
-    const fechaUltimaFilter = filters.fecha_ultima_gestion.trim();
+    const fechaUltimaFilter = normalized.fecha_ultima_gestion.trim();
     if (fechaUltimaFilter) {
       const clienteFecha = getClienteCalendarDateKey(cliente.fecha_ultima_gestion);
       if (clienteFecha !== fechaUltimaFilter) return false;

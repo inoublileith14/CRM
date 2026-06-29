@@ -1,10 +1,11 @@
 import type { ClienteGestionEstado } from '@/lib/cliente-gestion-estado';
+import type { ClienteTipoCliente } from '@/lib/cliente-tipo';
 import { Inmueble, TipoOperacion } from '@/types/inmueble';
 import { Worker } from '@/types/worker';
 
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
-export type { ClienteGestionEstado };
+export type { ClienteGestionEstado, ClienteTipoCliente };
 
 export interface Cliente {
   id: string;
@@ -12,6 +13,10 @@ export interface Cliente {
   email: string | null;
   telefono: string | null;
   ciudad: string | null;
+  barrio: string | null;
+  distrito: string | null;
+  tipo_nomina: string | null;
+  tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
   origen: ClienteOrigen | null;
   estado_contacto: string | null;
@@ -19,6 +24,7 @@ export interface Cliente {
   ref_cliente: string | null;
   mensaje: string | null;
   fecha_contacto: string | null;
+  fecha_entrada_inmueble: string | null;
   fecha_ultima_gestion: string | null;
   presupuesto_maximo: string | null;
   banos: number | null;
@@ -33,6 +39,11 @@ export interface Cliente {
   inmuebles?: Inmueble[];
   workers?: Worker[];
   gestion_estado?: ClienteGestionEstado | null;
+  inmueble_gestion_links?: Array<{
+    inmueble_id: string;
+    gestion_estado: ClienteGestionEstado | null;
+    fecha_ultima_gestion?: string | null;
+  }>;
 }
 
 export type ClienteFormData = {
@@ -40,6 +51,10 @@ export type ClienteFormData = {
   email: string | null;
   telefono: string | null;
   ciudad: string | null;
+  barrio: string | null;
+  distrito: string | null;
+  tipo_nomina: string | null;
+  tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
   origen: ClienteOrigen | null;
   estado_contacto: string | null;
@@ -47,6 +62,7 @@ export type ClienteFormData = {
   ref_cliente: string | null;
   mensaje: string | null;
   fecha_contacto: string | null;
+  fecha_entrada_inmueble: string | null;
   fecha_ultima_gestion: string | null;
   presupuesto_maximo: string | null;
   banos: number | null;
@@ -92,6 +108,10 @@ export const emptyClienteForm = (): ClienteFormData => ({
   email: null,
   telefono: null,
   ciudad: null,
+  barrio: null,
+  distrito: null,
+  tipo_nomina: null,
+  tipo_cliente: null,
   estado: 'pendiente',
   origen: null,
   estado_contacto: null,
@@ -99,6 +119,7 @@ export const emptyClienteForm = (): ClienteFormData => ({
   ref_cliente: null,
   mensaje: null,
   fecha_contacto: null,
+  fecha_entrada_inmueble: null,
   fecha_ultima_gestion: null,
   presupuesto_maximo: null,
   banos: null,

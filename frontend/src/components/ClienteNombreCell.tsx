@@ -44,7 +44,7 @@ export function ClienteNombreCell({
 
   async function save() {
     const trimmed = draft.trim();
-    const current = value.trim();
+    const current = (value ?? '').trim();
 
     setEditing(false);
 
@@ -98,7 +98,7 @@ export function ClienteNombreCell({
     );
   }
 
-  const preview = value.trim();
+  const preview = (value ?? '').trim();
 
   return (
     <button

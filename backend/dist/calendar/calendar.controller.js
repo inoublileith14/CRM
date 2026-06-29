@@ -16,6 +16,7 @@ exports.CalendarController = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const calendar_service_1 = require("./calendar.service");
+const create_calendar_event_dto_1 = require("./dto/create-calendar-event.dto");
 let CalendarController = class CalendarController {
     calendarService;
     constructor(calendarService) {
@@ -35,6 +36,9 @@ let CalendarController = class CalendarController {
     }
     events(req) {
         return this.calendarService.listUpcomingEvents(req.user.id);
+    }
+    createEvent(req, dto) {
+        return this.calendarService.createEvent(req.user.id, dto);
     }
     disconnect(req) {
         return this.calendarService.disconnect(req.user.id);
@@ -71,6 +75,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], CalendarController.prototype, "events", null);
+__decorate([
+    (0, common_1.Post)('events'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, create_calendar_event_dto_1.CreateCalendarEventDto]),
+    __metadata("design:returntype", void 0)
+], CalendarController.prototype, "createEvent", null);
 __decorate([
     (0, common_1.Delete)('disconnect'),
     __param(0, (0, common_1.Req)()),

@@ -17,6 +17,10 @@ export declare class AuthService {
     constructor(supabase: SupabaseService, usersService: UsersService, jwtService: JwtService, config: ConfigService);
     login(dto: LoginDto): Promise<{
         access_token: string;
+        supabase_session: {
+            access_token: string;
+            refresh_token: string;
+        } | null;
         user: {
             id: string;
             email: string;

@@ -11,6 +11,10 @@ export declare class AuthController {
     constructor(authService: AuthService);
     login(dto: LoginDto): Promise<{
         access_token: string;
+        supabase_session: {
+            access_token: string;
+            refresh_token: string;
+        } | null;
         user: {
             id: string;
             email: string;

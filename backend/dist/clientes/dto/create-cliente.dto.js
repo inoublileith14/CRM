@@ -6,6 +6,10 @@ class CreateClienteDto {
     email;
     telefono;
     ciudad;
+    barrio;
+    distrito;
+    tipo_nomina;
+    tipo_cliente;
     estado;
     origen;
     estado_contacto;
@@ -13,6 +17,7 @@ class CreateClienteDto {
     ref_cliente;
     mensaje;
     fecha_contacto;
+    fecha_entrada_inmueble;
     fecha_ultima_gestion;
     presupuesto_maximo;
     banos;

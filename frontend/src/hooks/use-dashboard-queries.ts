@@ -39,6 +39,7 @@ async function fetchCalendarStatus() {
     googleEmail: string | null;
     calendarId: string | null;
     connectedAt: string | null;
+    canCreateEvents: boolean;
   };
 }
 

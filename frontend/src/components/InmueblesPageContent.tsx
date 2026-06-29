@@ -75,6 +75,7 @@ import {
   useInmueblesQuery,
   useInvalidateDashboardQueries,
 } from '@/hooks/use-dashboard-queries';
+import { useInmueblesRealtime } from '@/hooks/use-inmuebles-realtime';
 import { useQueryUiState } from '@/hooks/use-query-ui';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
 import { useCurrentUser } from '@/contexts/CurrentUserContext';
@@ -83,6 +84,10 @@ import {
   createInmueble,
   deleteInmueble,
 } from '@/lib/inmuebles-api';
+import {
+  applyInmuebleDeleteFromCache,
+  applyInmuebleInsertToCache,
+} from '@/lib/inmueble-query-cache';
 import {
   DEFAULT_ALQUILER_ROW_COLOR,
   DEFAULT_VENTA_DENSE_ROW_COLOR,
@@ -172,6 +177,7 @@ export function InmueblesPageContent({
     tipo_operacion: tipoOperacion,
   });
   const inmueblesQuery = useInmueblesQuery({ tipo_operacion: tipoOperacion });
+  useInmueblesRealtime(tipoOperacion);
   const { user } = useCurrentUser();
   const canManageInmuebles = isAdminUser(user?.rol);
   const {
@@ -271,6 +277,7 @@ export function InmueblesPageContent({
   const pageDescription = isDenseTable
     ? DENSE_PAGE_COPY[tipoOperacion].description
     : description;
+
   function isMaskedTextVisible(
     columnKey: keyof typeof INMUEBLE_MASKED_TEXT_FIELDS,
     inmuebleId: string,
@@ -591,10 +598,13 @@ export function InmueblesPageContent({
   async function handleSubmit(data: InmuebleFormData) {
     setSaving(true);
     try {
-      await createInmueble({ ...data, tipo_operacion: tipoOperacion });
+      const created = await createInmueble({
+        ...data,
+        tipo_operacion: tipoOperacion,
+      });
+      applyInmuebleInsertToCache(queryClient, created);
       toast.success('Inmueble creado');
       setModalOpen(false);
-      await invalidateInmuebles({ tipo_operacion: tipoOperacion });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Error al guardar inmueble',
@@ -612,8 +622,8 @@ export function InmueblesPageContent({
     setDeletingId(id);
     try {
       await deleteInmueble(id);
+      applyInmuebleDeleteFromCache(queryClient, id, tipoOperacion);
       toast.success('Inmueble eliminado');
-      await invalidateInmuebles({ tipo_operacion: tipoOperacion });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Error al eliminar inmueble',

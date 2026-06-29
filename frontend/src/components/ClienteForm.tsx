@@ -93,6 +93,10 @@ export function ClienteForm({
       email: (form.get('email') as string) || null,
       telefono: (form.get('telefono') as string) || null,
       ciudad: (form.get('ciudad') as string) || null,
+      barrio: (form.get('barrio') as string) || null,
+      distrito: (form.get('distrito') as string) || null,
+      tipo_nomina: initial?.tipo_nomina ?? null,
+      tipo_cliente: initial?.tipo_cliente ?? null,
       estado: (form.get('estado') as ClienteEstado) || 'pendiente',
       origen: ((form.get('origen') as string) || null) as ClienteOrigen | null,
       estado_contacto: (form.get('estado_contacto') as string) || null,
@@ -100,6 +104,7 @@ export function ClienteForm({
       ref_cliente: (form.get('ref_cliente') as string) || null,
       mensaje: (form.get('mensaje') as string) || null,
       fecha_contacto: fechaRaw ? `${fechaRaw}T00:00:00.000Z` : null,
+      fecha_entrada_inmueble: initial?.fecha_entrada_inmueble ?? null,
       presupuesto_maximo: initial?.presupuesto_maximo ?? null,
       banos: initial?.banos ?? null,
       fecha_ultima_gestion: initial?.fecha_ultima_gestion ?? null,
@@ -321,6 +326,38 @@ export function ClienteForm({
               name="ciudad"
               type="text"
               defaultValue={toValue(initial?.ciudad)}
+              disabled={loading}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="barrio"
+              className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+            >
+              Barrio
+            </label>
+            <input
+              id="barrio"
+              name="barrio"
+              type="text"
+              defaultValue={toValue(initial?.barrio)}
+              disabled={loading}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="distrito"
+              className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+            >
+              Distrito
+            </label>
+            <input
+              id="distrito"
+              name="distrito"
+              type="text"
+              defaultValue={toValue(initial?.distrito)}
               disabled={loading}
               className={inputClass}
             />

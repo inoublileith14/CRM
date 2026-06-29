@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Pencil } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Eye, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClienteCopyContactsButton } from '@/components/ClienteCopyContactsButton';
 import { ClienteExcelImportButton } from '@/components/ClienteExcelImportButton';
@@ -24,6 +24,7 @@ import {
   useInvalidateDashboardQueries,
   useWorkersQuery,
 } from '@/hooks/use-dashboard-queries';
+import { useInmuebleClientesRealtime } from '@/hooks/use-inmueble-clientes-realtime';
 import { useQueryUiState } from '@/hooks/use-query-ui';
 import {
   ClienteGestionEstado,
@@ -40,6 +41,7 @@ import {
   INMUEBLE_CLIENTE_UNASSIGNED_WORKER,
   InmuebleClienteFechaSort,
   InmuebleClienteFilters,
+  normalizeInmuebleClienteFilters,
 } from '@/lib/inmueble-cliente-filters';
 import { buildInmuebleClienteTableColumns } from '@/lib/table-columns';
 import { formatTableHeaderLabel } from '@/lib/table-header-label';
@@ -76,6 +78,7 @@ export function InmuebleDetailPageContent({
   const { invalidateInmueble, invalidateClientesByTipo } =
     useInvalidateDashboardQueries();
   const inmuebleQuery = useInmuebleQuery(id);
+  useInmuebleClientesRealtime(id);
   const { user } = useCurrentUser();
   const canManageInmuebles = isAdminUser(user?.rol);
   const workersQuery = useWorkersQuery(true);
@@ -104,7 +107,11 @@ export function InmuebleDetailPageContent({
       fechaContactoSort: null as InmuebleClienteFechaSort,
     },
   );
-  const { clienteFilters, fechaContactoSort } = clienteListState;
+  const { clienteFilters: rawClienteFilters, fechaContactoSort } = clienteListState;
+  const clienteFilters = useMemo(
+    () => normalizeInmuebleClienteFilters(rawClienteFilters),
+    [rawClienteFilters],
+  );
   const setClienteFilters = (
     value:
       | InmuebleClienteFilters
@@ -655,7 +662,7 @@ export function InmuebleDetailPageContent({
                     ),
                   )}
                   <th
-                    className={`sticky top-14 z-30 w-11 max-w-[2.75rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                    className={`sticky top-14 z-30 w-16 max-w-[4rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
                       expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                     }`}
                   >
@@ -707,6 +714,16 @@ export function InmuebleDetailPageContent({
                               value={cliente.gestion_estado}
                               disabled={bulkBusy}
                               tableLayout
+                              eventContext={{
+                                clienteNombre: cliente.nombre,
+                                clienteTelefono: cliente.telefono,
+                                clienteRef: cliente.ref_cliente,
+                                clienteNotas: cliente.notas,
+                                inmuebleLabel:
+                                  inmueble.direccion_piso_real ??
+                                  inmueble.espejo_direccion ??
+                                  inmueble.ref,
+                              }}
                               onUpdated={(result) =>
                                 handleClientePatch(cliente.id, {
                                   gestion_estado: result.gestion_estado,
@@ -832,15 +849,25 @@ export function InmuebleDetailPageContent({
                         </td>
                       );
                     })}
-                    <td className="w-11 max-w-[2.75rem] border border-black px-1 py-3 text-center align-middle">
-                      <Link
-                        href={`/dashboard/clientes/${cliente.id}`}
-                        className={`inline-flex items-center justify-center rounded p-1.5 transition hover:bg-slate-100 ${accentLink}`}
-                        title="Ver cliente"
-                        aria-label="Ver cliente"
-                      >
-                        <Pencil className="h-4 w-4 shrink-0" aria-hidden />
-                      </Link>
+                    <td className="w-16 max-w-[4rem] border border-black px-1 py-3 text-center align-middle">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <Link
+                          href={`/dashboard/clientes/${cliente.id}`}
+                          className={`inline-flex items-center justify-center rounded p-1 transition hover:bg-slate-100 ${accentLink}`}
+                          title="Ver cliente"
+                          aria-label="Ver cliente"
+                        >
+                          <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        </Link>
+                        <Link
+                          href={`/dashboard/clientes/${cliente.id}/edit`}
+                          className={`inline-flex items-center justify-center rounded p-1 transition hover:bg-slate-100 ${accentLink}`}
+                          title="Editar cliente"
+                          aria-label="Editar cliente"
+                        >
+                          <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                   );

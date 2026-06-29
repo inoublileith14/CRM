@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { ChevronRight } from 'lucide-react';
 import { getInmuebleDenseHeaderColor } from '@/lib/inmueble-table-layout';
@@ -159,44 +160,18 @@ function PropiValueLine({
 }: PropiValueLineProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const position = useFloatingPanelPosition({
+    open,
+    triggerRef,
+    panelRef,
+    minPanelWidth: 160,
+    estimatedHeight: Math.min(values.length * 32 + 8, 200),
+    deps: [values.length],
+  });
 
   useEffect(() => setMounted(true), []);
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-
-    function updatePosition() {
-      const rect = triggerRef.current!.getBoundingClientRect();
-      const margin = 8;
-      const panelWidth = Math.max(rect.width, 160);
-      const estimatedHeight = Math.min(values.length * 32 + 8, 200);
-      const spaceBelow = window.innerHeight - rect.bottom - margin;
-      const spaceAbove = rect.top - margin;
-      const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
-
-      let top = openUp ? rect.top - estimatedHeight - 4 : rect.bottom + 4;
-      top = Math.max(margin, Math.min(top, window.innerHeight - margin - 48));
-
-      let left = rect.left;
-      if (left + panelWidth > window.innerWidth - margin) {
-        left = window.innerWidth - panelWidth - margin;
-      }
-      if (left < margin) left = margin;
-
-      setPosition({ top, left, width: panelWidth });
-    }
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open, values.length]);
 
   useEffect(() => {
     if (!open) return;

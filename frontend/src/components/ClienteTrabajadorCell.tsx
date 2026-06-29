@@ -23,7 +23,7 @@ function filterWorkers(workers: Worker[], query: string): Worker[] {
   if (!q) return workers;
 
   return workers.filter((worker) => {
-    const nombre = worker.nombre.toLowerCase();
+    const nombre = (worker.nombre ?? '').toLowerCase();
     const rol = getWorkerRolLabel(worker.rol).toLowerCase();
     const email = worker.email?.toLowerCase() ?? '';
     return nombre.includes(q) || rol.includes(q) || email.includes(q);

@@ -3,6 +3,11 @@ import { Worker } from '../../workers/interfaces/worker.interface';
 
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
+export type ClienteTipoCliente =
+  | 'estudiante'
+  | 'parejas'
+  | 'familia_con_hijos'
+  | 'compartir';
 export type ClienteGestionEstado =
   | 'no_gestionando'
   | 'gestionando'
@@ -21,6 +26,10 @@ export interface Cliente {
   email: string | null;
   telefono: string | null;
   ciudad: string | null;
+  barrio: string | null;
+  distrito: string | null;
+  tipo_nomina: string | null;
+  tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
   origen: ClienteOrigen | null;
   estado_contacto: string | null;
@@ -28,6 +37,7 @@ export interface Cliente {
   ref_cliente: string | null;
   mensaje: string | null;
   fecha_contacto: string | null;
+  fecha_entrada_inmueble: string | null;
   fecha_ultima_gestion: string | null;
   presupuesto_maximo: string | null;
   banos: number | null;
@@ -43,6 +53,11 @@ export interface Cliente {
   workers?: Worker[];
   /** Per inmueble link; present when cliente is loaded from an inmueble detail */
   gestion_estado?: ClienteGestionEstado | null;
+  inmueble_gestion_links?: Array<{
+    inmueble_id: string;
+    gestion_estado: ClienteGestionEstado | null;
+    fecha_ultima_gestion?: string | null;
+  }>;
 }
 
 export type ClienteInput = Omit<

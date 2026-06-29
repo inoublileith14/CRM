@@ -20,6 +20,7 @@ export interface CalendarConnectionStatus {
     googleEmail: string | null;
     calendarId: string | null;
     connectedAt: string | null;
+    canCreateEvents: boolean;
 }
 export interface CalendarEventItem {
     id: string;
@@ -28,5 +29,12 @@ export interface CalendarEventItem {
     end: string | null;
     allDay: boolean;
     location: string | null;
+    htmlLink: string | null;
+}
+export interface CreateCalendarEventResult {
+    id: string;
+    title: string;
+    start: string;
+    end: string | null;
     htmlLink: string | null;
 }

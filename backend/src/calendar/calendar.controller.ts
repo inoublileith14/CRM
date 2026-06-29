@@ -2,6 +2,8 @@ import {
   Controller,
   Delete,
   Get,
+  Post,
+  Body,
   Query,
   Req,
   UseGuards,
@@ -10,6 +12,7 @@ import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserProfile } from '../auth/interfaces/user.interface';
 import { CalendarService } from './calendar.service';
+import { CreateCalendarEventDto } from './dto/create-calendar-event.dto';
 
 @Controller('calendar')
 @UseGuards(JwtAuthGuard)
@@ -41,6 +44,14 @@ export class CalendarController {
   @Get('events')
   events(@Req() req: Request & { user: UserProfile }) {
     return this.calendarService.listUpcomingEvents(req.user.id);
+  }
+
+  @Post('events')
+  createEvent(
+    @Req() req: Request & { user: UserProfile },
+    @Body() dto: CreateCalendarEventDto,
+  ) {
+    return this.calendarService.createEvent(req.user.id, dto);
   }
 
   @Delete('disconnect')

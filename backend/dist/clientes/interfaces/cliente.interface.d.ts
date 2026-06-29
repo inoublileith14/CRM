@@ -2,6 +2,7 @@ import { Inmueble } from '../../inmuebles/interfaces/inmueble.interface';
 import { Worker } from '../../workers/interfaces/worker.interface';
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
+export type ClienteTipoCliente = 'estudiante' | 'parejas' | 'familia_con_hijos' | 'compartir';
 export type ClienteGestionEstado = 'no_gestionando' | 'gestionando' | 'visita_concertada' | 'reservado' | 'nc' | 'pendiente_cuadrar_docs' | 'no_gestionado' | 'gestionando_w' | 'pendiente_cuadrar_visita' | 'ya_compro';
 export interface Cliente {
     id: string;
@@ -9,6 +10,10 @@ export interface Cliente {
     email: string | null;
     telefono: string | null;
     ciudad: string | null;
+    barrio: string | null;
+    distrito: string | null;
+    tipo_nomina: string | null;
+    tipo_cliente: ClienteTipoCliente | null;
     estado: ClienteEstado;
     origen: ClienteOrigen | null;
     estado_contacto: string | null;
@@ -16,6 +21,7 @@ export interface Cliente {
     ref_cliente: string | null;
     mensaje: string | null;
     fecha_contacto: string | null;
+    fecha_entrada_inmueble: string | null;
     fecha_ultima_gestion: string | null;
     presupuesto_maximo: string | null;
     banos: number | null;
@@ -30,5 +36,10 @@ export interface Cliente {
     inmuebles?: Inmueble[];
     workers?: Worker[];
     gestion_estado?: ClienteGestionEstado | null;
+    inmueble_gestion_links?: Array<{
+        inmueble_id: string;
+        gestion_estado: ClienteGestionEstado | null;
+        fecha_ultima_gestion?: string | null;
+    }>;
 }
 export type ClienteInput = Omit<Cliente, 'id' | 'created_at' | 'updated_at' | 'inmuebles_count' | 'workers_count' | 'inmuebles' | 'workers'>;

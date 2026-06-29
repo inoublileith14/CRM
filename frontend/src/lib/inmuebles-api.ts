@@ -109,6 +109,7 @@ export function updateClienteGestionEstado(
   inmuebleId: string,
   clienteId: string,
   gestion_estado: ClienteGestionEstado,
+  fecha_ultima_gestion?: string,
 ): Promise<{
   gestion_estado: ClienteGestionEstado;
   fecha_ultima_gestion: string;
@@ -121,7 +122,10 @@ export function updateClienteGestionEstado(
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gestion_estado }),
+      body: JSON.stringify({
+        gestion_estado,
+        ...(fecha_ultima_gestion ? { fecha_ultima_gestion } : {}),
+      }),
     },
   );
 }

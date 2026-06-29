@@ -1,18 +1,38 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  GestionCalendarEventDialog,
+  GestionCalendarEventFormValues,
+  toCalendarEventPayload,
+  toScheduledGestionIso,
+} from '@/components/GestionCalendarEventDialog';
 import {
   ClienteGestionEstado,
   getClienteGestionEstadoOption,
   getClienteGestionEstadoOptions,
   getGestionOptionStyle,
   normalizeClienteGestionEstado,
+  requiresCalendarEventDialog,
 } from '@/lib/cliente-gestion-estado';
+import { createCalendarEvent } from '@/lib/calendar-api';
 import { updateClienteGestionEstado } from '@/lib/inmuebles-api';
+import { useCalendarStatusQuery } from '@/hooks/use-dashboard-queries';
+import { ApiError } from '@/lib/api';
 import { TipoOperacion } from '@/types/inmueble';
+
+export interface ClienteGestionEventContext {
+  clienteNombre: string;
+  clienteTelefono: string | null;
+  clienteRef: string | null;
+  clienteNotas: string | null;
+  inmuebleLabel: string | null;
+}
 
 interface ClienteGestionEstadoSelectProps {
   inmuebleId: string;
@@ -23,6 +43,7 @@ interface ClienteGestionEstadoSelectProps {
   compact?: boolean;
   /** Dense per-house clients table: full column width, label may wrap 2 lines. */
   tableLayout?: boolean;
+  eventContext?: ClienteGestionEventContext;
   onUpdated: (result: {
     gestion_estado: ClienteGestionEstado;
     fecha_ultima_gestion: string;
@@ -37,52 +58,36 @@ export function ClienteGestionEstadoSelect({
   disabled,
   compact,
   tableLayout,
+  eventContext,
   onUpdated,
 }: ClienteGestionEstadoSelectProps) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingEstado, setPendingEstado] = useState<
+    Extract<ClienteGestionEstado, 'visita_concertada' | 'videollamada'> | null
+  >(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
 
+  const calendarStatusQuery = useCalendarStatusQuery(dialogOpen);
+  const calendarConnected = calendarStatusQuery.data?.connected ?? false;
+  const canCreateEvents = calendarStatusQuery.data?.canCreateEvents ?? false;
+
   const options = getClienteGestionEstadoOptions(tipoOperacion);
   const current = getClienteGestionEstadoOption(value, tipoOperacion);
+  const position = useFloatingPanelPosition({
+    open,
+    triggerRef,
+    panelRef,
+    minPanelWidth: 256,
+    estimatedHeight: options.length * 32 + 8,
+    deps: [options.length],
+  });
 
   useEffect(() => setMounted(true), []);
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-
-    function updatePosition() {
-      const rect = triggerRef.current!.getBoundingClientRect();
-      const margin = 8;
-      const estimatedHeight = options.length * 36 + 8;
-      const spaceBelow = window.innerHeight - rect.bottom - margin;
-      const spaceAbove = rect.top - margin;
-      const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
-
-      let top = openUp ? rect.top - estimatedHeight - 4 : rect.bottom + 4;
-      top = Math.max(margin, Math.min(top, window.innerHeight - margin - 48));
-
-      let left = rect.left;
-      const panelWidth = Math.max(rect.width, 256);
-      if (left + panelWidth > window.innerWidth - margin) {
-        left = window.innerWidth - panelWidth - margin;
-      }
-      if (left < margin) left = margin;
-
-      setPosition({ top, left, width: panelWidth });
-    }
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open, options.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -110,27 +115,77 @@ export function ClienteGestionEstadoSelect({
     };
   }, [open]);
 
-  async function handleSelect(next: ClienteGestionEstado) {
-    setOpen(false);
-    if (normalizeClienteGestionEstado(value, tipoOperacion) === next) return;
-
+  async function saveGestionEstado(
+    next: ClienteGestionEstado,
+    formValues?: GestionCalendarEventFormValues,
+  ) {
     setSaving(true);
     try {
+      if (formValues?.createInGoogleCalendar) {
+        const payload = toCalendarEventPayload(formValues);
+        await createCalendarEvent(payload);
+        await queryClient.invalidateQueries({ queryKey: ['calendar'] });
+      }
+
+      const fechaUltimaGestion = formValues
+        ? toScheduledGestionIso(formValues)
+        : undefined;
+
       const result = await updateClienteGestionEstado(
         inmuebleId,
         clienteId,
         next,
+        fechaUltimaGestion,
       );
       onUpdated(result);
+
+      if (formValues?.createInGoogleCalendar) {
+        toast.success('Gestión guardada y evento creado en Google Calendar');
+      } else {
+        toast.success('Gestión guardada');
+      }
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'No se pudo guardar el estado de gestión',
-      );
+      if (
+        error instanceof ApiError &&
+        error.code === 'CALENDAR_SCOPE_INSUFFICIENT'
+      ) {
+        toast.error(error.message, { duration: 8000 });
+      } else {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo guardar el estado de gestión',
+        );
+      }
     } finally {
       setSaving(false);
+      setPendingEstado(null);
+      setDialogOpen(false);
     }
+  }
+
+  async function handleSelect(next: ClienteGestionEstado) {
+    setOpen(false);
+    if (normalizeClienteGestionEstado(value, tipoOperacion) === next) return;
+
+    if (requiresCalendarEventDialog(next)) {
+      setPendingEstado(next);
+      setDialogOpen(true);
+      return;
+    }
+
+    await saveGestionEstado(next);
+  }
+
+  async function handleDialogConfirm(formValues: GestionCalendarEventFormValues) {
+    if (!pendingEstado) return;
+    await saveGestionEstado(pendingEstado, formValues);
+  }
+
+  function handleDialogCancel() {
+    if (saving) return;
+    setDialogOpen(false);
+    setPendingEstado(null);
   }
 
   const dropdown =
@@ -138,12 +193,12 @@ export function ClienteGestionEstadoSelect({
       <ul
         ref={panelRef}
         role="listbox"
-        className="fixed z-[200] overflow-hidden rounded border border-slate-200 bg-white shadow-lg"
+        className="fixed z-[200] overflow-y-auto overflow-x-hidden rounded border border-slate-200 bg-white shadow-lg"
         style={{
           top: position.top,
           left: position.left,
           width: position.width,
-          maxHeight: 'min(320px, calc(100vh - 1rem))',
+          maxHeight: 'min(360px, calc(100vh - 1rem))',
         }}
       >
         {options.map((option) => (
@@ -151,12 +206,13 @@ export function ClienteGestionEstadoSelect({
             key={option.value}
             role="option"
             aria-selected={option.value === current.value}
+            className="border-b border-black/10 last:border-b-0"
           >
             <button
               type="button"
               onClick={() => void handleSelect(option.value)}
               style={getGestionOptionStyle(option)}
-              className="block w-full whitespace-nowrap px-2 py-2 text-left text-[10px] font-bold uppercase leading-none transition hover:brightness-95 sm:text-xs"
+              className="block w-full px-2 py-1.5 text-left text-[10px] font-bold uppercase leading-tight transition hover:brightness-95 sm:text-xs"
             >
               {option.label}
             </button>
@@ -195,6 +251,22 @@ export function ClienteGestionEstadoSelect({
         )}
       </button>
       {dropdown ? createPortal(dropdown, document.body) : null}
+      {pendingEstado ? (
+        <GestionCalendarEventDialog
+          open={dialogOpen}
+          gestionEstado={pendingEstado}
+          clienteNombre={eventContext?.clienteNombre ?? 'Cliente'}
+          clienteTelefono={eventContext?.clienteTelefono ?? null}
+          clienteRef={eventContext?.clienteRef ?? null}
+          clienteNotas={eventContext?.clienteNotas ?? null}
+          inmuebleLabel={eventContext?.inmuebleLabel ?? null}
+          calendarConnected={calendarConnected}
+          canCreateEvents={canCreateEvents}
+          loading={saving}
+          onConfirm={(formValues) => void handleDialogConfirm(formValues)}
+          onCancel={handleDialogCancel}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { getBackendUrl } from './backend-url';
 import { parseApiResponse } from './parse-api-error';
+import { clearSupabaseSession } from './supabase-session';
 
 export interface AuthUser {
   id: string;
@@ -7,6 +8,11 @@ export interface AuthUser {
   nombre: string;
   rol: string;
   avatar_url?: string | null;
+}
+
+export interface SupabaseSession {
+  access_token: string;
+  refresh_token: string;
 }
 
 export type AuthErrorCode =
@@ -51,7 +57,7 @@ export class ApiError extends Error {
 export async function login(
   email: string,
   password: string,
-): Promise<{ user: AuthUser }> {
+): Promise<{ user: AuthUser; supabase_session?: SupabaseSession | null }> {
   let res: Response;
 
   try {
@@ -171,6 +177,7 @@ export async function logout(): Promise<void> {
   } catch {
     // La cookie se borra en el cliente aunque falle la petición
   }
+  clearSupabaseSession();
 }
 
 export async function getMe(): Promise<AuthUser | null> {

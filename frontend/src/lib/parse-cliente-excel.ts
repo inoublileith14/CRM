@@ -18,6 +18,9 @@ const HEADER_MAP: Record<string, keyof ClienteFormData> = {
   telf: 'telefono',
   mensaje: 'mensaje',
   fecha: 'fecha_contacto',
+  barrio: 'barrio',
+  distrito: 'distrito',
+  ciudad: 'ciudad',
 };
 
 function normalizeHeader(value: unknown): string {
@@ -128,7 +131,11 @@ export function parseClienteExcel(buffer: ArrayBuffer): ClienteFormData[] {
       nombre,
       email,
       telefono,
-      ciudad: null,
+      ciudad: cellStr(get('ciudad')),
+      barrio: cellStr(get('barrio')),
+      distrito: cellStr(get('distrito')),
+      tipo_nomina: null,
+      tipo_cliente: null,
       estado: 'pendiente',
       origen: parseOrigen(origenRaw ?? ''),
       estado_contacto: cellStr(get('estado_contacto')),
@@ -136,6 +143,7 @@ export function parseClienteExcel(buffer: ArrayBuffer): ClienteFormData[] {
       ref_cliente: cellStr(get('ref_cliente')),
       mensaje: cellStr(get('mensaje')),
       fecha_contacto: parseFecha(get('fecha_contacto')),
+      fecha_entrada_inmueble: null,
       presupuesto_maximo: null,
       banos: null,
       fecha_ultima_gestion: null,

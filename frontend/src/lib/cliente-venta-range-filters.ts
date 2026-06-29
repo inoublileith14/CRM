@@ -13,7 +13,8 @@ export interface VentaRangeFilters {
   banos_max: string;
   metros_min: string;
   metros_max: string;
-  zona: string;
+  barrio: string;
+  distrito: string;
 }
 
 export const EMPTY_VENTA_RANGE_FILTERS: VentaRangeFilters = {
@@ -27,7 +28,8 @@ export const EMPTY_VENTA_RANGE_FILTERS: VentaRangeFilters = {
   banos_max: '',
   metros_min: '',
   metros_max: '',
-  zona: '',
+  barrio: '',
+  distrito: '',
 };
 
 function parseIntegerInput(value: string): number | null {
@@ -158,10 +160,22 @@ export function filterRowsByVentaRange(
       return false;
     }
 
-    const zonaQuery = filters.zona.trim().toLowerCase();
-    if (zonaQuery) {
-      const zona = parsed.zona?.toLowerCase() ?? '';
-      if (!zona.includes(zonaQuery)) {
+    const barrioQuery = filters.barrio.trim().toLowerCase();
+    if (barrioQuery) {
+      const barrioValue = (
+        cliente.barrio ??
+        parsed.zona ??
+        ''
+      ).toLowerCase();
+      if (!barrioValue.includes(barrioQuery)) {
+        return false;
+      }
+    }
+
+    const distritoQuery = filters.distrito.trim().toLowerCase();
+    if (distritoQuery) {
+      const distritoValue = (cliente.distrito ?? '').toLowerCase();
+      if (!distritoValue.includes(distritoQuery)) {
         return false;
       }
     }
@@ -224,10 +238,22 @@ export function filterClientesByVentaRange(
       return false;
     }
 
-    const zonaQuery = filters.zona.trim().toLowerCase();
-    if (zonaQuery) {
-      const zona = parsed.zona?.toLowerCase() ?? '';
-      if (!zona.includes(zonaQuery)) {
+    const barrioQuery = filters.barrio.trim().toLowerCase();
+    if (barrioQuery) {
+      const barrioValue = (
+        cliente.barrio ??
+        parsed.zona ??
+        ''
+      ).toLowerCase();
+      if (!barrioValue.includes(barrioQuery)) {
+        return false;
+      }
+    }
+
+    const distritoQuery = filters.distrito.trim().toLowerCase();
+    if (distritoQuery) {
+      const distritoValue = (cliente.distrito ?? '').toLowerCase();
+      if (!distritoValue.includes(distritoQuery)) {
         return false;
       }
     }

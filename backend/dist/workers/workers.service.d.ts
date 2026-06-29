@@ -29,5 +29,6 @@ export declare class WorkersService {
     private resolveUserForWorker;
     private mapWithCount;
     private mapWithClientes;
+    private pickPrimaryGestionEstado;
     private withProfileDefaults;
 }

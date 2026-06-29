@@ -1,10 +1,11 @@
 import {
   Building2,
-  Briefcase,
   Home,
   KeyRound,
   LayoutDashboard,
   MessageSquare,
+  Shield,
+  UserRound,
   Users,
   UsersRound,
   type LucideIcon,
@@ -25,6 +26,7 @@ export type DashboardNavGroup = {
   icon: LucideIcon;
   items: { href: string; labelKey: MessageKey; icon: LucideIcon }[];
   activePathPrefixes?: string[];
+  adminOnly?: boolean;
 };
 
 export type DashboardNavEntry = DashboardNavLink | DashboardNavGroup;
@@ -77,11 +79,23 @@ export const dashboardNavEntries: DashboardNavEntry[] = [
     ],
   },
   {
-    type: 'link',
-    href: '/dashboard/workers',
-    labelKey: 'nav.workers',
-    icon: Briefcase,
+    type: 'group',
+    labelKey: 'nav.users',
+    icon: Users,
     adminOnly: true,
+    activePathPrefixes: ['/dashboard/usuarios/'],
+    items: [
+      {
+        href: '/dashboard/usuarios/admins',
+        labelKey: 'nav.admins',
+        icon: Shield,
+      },
+      {
+        href: '/dashboard/usuarios/asesores',
+        labelKey: 'nav.asesores',
+        icon: UserRound,
+      },
+    ],
   },
   {
     type: 'link',
@@ -96,7 +110,7 @@ export function getDashboardNavEntries(options?: {
 }): DashboardNavEntry[] {
   const isAdmin = options?.isAdmin ?? false;
   return dashboardNavEntries.filter((entry) => {
-    if (entry.type === 'link' && entry.adminOnly && !isAdmin) {
+    if (entry.adminOnly && !isAdmin) {
       return false;
     }
     return true;

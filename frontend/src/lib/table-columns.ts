@@ -5,6 +5,7 @@ import {
   formatClienteEntradaDate,
   resolveClienteEntradaIso,
 } from '@/lib/cliente-date-utils';
+import { getClienteTipoClienteLabel } from '@/lib/cliente-tipo';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import {
   CLIENTE_ESTADO_LABELS,
@@ -300,6 +301,16 @@ export function buildVentaDenseClienteTableColumns(
       getDateIso: (cliente) => resolveClienteEntradaIso(cliente.fecha_contacto),
     },
     {
+      key: 'fecha_entrada_inmueble',
+      label: 'FECHA ENTRADA INMUEBLE',
+      shortLabel: 'ENT. INM.',
+      headClassName: 'w-[4.25rem] text-center',
+      cellClassName: `w-[4.25rem] ${center}`,
+      fieldType: 'date',
+      getDisplayValue: (cliente) => formatClienteDate(cliente.fecha_entrada_inmueble),
+      getDateIso: (cliente) => cliente.fecha_entrada_inmueble ?? null,
+    },
+    {
       key: 'ref_cliente',
       label: 'REFERENCES',
       shortLabel: 'REF.',
@@ -321,16 +332,6 @@ export function buildVentaDenseClienteTableColumns(
       headClassName: 'w-[6.25rem] text-center',
       cellClassName: `whitespace-nowrap ${center}`,
       getDisplayValue: (cliente) => toFilterDisplay(cliente.telefono),
-    },
-    {
-      key: 'gestion_estado',
-      label: 'GESTIÓN',
-      shortLabel: 'GEST.',
-      headClassName: 'w-[5.5rem] text-center',
-      cellClassName: `max-w-[5.5rem] ${center}`,
-      fieldType: 'text',
-      getDisplayValue: (cliente) =>
-        getClienteGestionEstadoOption(cliente.gestion_estado, tipoOperacion).label,
     },
     {
       key: 'presupuesto_maximo',
@@ -394,12 +395,40 @@ export function buildVentaDenseClienteTableColumns(
       getNumberValue: (cliente) => parseRefCliente(cliente.ref_cliente).metros,
     },
     {
-      key: 'zona',
-      label: 'ZONA',
-      headClassName: 'min-w-0 text-center',
-      cellClassName: `min-w-0 ${center}`,
+      key: 'barrio',
+      label: 'BARRIO',
+      shortLabel: 'BARR.',
+      headClassName: 'w-[7.5rem] text-center',
+      cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
       getDisplayValue: (cliente) =>
-        toFilterDisplay(parseRefCliente(cliente.ref_cliente).zona),
+        toFilterDisplay(
+          cliente.barrio ?? parseRefCliente(cliente.ref_cliente).zona,
+        ),
+    },
+    {
+      key: 'distrito',
+      label: 'DISTRITO',
+      shortLabel: 'DIST.',
+      headClassName: 'w-[7.5rem] text-center',
+      cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
+      getDisplayValue: (cliente) => toFilterDisplay(cliente.distrito),
+    },
+    {
+      key: 'tipo_nomina',
+      label: 'TIPO NÓMINA',
+      shortLabel: 'NÓM.',
+      headClassName: 'w-[7.5rem] text-center',
+      cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
+      getDisplayValue: (cliente) => toFilterDisplay(cliente.tipo_nomina),
+    },
+    {
+      key: 'tipo_cliente',
+      label: 'TIPO CLIENTE',
+      shortLabel: 'TIPO',
+      headClassName: 'w-[7.5rem] text-center',
+      cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
+      getDisplayValue: (cliente) =>
+        getClienteTipoClienteLabel(cliente.tipo_cliente, false),
     },
   ];
 }

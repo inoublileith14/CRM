@@ -16,6 +16,7 @@ interface WorkerFormProps {
   submitLabel: string;
   loading?: boolean;
   wide?: boolean;
+  lockRol?: WorkerRol;
 }
 
 function toValue(value: string | null | undefined): string {
@@ -30,6 +31,7 @@ export function WorkerForm({
   submitLabel,
   loading = false,
   wide = false,
+  lockRol,
 }: WorkerFormProps) {
   const inputClass =
     'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60';
@@ -109,21 +111,30 @@ export function WorkerForm({
           <label htmlFor="rol" className={labelClass}>
             Rol
           </label>
-          <select
-            id="rol"
-            name="rol"
-            defaultValue={
-              initial?.rol ? normalizeWorkerRol(initial.rol) : 'asesor'
-            }
-            disabled={loading}
-            className={inputClass}
-          >
-            {(Object.keys(WORKER_ROL_LABELS) as WorkerRol[]).map((rol) => (
-              <option key={rol} value={rol}>
-                {WORKER_ROL_LABELS[rol]}
-              </option>
-            ))}
-          </select>
+          {lockRol ? (
+            <>
+              <input type="hidden" name="rol" value={lockRol} />
+              <div className={`${inputClass} bg-slate-50 text-slate-600`}>
+                {WORKER_ROL_LABELS[lockRol]}
+              </div>
+            </>
+          ) : (
+            <select
+              id="rol"
+              name="rol"
+              defaultValue={
+                initial?.rol ? normalizeWorkerRol(initial.rol) : 'asesor'
+              }
+              disabled={loading}
+              className={inputClass}
+            >
+              {(Object.keys(WORKER_ROL_LABELS) as WorkerRol[]).map((rol) => (
+                <option key={rol} value={rol}>
+                  {WORKER_ROL_LABELS[rol]}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="flex items-end">

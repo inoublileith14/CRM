@@ -6,6 +6,10 @@ class BulkImportClienteItemDto {
     email;
     telefono;
     ciudad;
+    barrio;
+    distrito;
+    tipo_nomina;
+    tipo_cliente;
     estado;
     origen;
     estado_contacto;

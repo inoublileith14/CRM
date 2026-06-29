@@ -20,7 +20,7 @@ export function ClienteFechaUltimaGestionFilterHead({
   accent = 'alquiler',
 }: ClienteFechaUltimaGestionFilterHeadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const isActive = value.trim().length > 0;
+  const isActive = (value ?? '').trim().length > 0;
 
   const activeBtnClass =
     accent === 'alquiler'

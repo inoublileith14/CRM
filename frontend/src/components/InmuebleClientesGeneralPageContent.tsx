@@ -9,13 +9,13 @@ import {
   ArrowUp,
   ArrowUpDown,
   Building2,
+  Eye,
   Loader2,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClienteCopyContactsButton } from '@/components/ClienteCopyContactsButton';
 import { ClienteExcelImportButton } from '@/components/ClienteExcelImportButton';
-import { ClienteGestionEstadoBadge } from '@/components/ClienteGestionEstadoBadge';
 import {
   getClienteGestionEstadoOption,
   getGestionOptionStyle,
@@ -23,8 +23,10 @@ import {
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { InmuebleAssignSearchSelect } from '@/components/InmuebleAssignSearchSelect';
 import { ClienteVentaRangeFiltersBar } from '@/components/ClienteVentaRangeFiltersBar';
+import { ClienteTipoClienteSelect } from '@/components/ClienteTipoClienteSelect';
 import { ClienteVentaTableFieldCell } from '@/components/ClienteVentaTableFieldCell';
 import { ClienteFechaContactoCell } from '@/components/ClienteFechaContactoCell';
+import { ClienteFechaEntradaInmuebleCell } from '@/components/ClienteFechaEntradaInmuebleCell';
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
 import { TableColumnTextFilterHead } from '@/components/TableColumnTextFilterHead';
@@ -37,6 +39,7 @@ import {
   useInmueblesQuery,
   useWorkersQuery,
 } from '@/hooks/use-dashboard-queries';
+import { useClientesByTipoRealtime } from '@/hooks/use-clientes-by-tipo-realtime';
 import {
   ClientesGeneralPageSize,
   CLIENTES_GENERAL_PAGE_SIZE_OPTIONS,
@@ -51,7 +54,6 @@ import { useQueryUiState } from '@/hooks/use-query-ui';
 import { buildVentaGlobalClienteTableColumns } from '@/lib/table-columns';
 import { formatTableHeaderLabel } from '@/lib/table-header-label';
 import { EXCEL_CELL_ALIGN, EXCEL_CELL_BORDER, EXCEL_TABLE_CLASS, TABLE_HEAD_PADDING_DENSE, TABLE_HEAD_TEXT_CLASS } from '@/lib/excel-table-styles';
-import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import {
   EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
   filterClienteLinkRowsByText,
@@ -87,6 +89,7 @@ const PAGE_THEMES = {
     accentSelectFocus:
       'focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20',
     selectedRow: 'bg-emerald-50/60',
+    stickyAccCellBg: 'bg-emerald-50',
     retryLink: 'text-emerald-600 hover:text-emerald-500',
   },
   venta: {
@@ -99,9 +102,18 @@ const PAGE_THEMES = {
     accentCheckbox: 'text-blue-700 focus:ring-blue-600',
     accentSelectFocus: 'focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20',
     selectedRow: 'bg-blue-50/70',
+    stickyAccCellBg: 'bg-blue-50',
     retryLink: 'text-blue-700 hover:text-blue-600',
   },
 } as const;
+
+/** Sticky ACC: inset L/R lines stay visible inside the scroll clip; left shadow separates from scrolling cells. */
+const STICKY_ACTIONS_SHADOW =
+  'shadow-[-5px_0_8px_-2px_rgba(0,0,0,0.14),inset_1px_0_0_0_#000,inset_-1px_0_0_0_#000]';
+const STICKY_ACTIONS_HEAD_CLASS = `sticky right-0 z-40 border-y border-black bg-slate-50 ${STICKY_ACTIONS_SHADOW}`;
+const STICKY_ACTIONS_CELL_BASE = `sticky right-0 z-20 border-y border-black ${STICKY_ACTIONS_SHADOW}`;
+const DENSE_NARROW_HEAD_LABEL_CLASS =
+  'text-[9px] font-semibold uppercase leading-tight text-slate-600 sm:text-[10px]';
 
 interface InmuebleClientesGeneralPageContentProps {
   expectedTipo: TipoOperacion;
@@ -184,12 +196,9 @@ export function InmuebleClientesGeneralPageContent({
   }, [page, effectiveLimit, tableSort]);
 
   const rowsQuery = useClientesByTipoQuery(expectedTipo, listParams);
+  useClientesByTipoRealtime(expectedTipo);
   const workersQuery = useWorkersQuery(true);
-  const [inmueblesNeeded, setInmueblesNeeded] = useState(false);
-  const inmueblesQuery = useInmueblesQuery(
-    { tipo_operacion: expectedTipo },
-    { enabled: inmueblesNeeded },
-  );
+  const inmueblesQuery = useInmueblesQuery({ tipo_operacion: expectedTipo });
   const {
     showInitialLoading,
     isRefreshing,
@@ -681,9 +690,6 @@ export function InmuebleClientesGeneralPageContent({
                 value={assignInmuebleId}
                 onChange={setAssignInmuebleId}
                 disabled={assigningBusy || inmueblesQuery.isLoading}
-                onOpenChange={(open) => {
-                  if (open) setInmueblesNeeded(true);
-                }}
               />
               <button
                 type="button"
@@ -741,16 +747,12 @@ export function InmuebleClientesGeneralPageContent({
                 onClear={clearAllFilters}
               />
             )}
-            <div
-              className={
-                isDenseClienteTable
-                  ? 'overflow-x-auto xl:overflow-x-visible'
-                  : 'overflow-x-auto'
-              }
-            >
+            <div className="overflow-x-auto pr-px">
               <table
                 className={
-                  isDenseClienteTable ? EXCEL_TABLE_CLASS : 'min-w-[56rem] w-full text-left text-sm'
+                  isDenseClienteTable
+                    ? `${EXCEL_TABLE_CLASS} min-w-[100rem]`
+                    : 'min-w-[56rem] w-full text-left text-sm'
                 }
               >
                 {isDenseClienteTable ? (
@@ -759,7 +761,7 @@ export function InmuebleClientesGeneralPageContent({
                     {tableColumns.map((col) => (
                       <col key={col.key} className={col.headClassName} />
                     ))}
-                    <col className="w-[3.75rem]" />
+                    <col className="w-10 min-w-[2.5rem]" />
                   </colgroup>
                 ) : null}
                 <thead className="border-b border-slate-200 bg-slate-50">
@@ -799,7 +801,7 @@ export function InmuebleClientesGeneralPageContent({
                             <button
                               type="button"
                               onClick={toggleEntradaSort}
-                              className="inline-flex w-full items-center justify-center gap-0.5 uppercase leading-tight text-slate-600 transition hover:text-slate-900"
+                              className={`inline-flex w-full flex-col items-center justify-center gap-0.5 uppercase transition hover:text-slate-900 ${DENSE_NARROW_HEAD_LABEL_CLASS}`}
                               title={
                                 tableSort?.column === 'fecha_entrada_peticion'
                                   ? tableSort.direction === 'asc'
@@ -808,7 +810,7 @@ export function InmuebleClientesGeneralPageContent({
                                   : 'Clic para ordenar por fecha de entrada'
                               }
                             >
-                              <span className="break-words whitespace-normal">
+                              <span className="text-center break-words whitespace-normal">
                                 {formatTableHeaderLabel(
                                   isDenseClienteTable
                                     ? col.shortLabel ?? col.label
@@ -817,13 +819,13 @@ export function InmuebleClientesGeneralPageContent({
                               </span>
                               {tableSort?.column === 'fecha_entrada_peticion' ? (
                                 tableSort.direction === 'asc' ? (
-                                  <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
+                                  <ArrowUp className="h-2.5 w-2.5 shrink-0" aria-hidden />
                                 ) : (
-                                  <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
+                                  <ArrowDown className="h-2.5 w-2.5 shrink-0" aria-hidden />
                                 )
                               ) : (
                                 <ArrowUpDown
-                                  className="h-3 w-3 shrink-0 opacity-70"
+                                  className="h-2.5 w-2.5 shrink-0 opacity-70"
                                   aria-hidden
                                 />
                               )}
@@ -867,8 +869,14 @@ export function InmuebleClientesGeneralPageContent({
                           }`}
                           title={formatTableHeaderLabel(col.label)}
                         >
-                          <span className="inline-flex max-w-[10rem] items-center">
-                            <span className="break-words">
+                          <span
+                            className={`flex w-full items-center justify-center ${
+                              col.key === 'fecha_entrada_inmueble'
+                                ? DENSE_NARROW_HEAD_LABEL_CLASS
+                                : ''
+                            }`}
+                          >
+                            <span className="text-center break-words">
                               {formatTableHeaderLabel(
                                 isDenseClienteTable
                                   ? col.shortLabel ?? col.label
@@ -882,11 +890,11 @@ export function InmuebleClientesGeneralPageContent({
                     <th
                       className={
                         isDenseClienteTable
-                          ? `w-[3.75rem] ${TABLE_HEAD_PADDING_DENSE} text-center ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${EXCEL_CELL_BORDER}`
-                          : `px-4 py-4 ${TABLE_HEAD_TEXT_CLASS} text-slate-600`
+                          ? `w-10 min-w-[2.5rem] ${TABLE_HEAD_PADDING_DENSE} ${DENSE_NARROW_HEAD_LABEL_CLASS} text-center ${STICKY_ACTIONS_HEAD_CLASS}`
+                          : `sticky right-0 z-40 border-y border-black bg-slate-50 px-4 py-4 ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${STICKY_ACTIONS_SHADOW}`
                       }
                     >
-                      {isDenseClienteTable ? 'VER' : 'ACCIONES'}
+                      <span className="flex w-full items-center justify-center">ACC</span>
                     </th>
                   </tr>
                 </thead>
@@ -894,7 +902,6 @@ export function InmuebleClientesGeneralPageContent({
                   {displayRows.map((row) => {
                     const { cliente } = row;
                     const isSelected = selectedRowKeys.has(row.row_key);
-                    const parsedRef = parseRefCliente(cliente.ref_cliente);
 
                     return (
                       <tr
@@ -951,6 +958,19 @@ export function InmuebleClientesGeneralPageContent({
                             }
                           />
                         </td>
+                        <td className={denseCellClass('fecha_entrada_inmueble')}>
+                          <ClienteFechaEntradaInmuebleCell
+                            clienteId={cliente.id}
+                            value={cliente.fecha_entrada_inmueble}
+                            disabled={assigningBusy}
+                            compact
+                            onUpdated={(fechaEntradaInmueble) =>
+                              updateClienteById(cliente.id, {
+                                fecha_entrada_inmueble: fechaEntradaInmueble,
+                              })
+                            }
+                          />
+                        </td>
                         <td className={denseCellClass('ref_cliente', 'text-slate-600')}>
                           <ClienteRefValue ref={cliente.ref_cliente} />
                         </td>
@@ -967,12 +987,6 @@ export function InmuebleClientesGeneralPageContent({
                           className={denseCellClass('telefono', 'text-slate-600')}
                         >
                           {cliente.telefono || '—'}
-                        </td>
-                        <td className={denseCellClass('gestion_estado')}>
-                          <ClienteGestionEstadoBadge
-                            value={cliente.gestion_estado}
-                            tipoOperacion={expectedTipo}
-                          />
                         </td>
                         <td
                           className={denseCellClass(
@@ -1051,21 +1065,73 @@ export function InmuebleClientesGeneralPageContent({
                             }
                           />
                         </td>
-                        <td
-                          className={denseCellClass('zona', 'text-slate-600')}
-                          title={parsedRef.zona ?? undefined}
-                        >
-                          <span className={clienteDenseTextClass}>
-                            {parsedRef.zona || '—'}
-                          </span>
+                        <td className={denseCellClass('barrio', 'text-slate-600')}>
+                          <ClienteVentaTableFieldCell
+                            clienteId={cliente.id}
+                            kind="barrio"
+                            refCliente={cliente.ref_cliente}
+                            barrio={cliente.barrio}
+                            disabled={assigningBusy}
+                            compact
+                            onUpdated={(patch) =>
+                              updateClienteById(cliente.id, patch)
+                            }
+                          />
                         </td>
-                        <td className={`px-3 py-2.5 text-center ${EXCEL_CELL_BORDER}`}>
-                          <Link
-                            href={`/dashboard/clientes/${cliente.id}`}
-                            className={`text-xs font-medium md:text-sm ${pageTheme.accentLink}`}
-                          >
-                            Ver
-                          </Link>
+                        <td className={denseCellClass('distrito', 'text-slate-600')}>
+                          <ClienteVentaTableFieldCell
+                            clienteId={cliente.id}
+                            kind="distrito"
+                            refCliente={cliente.ref_cliente}
+                            distrito={cliente.distrito}
+                            disabled={assigningBusy}
+                            compact
+                            onUpdated={(patch) =>
+                              updateClienteById(cliente.id, patch)
+                            }
+                          />
+                        </td>
+                        <td className={denseCellClass('tipo_nomina', 'text-slate-600')}>
+                          <ClienteVentaTableFieldCell
+                            clienteId={cliente.id}
+                            kind="tipo_nomina"
+                            refCliente={cliente.ref_cliente}
+                            tipoNomina={cliente.tipo_nomina}
+                            disabled={assigningBusy}
+                            compact
+                            onUpdated={(patch) =>
+                              updateClienteById(cliente.id, patch)
+                            }
+                          />
+                        </td>
+                        <td className={denseCellClass('tipo_cliente')}>
+                          <ClienteTipoClienteSelect
+                            clienteId={cliente.id}
+                            value={cliente.tipo_cliente}
+                            disabled={assigningBusy}
+                            compact
+                            onUpdated={(tipoCliente) =>
+                              updateClienteById(cliente.id, {
+                                tipo_cliente: tipoCliente,
+                              })
+                            }
+                          />
+                        </td>
+                        <td
+                          className={`${STICKY_ACTIONS_CELL_BASE} w-10 min-w-[2.5rem] max-w-[2.5rem] px-0 py-2.5 align-middle ${
+                            isSelected ? pageTheme.stickyAccCellBg : 'bg-white'
+                          }`}
+                        >
+                          <div className="flex w-full items-center justify-center">
+                            <Link
+                              href={`/dashboard/clientes/${cliente.id}`}
+                              className={`inline-flex items-center justify-center rounded p-1 text-slate-500 transition hover:bg-slate-100 ${pageTheme.accentLink}`}
+                              title="Ver cliente"
+                              aria-label="Ver cliente"
+                            >
+                              <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );

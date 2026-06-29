@@ -66,6 +66,12 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload),
+      supabase_session: data.session
+        ? {
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }
+        : null,
       user: {
         id: profile.id,
         email: profile.email,

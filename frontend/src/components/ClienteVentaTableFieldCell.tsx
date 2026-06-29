@@ -5,13 +5,17 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { updateCliente } from '@/lib/clientes-api';
 import { parseRefCliente, setParsedRefField } from '@/lib/parse-ref-cliente';
+import { clienteDenseTextClass } from '@/components/ClienteRefValue';
 
 export type ClienteVentaTableFieldKind =
   | 'presupuesto_maximo'
   | 'presupuesto_peticion'
   | 'habitaciones'
   | 'banos'
-  | 'metros';
+  | 'metros'
+  | 'barrio'
+  | 'distrito'
+  | 'tipo_nomina';
 
 interface ClienteVentaTableFieldCellProps {
   clienteId: string;
@@ -19,12 +23,18 @@ interface ClienteVentaTableFieldCellProps {
   refCliente: string | null;
   presupuestoMaximo?: string | null;
   banos?: number | null;
+  barrio?: string | null;
+  distrito?: string | null;
+  tipoNomina?: string | null;
   disabled?: boolean;
   compact?: boolean;
   onUpdated: (patch: {
     presupuesto_maximo?: string | null;
     banos?: number | null;
     ref_cliente?: string | null;
+    barrio?: string | null;
+    distrito?: string | null;
+    tipo_nomina?: string | null;
   }) => void;
 }
 
@@ -33,6 +43,9 @@ function getFieldValue(
   refCliente: string | null,
   presupuestoMaximo: string | null | undefined,
   banos: number | null | undefined,
+  barrio: string | null | undefined,
+  distrito: string | null | undefined,
+  tipoNomina: string | null | undefined,
 ): string {
   const parsed = parseRefCliente(refCliente);
 
@@ -47,6 +60,12 @@ function getFieldValue(
       return banos != null ? String(banos) : '';
     case 'metros':
       return parsed.metros != null ? String(parsed.metros) : '';
+    case 'barrio':
+      return barrio ?? parsed.zona ?? '';
+    case 'distrito':
+      return distrito ?? '';
+    case 'tipo_nomina':
+      return tipoNomina ?? '';
   }
 }
 
@@ -55,8 +74,19 @@ function formatDisplayValue(
   refCliente: string | null,
   presupuestoMaximo: string | null | undefined,
   banos: number | null | undefined,
+  barrio: string | null | undefined,
+  distrito: string | null | undefined,
+  tipoNomina: string | null | undefined,
 ): string {
-  const value = getFieldValue(kind, refCliente, presupuestoMaximo, banos);
+  const value = getFieldValue(
+    kind,
+    refCliente,
+    presupuestoMaximo,
+    banos,
+    barrio,
+    distrito,
+    tipoNomina,
+  );
   return value.trim() ? value : '—';
 }
 
@@ -73,6 +103,9 @@ export function ClienteVentaTableFieldCell({
   refCliente,
   presupuestoMaximo,
   banos,
+  barrio,
+  distrito,
+  tipoNomina,
   disabled,
   compact,
   onUpdated,
@@ -87,16 +120,31 @@ export function ClienteVentaTableFieldCell({
     refCliente,
     presupuestoMaximo,
     banos,
+    barrio,
+    distrito,
+    tipoNomina,
   );
   const isEmpty = displayValue === '—';
   const isNumberField =
     kind === 'habitaciones' || kind === 'banos' || kind === 'metros';
+  const isWrapTextField =
+    kind === 'barrio' || kind === 'distrito' || kind === 'tipo_nomina';
 
   useEffect(() => {
     if (!editing) {
-      setDraft(getFieldValue(kind, refCliente, presupuestoMaximo, banos));
+      setDraft(
+        getFieldValue(
+          kind,
+          refCliente,
+          presupuestoMaximo,
+          banos,
+          barrio,
+          distrito,
+          tipoNomina,
+        ),
+      );
     }
-  }, [kind, refCliente, presupuestoMaximo, banos, editing]);
+  }, [kind, refCliente, presupuestoMaximo, banos, barrio, distrito, tipoNomina, editing]);
 
   useEffect(() => {
     if (editing) {
@@ -106,13 +154,42 @@ export function ClienteVentaTableFieldCell({
   }, [editing]);
 
   async function save() {
-    const current = getFieldValue(kind, refCliente, presupuestoMaximo, banos);
+    const current = getFieldValue(
+      kind,
+      refCliente,
+      presupuestoMaximo,
+      banos,
+      barrio,
+      distrito,
+      tipoNomina,
+    );
     setEditing(false);
 
     if (draft.trim() === current.trim()) return;
 
     setSaving(true);
     try {
+      if (kind === 'barrio') {
+        const next = draft.trim() || null;
+        await updateCliente(clienteId, { barrio: next });
+        onUpdated({ barrio: next });
+        return;
+      }
+
+      if (kind === 'distrito') {
+        const next = draft.trim() || null;
+        await updateCliente(clienteId, { distrito: next });
+        onUpdated({ distrito: next });
+        return;
+      }
+
+      if (kind === 'tipo_nomina') {
+        const next = draft.trim() || null;
+        await updateCliente(clienteId, { tipo_nomina: next });
+        onUpdated({ tipo_nomina: next });
+        return;
+      }
+
       if (kind === 'presupuesto_maximo') {
         const next = draft.trim() || null;
         await updateCliente(clienteId, { presupuesto_maximo: next });
@@ -177,7 +254,17 @@ export function ClienteVentaTableFieldCell({
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Escape') {
-      setDraft(getFieldValue(kind, refCliente, presupuestoMaximo, banos));
+      setDraft(
+        getFieldValue(
+          kind,
+          refCliente,
+          presupuestoMaximo,
+          banos,
+          barrio,
+          distrito,
+          tipoNomina,
+        ),
+      );
       setEditing(false);
     }
     if (event.key === 'Enter') {
@@ -191,7 +278,9 @@ export function ClienteVentaTableFieldCell({
     : 'w-full min-w-[4rem] rounded border border-blue-400 bg-white px-2 py-1 text-sm text-slate-900 outline-none ring-2 ring-blue-500/20';
 
   const buttonClass = compact
-    ? 'group w-full min-w-0 rounded px-0.5 py-0.5 text-center text-xs text-slate-600 transition hover:bg-slate-100 disabled:opacity-60'
+    ? `group w-full min-w-0 rounded px-0.5 py-0.5 text-center text-xs text-slate-600 transition hover:bg-slate-100 disabled:opacity-60${
+        isWrapTextField ? ' flex items-center justify-center' : ''
+      }`
     : 'group w-full min-w-[3rem] rounded px-1 py-0.5 text-left text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-60';
 
   if (editing) {
@@ -217,14 +306,18 @@ export function ClienteVentaTableFieldCell({
       disabled={disabled || saving}
       onClick={() => setEditing(true)}
       className={buttonClass}
-      title="Clic para editar"
+      title={isEmpty ? 'Clic para editar' : displayValue}
     >
       {saving ? (
         <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin text-slate-400" />
       ) : (
         <span
           className={
-            isEmpty ? 'text-slate-400 group-hover:text-slate-500' : undefined
+            isEmpty
+              ? 'text-slate-400 group-hover:text-slate-500'
+              : isWrapTextField
+                ? clienteDenseTextClass
+                : undefined
           }
         >
           {isEmpty ? '+' : displayValue}
