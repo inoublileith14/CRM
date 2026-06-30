@@ -13,6 +13,11 @@ import { ClienteWhatsAppButton } from '@/components/ClienteWhatsAppButton';
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
 import { ClienteFechaUltimaGestionFilterHead } from '@/components/ClienteFechaUltimaGestionFilterHead';
 import { ClienteGestionEstadoSelect } from '@/components/ClienteGestionEstadoSelect';
+import type { ClienteGestionEventContext } from '@/components/ClienteGestionEstadoSelect';
+import {
+  GestionCalendarEventDialog,
+  GestionCalendarEventFormValues,
+} from '@/components/GestionCalendarEventDialog';
 import { ClienteTrabajadorCell } from '@/components/ClienteTrabajadorCell';
 import { ClienteNotasCell } from '@/components/ClienteNotasCell';
 import { ClienteNombreCell } from '@/components/ClienteNombreCell';
@@ -20,6 +25,7 @@ import { InmuebleClienteFiltersBar } from '@/components/InmuebleClienteFiltersBa
 import { ImagePreviewModal } from '@/components/ImagePreviewModal';
 import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import {
+  useCalendarStatusQuery,
   useInmuebleQuery,
   useInvalidateDashboardQueries,
   useWorkersQuery,
@@ -31,7 +37,12 @@ import {
   getClienteGestionEstadoOption,
   getClienteGestionEstadoOptions,
   getGestionOptionStyle,
+  requiresCalendarEventDialog,
 } from '@/lib/cliente-gestion-estado';
+import {
+  handleGestionCalendarError,
+  saveGestionWithCalendar,
+} from '@/lib/save-gestion-with-calendar';
 import { bulkAssignWorker, bulkUnassignWorker } from '@/lib/clientes-api';
 import { updateClienteGestionEstado } from '@/lib/inmuebles-api';
 import {
@@ -99,7 +110,16 @@ export function InmuebleDetailPageContent({
   );
   const [assigning, setAssigning] = useState(false);
   const [updatingEstado, setUpdatingEstado] = useState(false);
+  const [bulkCalendarDialogOpen, setBulkCalendarDialogOpen] = useState(false);
+  const [bulkCalendarPending, setBulkCalendarPending] = useState<{
+    clienteId: string;
+    estado: Extract<ClienteGestionEstado, 'visita_concertada' | 'videollamada'>;
+    context: ClienteGestionEventContext;
+  } | null>(null);
   const bulkBusy = assigning || updatingEstado;
+  const calendarStatusQuery = useCalendarStatusQuery(bulkCalendarDialogOpen);
+  const calendarConnected = calendarStatusQuery.data?.connected ?? false;
+  const canCreateEvents = calendarStatusQuery.data?.canCreateEvents ?? false;
   const [clienteListState, setClienteListState] = usePersistedState(
     `${buildTableStateKey(pathname)}:clientes`,
     {
@@ -319,17 +339,45 @@ export function InmuebleDetailPageContent({
       return;
     }
 
+    const next = gestionEstado as ClienteGestionEstado;
+
+    if (requiresCalendarEventDialog(next)) {
+      if (selectedClienteIds.size !== 1) {
+        toast.error(
+          'Para programar visita o videollamada en Google Calendar, selecciona un solo cliente',
+        );
+        return;
+      }
+
+      const clienteId = [...selectedClienteIds][0];
+      const cliente = clientes.find((item) => item.id === clienteId);
+      if (!cliente) return;
+
+      setBulkCalendarPending({
+        clienteId,
+        estado: next,
+        context: {
+          clienteNombre: cliente.nombre,
+          clienteTelefono: cliente.telefono,
+          clienteRef: cliente.ref_cliente,
+          clienteNotas: cliente.notas,
+          inmuebleLabel:
+            inmueble.direccion_piso_real ??
+            inmueble.espejo_direccion ??
+            inmueble.ref,
+        },
+      });
+      setBulkCalendarDialogOpen(true);
+      return;
+    }
+
     const clienteIds = [...selectedClienteIds];
     setUpdatingEstado(true);
 
     try {
       const results = await Promise.all(
         clienteIds.map((clienteId) =>
-          updateClienteGestionEstado(
-            inmueble.id,
-            clienteId,
-            gestionEstado as ClienteGestionEstado,
-          ),
+          updateClienteGestionEstado(inmueble.id, clienteId, next),
         ),
       );
 
@@ -354,6 +402,37 @@ export function InmuebleDetailPageContent({
     } finally {
       setUpdatingEstado(false);
     }
+  }
+
+  async function handleBulkCalendarConfirm(
+    formValues: GestionCalendarEventFormValues,
+  ) {
+    if (!bulkCalendarPending || !inmueble) return;
+
+    setUpdatingEstado(true);
+    try {
+      const result = await saveGestionWithCalendar({
+        inmuebleId: inmueble.id,
+        clienteId: bulkCalendarPending.clienteId,
+        next: bulkCalendarPending.estado,
+        formValues,
+        queryClient,
+      });
+      handleClientePatch(bulkCalendarPending.clienteId, result);
+      clearSelection();
+    } catch (error) {
+      handleGestionCalendarError(error);
+    } finally {
+      setUpdatingEstado(false);
+      setBulkCalendarPending(null);
+      setBulkCalendarDialogOpen(false);
+    }
+  }
+
+  function handleBulkCalendarCancel() {
+    if (updatingEstado) return;
+    setBulkCalendarPending(null);
+    setBulkCalendarDialogOpen(false);
   }
 
   const gestionEstadoOptions = getClienteGestionEstadoOptions(expectedTipo);
@@ -440,6 +519,11 @@ export function InmuebleDetailPageContent({
             <InmuebleClienteManualAddButton
               inmuebleId={inmueble.id}
               inmuebleRef={inmueble.ref}
+              inmuebleLabel={
+                inmueble.direccion_piso_real ??
+                inmueble.espejo_direccion ??
+                inmueble.ref
+              }
               tipoOperacion={expectedTipo}
               workers={workers}
               onComplete={refreshInmueble}
@@ -546,7 +630,7 @@ export function InmuebleDetailPageContent({
               <thead className="border-b border-black">
                 <tr>
                   <th
-                    className={`sticky top-14 z-30 w-10 border border-black px-3 py-4 sm:top-16 ${
+                    className={`sticky top-0 z-30 w-10 border border-black px-3 py-4 ${
                       expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                     }`}
                   >
@@ -570,7 +654,7 @@ export function InmuebleDetailPageContent({
                     col.key === 'fecha_contacto' ? (
                       <th
                         key={col.key}
-                        className={`sticky top-14 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-2 py-4 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                        className={`sticky top-0 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-2 py-4 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                           expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                         }`}
                       >
@@ -583,7 +667,7 @@ export function InmuebleDetailPageContent({
                               ? 'Más antigua primero — clic para más reciente'
                               : fechaContactoSort === 'desc'
                                 ? 'Más reciente primero — clic para más antigua'
-                                : 'Clic para ordenar por fecha de entrada'
+                                : 'Clic para ordenar por fecha de petición'
                           }
                         >
                           <span className="whitespace-pre-line leading-tight">
@@ -606,7 +690,7 @@ export function InmuebleDetailPageContent({
                     ) : col.key === 'fecha_ultima_gestion' ? (
                       <th
                         key={col.key}
-                        className={`sticky top-14 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                        className={`sticky top-0 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                           expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                         }`}
                       >
@@ -626,7 +710,7 @@ export function InmuebleDetailPageContent({
                     ) : col.key === 'nombre' ? (
                       <th
                         key={col.key}
-                        className={`sticky top-14 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                        className={`sticky top-0 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                           expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                         }`}
                       >
@@ -635,7 +719,7 @@ export function InmuebleDetailPageContent({
                     ) : col.key === 'ref_cliente' ? (
                       <th
                         key={col.key}
-                        className={`sticky top-14 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                        className={`sticky top-0 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                           expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                         }`}
                       >
@@ -644,7 +728,7 @@ export function InmuebleDetailPageContent({
                     ) : col.key === 'gestion_estado' ? (
                       <th
                         key={col.key}
-                        className={`sticky top-14 z-30 w-[14rem] max-w-[14rem] border border-black px-3 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                        className={`sticky top-0 z-30 w-[14rem] max-w-[14rem] border border-black px-3 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                           expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                         }`}
                       >
@@ -653,7 +737,7 @@ export function InmuebleDetailPageContent({
                     ) : (
                       <th
                         key={col.key}
-                        className={`sticky top-14 z-30 border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                        className={`sticky top-0 z-30 border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                           expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                         }`}
                       >
@@ -662,7 +746,7 @@ export function InmuebleDetailPageContent({
                     ),
                   )}
                   <th
-                    className={`sticky top-14 z-30 w-16 max-w-[4rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 sm:top-16 ${
+                    className={`sticky top-0 z-30 w-16 max-w-[4rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
                       expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
                     }`}
                   >
@@ -886,6 +970,23 @@ export function InmuebleDetailPageContent({
           onClose={() => setPreviewImage(null)}
         />
       )}
+
+      {bulkCalendarPending ? (
+        <GestionCalendarEventDialog
+          open={bulkCalendarDialogOpen}
+          gestionEstado={bulkCalendarPending.estado}
+          clienteNombre={bulkCalendarPending.context.clienteNombre}
+          clienteTelefono={bulkCalendarPending.context.clienteTelefono}
+          clienteRef={bulkCalendarPending.context.clienteRef}
+          clienteNotas={bulkCalendarPending.context.clienteNotas}
+          inmuebleLabel={bulkCalendarPending.context.inmuebleLabel}
+          calendarConnected={calendarConnected}
+          canCreateEvents={canCreateEvents}
+          loading={updatingEstado}
+          onConfirm={(formValues) => void handleBulkCalendarConfirm(formValues)}
+          onCancel={handleBulkCalendarCancel}
+        />
+      ) : null}
     </div>
   );
 }

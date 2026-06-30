@@ -4,5 +4,6 @@ export declare class CalendarSyncService {
     private readonly subscribers;
     addSubscriber(userId: string, res: Response): () => void;
     notifyUser(userId: string): void;
+    notifyAll(): void;
     private removeSubscriber;
 }

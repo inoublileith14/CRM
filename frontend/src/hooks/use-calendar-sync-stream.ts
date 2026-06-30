@@ -2,9 +2,12 @@
 
 import { useEffect, useRef } from 'react';
 
+const DEFAULT_DEBOUNCE_MS = 5_000;
+
 export function useCalendarSyncStream(
   enabled: boolean,
   onCalendarUpdated: () => void,
+  debounceMs = DEFAULT_DEBOUNCE_MS,
 ) {
   const onUpdateRef = useRef(onCalendarUpdated);
   onUpdateRef.current = onCalendarUpdated;
@@ -14,6 +17,7 @@ export function useCalendarSyncStream(
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
 
     function connect() {
@@ -22,7 +26,11 @@ export function useCalendarSyncStream(
       eventSource = new EventSource('/api/calendar/stream');
 
       eventSource.addEventListener('calendar-updated', () => {
-        onUpdateRef.current();
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null;
+          onUpdateRef.current();
+        }, debounceMs);
       });
 
       eventSource.onerror = () => {
@@ -39,7 +47,8 @@ export function useCalendarSyncStream(
     return () => {
       disposed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (debounceTimer) clearTimeout(debounceTimer);
       eventSource?.close();
     };
-  }, [enabled]);
+  }, [enabled, debounceMs]);
 }

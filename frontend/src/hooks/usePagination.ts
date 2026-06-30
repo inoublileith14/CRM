@@ -10,15 +10,16 @@ import {
 export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 'all'] as const;
 export type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 
-/** Global clients list — no "all" (too slow); max 200 per page. */
 export const CLIENTES_GENERAL_PAGE_SIZE_OPTIONS = [
   10, 20, 50, 100, 200,
 ] as const;
 export type ClientesGeneralPageSize =
   (typeof CLIENTES_GENERAL_PAGE_SIZE_OPTIONS)[number];
 
+export const CLIENTES_GENERAL_DEFAULT_PAGE_SIZE: ClientesGeneralPageSize = 50;
+
 export function resolveClientesGeneralPageSize(value: unknown): ClientesGeneralPageSize {
-  if (value === 'all') return 200;
+  if (value === 'all') return CLIENTES_GENERAL_DEFAULT_PAGE_SIZE;
   if (
     value === 10 ||
     value === 20 ||
@@ -28,7 +29,7 @@ export function resolveClientesGeneralPageSize(value: unknown): ClientesGeneralP
   ) {
     return value;
   }
-  return DEFAULT_PAGE_SIZE === 'all' ? 100 : DEFAULT_PAGE_SIZE;
+  return CLIENTES_GENERAL_DEFAULT_PAGE_SIZE;
 }
 
 export function parseClientesGeneralPageSize(value: string): ClientesGeneralPageSize {
@@ -42,7 +43,7 @@ export function parseClientesGeneralPageSize(value: string): ClientesGeneralPage
   ) {
     return parsed;
   }
-  return 100;
+  return CLIENTES_GENERAL_DEFAULT_PAGE_SIZE;
 }
 
 export const DEFAULT_PAGE_SIZE: PageSize = 100;

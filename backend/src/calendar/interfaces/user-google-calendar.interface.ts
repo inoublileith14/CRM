@@ -26,6 +26,9 @@ export interface CalendarConnectionStatus {
   calendarId: string | null;
   connectedAt: string | null;
   canCreateEvents: boolean;
+  pushSyncEnabled: boolean;
+  isShared: boolean;
+  canManageConnection: boolean;
 }
 
 export interface CalendarEventItem {

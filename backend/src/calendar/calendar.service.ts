@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import type { Response } from 'express';
 import { SupabaseService } from '../supabase/supabase.service';
+import { isAdminUser } from '../auth/auth-roles';
 import { CalendarSyncService } from './calendar-sync.service';
 import { createOAuthState, verifyOAuthState } from './calendar-oauth.state';
 import {
@@ -39,10 +40,26 @@ const CALENDAR_WRITE_SCOPES = new Set([
 
 const WATCH_RENEW_BEFORE_MS = 24 * 60 * 60 * 1000;
 const WATCH_TTL_MS = 6 * 24 * 60 * 60 * 1000;
+const EVENTS_LIST_CACHE_TTL_MS = 20_000;
+const WATCH_NOTIFY_DEBOUNCE_MS = 3_000;
+
+type ResolvedCalendarContext = {
+  ownerUserId: string;
+  row: UserGoogleCalendarRow;
+  isShared: boolean;
+};
 
 @Injectable()
 export class CalendarService {
   private readonly logger = new Logger(CalendarService.name);
+  private readonly eventsListCache = new Map<
+    string,
+    { expiresAt: number; data: CalendarEventItem[] }
+  >();
+  private readonly watchNotifyTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
 
   constructor(
     private config: ConfigService,
@@ -129,26 +146,41 @@ export class CalendarService {
     return { connected: true, googleEmail };
   }
 
-  async getStatus(userId: string): Promise<CalendarConnectionStatus> {
-    const row = await this.findByUserId(userId);
-    if (!row) {
+  async getStatus(
+    userId: string,
+    userRol?: string,
+  ): Promise<CalendarConnectionStatus> {
+    const ctx = await this.resolveCalendarContext(userId);
+    const canManageConnection = isAdminUser(userRol);
+
+    if (!ctx) {
       return {
         connected: false,
         googleEmail: null,
         calendarId: null,
         connectedAt: null,
         canCreateEvents: false,
+        pushSyncEnabled: false,
+        isShared: false,
+        canManageConnection,
       };
     }
 
+    const { ownerUserId, row, isShared } = ctx;
+
     let canCreateEvents = false;
     try {
-      const accessToken = await this.getValidAccessToken(userId);
+      const accessToken = await this.getValidAccessToken(ownerUserId);
       const scopes = await this.fetchTokenScopes(accessToken);
       canCreateEvents = this.hasCalendarWriteScope(scopes);
     } catch {
       canCreateEvents = false;
     }
+
+    const watchActive =
+      Boolean(row.watch_channel_id) &&
+      Boolean(row.watch_expiration_ms) &&
+      row.watch_expiration_ms! > Date.now();
 
     return {
       connected: true,
@@ -156,6 +188,9 @@ export class CalendarService {
       calendarId: row.calendar_id,
       connectedAt: row.connected_at,
       canCreateEvents,
+      pushSyncEnabled: Boolean(this.getWebhookUrl() && watchActive),
+      isShared,
+      canManageConnection,
     };
   }
 
@@ -221,15 +256,21 @@ export class CalendarService {
     userId: string,
     options?: { from?: string; to?: string; maxResults?: number },
   ): Promise<CalendarEventItem[]> {
-    const row = await this.findByUserId(userId);
-    if (!row) {
-      throw new BadRequestException({
-        message: 'Google Calendar no está conectado',
-        code: 'CALENDAR_NOT_CONNECTED',
-      });
+    const ctx = await this.requireCalendarContext(userId);
+    const { ownerUserId, row } = ctx;
+
+    const cacheKey = this.eventsListCacheKey(
+      ownerUserId,
+      options?.from,
+      options?.to,
+      options?.maxResults,
+    );
+    const cached = this.eventsListCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
     }
 
-    const accessToken = await this.getValidAccessToken(userId);
+    const accessToken = await this.getValidAccessToken(ownerUserId);
     const calendarId = row.calendar_id || 'primary';
     const calendarColorId = await this.fetchCalendarListColorId(
       accessToken,
@@ -273,9 +314,16 @@ export class CalendarService {
       });
     }
 
-    return (data.items ?? []).map((event) =>
+    const items = (data.items ?? []).map((event) =>
       mapGoogleEventToCalendarItem(event, calendarColorId),
     );
+
+    this.eventsListCache.set(cacheKey, {
+      expiresAt: Date.now() + EVENTS_LIST_CACHE_TTL_MS,
+      data: items,
+    });
+
+    return items;
   }
 
   private async fetchCalendarListColorId(
@@ -331,15 +379,10 @@ export class CalendarService {
       });
     }
 
-    const row = await this.findByUserId(userId);
-    if (!row) {
-      throw new BadRequestException({
-        message: 'Google Calendar no está conectado',
-        code: 'CALENDAR_NOT_CONNECTED',
-      });
-    }
+    const ctx = await this.requireCalendarContext(userId);
+    const { ownerUserId, row } = ctx;
 
-    const accessToken = await this.getValidAccessToken(userId);
+    const accessToken = await this.getValidAccessToken(ownerUserId);
     const calendarId = row.calendar_id || 'primary';
 
     const body = buildGoogleEventBody({
@@ -395,7 +438,7 @@ export class CalendarService {
       });
     }
 
-    this.notifyCalendarChanged(userId);
+    this.notifyCalendarChanged(ownerUserId);
 
     return {
       id: data.id ?? '',
@@ -407,10 +450,13 @@ export class CalendarService {
   }
 
   subscribeToStream(userId: string, res: Response): () => void {
-    void this.ensureWatchChannel(userId).catch((error) => {
-      this.logger.warn(
-        `No se pudo renovar watch al abrir stream: ${String(error)}`,
-      );
+    void this.resolveCalendarContext(userId).then((ctx) => {
+      if (!ctx) return;
+      void this.ensureWatchChannel(ctx.ownerUserId).catch((error) => {
+        this.logger.warn(
+          `No se pudo renovar watch al abrir stream: ${String(error)}`,
+        );
+      });
     });
 
     return this.calendarSync.addSubscriber(userId, res);
@@ -436,7 +482,7 @@ export class CalendarService {
     }
 
     if (state === 'exists' || state === 'not_exists') {
-      this.calendarSync.notifyUser(userId);
+      this.scheduleWatchNotify(userId);
     }
   }
 
@@ -599,8 +645,41 @@ export class CalendarService {
     return value ?? '';
   }
 
-  private notifyCalendarChanged(userId: string): void {
-    this.calendarSync.notifyUser(userId);
+  private eventsListCacheKey(
+    userId: string,
+    from?: string,
+    to?: string,
+    maxResults?: number,
+  ): string {
+    return `${userId}:${from?.trim() ?? ''}:${to?.trim() ?? ''}:${maxResults ?? ''}`;
+  }
+
+  private invalidateEventsListCache(userId: string): void {
+    const prefix = `${userId}:`;
+    for (const key of this.eventsListCache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.eventsListCache.delete(key);
+      }
+    }
+  }
+
+  private scheduleWatchNotify(userId: string): void {
+    this.invalidateEventsListCache(userId);
+
+    const existing = this.watchNotifyTimers.get(userId);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      this.watchNotifyTimers.delete(userId);
+      this.calendarSync.notifyAll();
+    }, WATCH_NOTIFY_DEBOUNCE_MS);
+
+    this.watchNotifyTimers.set(userId, timer);
+  }
+
+  private notifyCalendarChanged(ownerUserId: string): void {
+    this.invalidateEventsListCache(ownerUserId);
+    this.calendarSync.notifyAll();
   }
 
   async updateEvent(
@@ -636,15 +715,10 @@ export class CalendarService {
       });
     }
 
-    const row = await this.findByUserId(userId);
-    if (!row) {
-      throw new BadRequestException({
-        message: 'Google Calendar no está conectado',
-        code: 'CALENDAR_NOT_CONNECTED',
-      });
-    }
+    const ctx = await this.requireCalendarContext(userId);
+    const { ownerUserId, row } = ctx;
 
-    const accessToken = await this.getValidAccessToken(userId);
+    const accessToken = await this.getValidAccessToken(ownerUserId);
     const calendarId = row.calendar_id || 'primary';
     const calendarColorId = await this.fetchCalendarListColorId(
       accessToken,
@@ -699,7 +773,7 @@ export class CalendarService {
       });
     }
 
-    this.notifyCalendarChanged(userId);
+    this.notifyCalendarChanged(ownerUserId);
 
     return mapGoogleEventToCalendarItem(data, calendarColorId);
   }
@@ -713,6 +787,76 @@ export class CalendarService {
       default:
         return 'Fecha u hora no válida';
     }
+  }
+
+  private async resolveCalendarContext(
+    requestingUserId: string,
+  ): Promise<ResolvedCalendarContext | null> {
+    const personal = await this.findByUserId(requestingUserId);
+    if (personal) {
+      return {
+        ownerUserId: requestingUserId,
+        row: personal,
+        isShared: false,
+      };
+    }
+
+    const organization = await this.findOrganizationCalendar();
+    if (!organization) return null;
+
+    return {
+      ownerUserId: organization.user_id,
+      row: organization,
+      isShared: organization.user_id !== requestingUserId,
+    };
+  }
+
+  private async requireCalendarContext(
+    requestingUserId: string,
+  ): Promise<ResolvedCalendarContext> {
+    const ctx = await this.resolveCalendarContext(requestingUserId);
+    if (!ctx) {
+      throw new BadRequestException({
+        message: 'Google Calendar no está conectado',
+        code: 'CALENDAR_NOT_CONNECTED',
+      });
+    }
+    return ctx;
+  }
+
+  private async findOrganizationCalendar(): Promise<UserGoogleCalendarRow | null> {
+    const admin = this.supabase.getAdmin();
+    const { data: adminProfiles, error: profilesError } = await admin
+      .from('profiles')
+      .select('id')
+      .in('rol', ['admin', 'administracion']);
+
+    if (profilesError) {
+      this.logger.error(
+        `Error buscando admins para calendario compartido: ${profilesError.message}`,
+      );
+      return null;
+    }
+
+    const adminIds = (adminProfiles ?? []).map((profile) => profile.id as string);
+    if (adminIds.length === 0) return null;
+
+    const { data, error } = await admin
+      .from('user_google_calendar')
+      .select('*')
+      .in('user_id', adminIds)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      this.logger.error(
+        `Error leyendo calendario compartido de admin: ${error.message}`,
+      );
+      return null;
+    }
+
+    const row = data?.[0];
+    return row ? (row as UserGoogleCalendarRow) : null;
   }
 
   private async findByUserId(

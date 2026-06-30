@@ -2,6 +2,10 @@
 export const EXCEL_TABLE_CLASS =
   'w-full max-w-full table-fixed border-collapse border border-black text-center text-xs md:text-sm';
 
+/** Same grid look, but border-separate so thead/th position:sticky works in Chrome */
+export const EXCEL_STICKY_TABLE_CLASS =
+  'w-full max-w-full table-fixed border-separate border-spacing-0 border border-black text-center text-xs md:text-sm';
+
 export const EXCEL_CELL_BORDER = 'border border-black';
 
 export const EXCEL_CELL_ALIGN = 'text-center align-middle';

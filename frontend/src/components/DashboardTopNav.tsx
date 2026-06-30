@@ -84,7 +84,7 @@ function NavGroupMenu({
 
       {open && (
         <div
-          className="absolute left-0 top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute left-0 top-full z-[70] mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
           role="menu"
         >
           {group.items.map(({ href, labelKey, icon: ItemIcon }) => {
@@ -122,7 +122,8 @@ export function DashboardTopNav() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const displayName = user?.nombre || user?.email || '—';
-  const navEntries = getDashboardNavEntries({ isAdmin: isAdminUser(user?.rol) });
+  const isAdmin = isAdminUser(user?.rol);
+  const navEntries = getDashboardNavEntries({ isAdmin });
 
   useEffect(() => {
     setMobileOpen(false);
@@ -167,7 +168,7 @@ export function DashboardTopNav() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md">
+    <header className="sticky top-0 z-[60] border-b border-slate-200/80 bg-white shadow-sm">
       <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6">
         <Link
           href="/dashboard"
@@ -268,7 +269,7 @@ export function DashboardTopNav() {
 
             {userMenuOpen && (
               <div
-                className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                className="absolute right-0 z-[70] mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
                 role="menu"
               >
                 <div className="border-b border-slate-100 px-4 py-3">
@@ -289,15 +290,17 @@ export function DashboardTopNav() {
                   <User className="h-4 w-4 text-slate-400" />
                   {t('header.profile')}
                 </Link>
-                <Link
-                  href="/dashboard/settings"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
-                >
-                  <Settings className="h-4 w-4 text-slate-400" />
-                  {t('header.settings')}
-                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/dashboard/settings"
+                    role="menuitem"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <Settings className="h-4 w-4 text-slate-400" />
+                    {t('header.settings')}
+                  </Link>
+                )}
                 <div className="my-1 border-t border-slate-100" />
                 <button
                   type="button"
@@ -333,11 +336,11 @@ export function DashboardTopNav() {
           <button
             type="button"
             aria-label="Cerrar menú"
-            className="fixed inset-0 top-14 z-40 bg-black/40 sm:top-16 md:hidden"
+            className="fixed inset-0 top-14 z-[55] bg-black/40 sm:top-16 md:hidden"
             onClick={() => setMobileOpen(false)}
           />
           <nav
-            className="absolute left-0 right-0 top-full z-50 max-h-[calc(100vh-3.5rem)] overflow-y-auto border-b border-slate-200 bg-white px-3 py-3 shadow-lg sm:max-h-[calc(100vh-4rem)] md:hidden"
+            className="absolute left-0 right-0 top-full z-[70] max-h-[calc(100vh-3.5rem)] overflow-y-auto border-b border-slate-200 bg-white px-3 py-3 shadow-lg sm:max-h-[calc(100vh-4rem)] md:hidden"
             aria-label="Menú móvil"
           >
             <div className="mb-3 flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 sm:hidden">

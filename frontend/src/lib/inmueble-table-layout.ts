@@ -1,5 +1,5 @@
 import { INMUEBLE_FIELDS, InmuebleFormData, TipoOperacion } from '@/types/inmueble';
-import { EXCEL_TABLE_CLASS } from '@/lib/excel-table-styles';
+import { EXCEL_STICKY_TABLE_CLASS } from '@/lib/excel-table-styles';
 import type { CSSProperties } from 'react';
 
 export interface InmuebleTableFieldConfig {
@@ -475,11 +475,11 @@ export function getInmuebleTableHeaderClass(_tipoOperacion: TipoOperacion): stri
 }
 
 /** Wrapper for dense casas tables — clip horizontal bleed; page scrolls vertically. */
-export const INMUEBLE_DENSE_TABLE_WRAPPER_CLASS = 'overflow-x-clip';
+export const INMUEBLE_DENSE_TABLE_WRAPPER_CLASS = 'w-full';
 
-/** Horizontal scroll for extra columns without trapping vertical sticky headers. */
+/** Wide tables scroll in <main>; avoid overflow-x here — it breaks vertical sticky thead. */
 export const INMUEBLE_DENSE_TABLE_WRAPPER_EXTRA_COLS_CLASS =
-  'max-w-full overflow-x-auto overflow-y-clip overscroll-x-contain';
+  'w-full max-w-full min-w-0';
 
 /** When extra columns are shown the table is wider than the viewport — scroll instead of squashing. */
 export function getInmuebleDenseTableWrapperClass(
@@ -524,12 +524,10 @@ export interface InmuebleDenseColOptions {
 }
 
 export function getInmuebleDenseTableClass(extraColumnsVisible: boolean): string {
-  const base =
-    'border-collapse border border-black text-center text-xs md:text-sm';
   if (extraColumnsVisible) {
-    return `table-fixed ${base}`;
+    return `table-fixed border-separate border-spacing-0 border border-black text-center text-xs md:text-sm`;
   }
-  return EXCEL_TABLE_CLASS;
+  return EXCEL_STICKY_TABLE_CLASS;
 }
 
 export function getInmuebleDenseTableStyle(
@@ -584,11 +582,25 @@ export function getInmuebleDenseColStyle(
   return width ? { width, minWidth: width } : undefined;
 }
 
-/** Sticky offset below dashboard top nav (h-14 / sm:h-16). */
-export const INMUEBLE_STICKY_HEAD_TOP_CLASS = 'top-14 sm:top-16';
+/** Sticky offset within dashboard <main> (nav is outside the scroll container). */
+export const INMUEBLE_STICKY_HEAD_TOP_CLASS = 'top-0';
+
+/** Paints opaque cover above sticky blocks so rows cannot show in <main> top inset. */
+export const INMUEBLE_STICKY_SCROLL_MASK_SHADOW =
+  'shadow-[0_-100vh_0_100vh_#ffffff]';
+
+/** Below dashboard nav (z-50+) so header menus stay clickable while scrolling. */
+export const INMUEBLE_DENSE_STICKY_STACK_CLASS = [
+  'sticky top-0 z-30 isolate bg-white',
+  INMUEBLE_STICKY_SCROLL_MASK_SHADOW,
+  'shadow-[0_4px_8px_-2px_rgba(0,0,0,0.12)]',
+].join(' ');
+
+export const INMUEBLE_STICKY_HEAD_SHADOW =
+  'shadow-[0_2px_4px_rgba(0,0,0,0.12)]';
 
 export function getInmuebleStickyHeadClass(tipoOperacion: TipoOperacion): string {
-  return `sticky z-20 ${getInmuebleTableHeaderClass(tipoOperacion)}`;
+  return `sticky top-0 z-40 ${INMUEBLE_STICKY_HEAD_SHADOW} ${INMUEBLE_STICKY_SCROLL_MASK_SHADOW} ${getInmuebleTableHeaderClass(tipoOperacion)}`;
 }
 
 export function getInmuebleDenseColClass(
@@ -636,5 +648,5 @@ export function getInmuebleDenseColClass(
 export function getInmuebleStickyHeadActionsClass(
   tipoOperacion: TipoOperacion,
 ): string {
-  return `sticky z-30 ${getInmuebleTableHeaderClass(tipoOperacion)}`;
+  return `sticky z-40 ${INMUEBLE_STICKY_HEAD_SHADOW} ${getInmuebleTableHeaderClass(tipoOperacion)}`;
 }

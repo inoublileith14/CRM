@@ -54,6 +54,12 @@ export class CalendarSyncService {
     }
   }
 
+  notifyAll(): void {
+    for (const userId of this.subscribers.keys()) {
+      this.notifyUser(userId);
+    }
+  }
+
   private removeSubscriber(userId: string, subscriber: Subscriber): void {
     clearInterval(subscriber.heartbeat);
     const bucket = this.subscribers.get(userId);

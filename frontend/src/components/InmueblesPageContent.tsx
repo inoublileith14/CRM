@@ -16,6 +16,7 @@ import { InmuebleObservacionesLineCell } from '@/components/InmuebleObservacione
 import { InmuebleObservacionesColumnHead } from '@/components/InmuebleObservacionesColumnHead';
 import { InmuebleRefInlineCell } from '@/components/InmuebleRefInlineCell';
 import { InmuebleStatusRowEditor } from '@/components/InmuebleStatusRowEditor';
+import { InmuebleActivoToggle } from '@/components/InmuebleActivoToggle';
 import { InmuebleBcnStatusFilterHead } from '@/components/InmuebleBcnStatusFilterHead';
 import { InmuebleDenseSimpleFilterHead } from '@/components/InmuebleDenseSimpleFilterHead';
 import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
@@ -51,12 +52,12 @@ import {
   getInmuebleDenseHeadTextClass,
   getInmuebleTableFields,
   getInmuebleTableHeaderClass,
-  getInmuebleDenseHeaderStyle,
+  getInmuebleDenseTableClass,
   getInmuebleStickyHeadActionsClass,
   getInmuebleStickyHeadClass,
-  getInmuebleDenseTableClass,
   getInmuebleDenseTableStyle,
   getInmuebleDenseTableWrapperClass,
+  INMUEBLE_DENSE_STICKY_STACK_CLASS,
   type InmuebleDenseColOptions,
   INMUEBLE_DENSE_HEAD_CELL_CLASS,
   INMUEBLE_DENSE_ACTIONS_COL_CLASS,
@@ -91,6 +92,8 @@ import {
 import {
   DEFAULT_ALQUILER_ROW_COLOR,
   DEFAULT_VENTA_DENSE_ROW_COLOR,
+  getInmuebleDenseBodyCellBackground,
+  getInmuebleDefaultRowColor,
   getInmuebleRowStyle,
   resolveInmuebleRowColor,
 } from '@/lib/inmueble-status';
@@ -216,7 +219,7 @@ export function InmueblesPageContent({
     );
   const [hasMounted, setHasMounted] = useState(false);
   const filterBarRef = useRef<HTMLDivElement>(null);
-  const [stickyTableHeadTop, setStickyTableHeadTop] = useState(56);
+  const [stickyTableHeadTop, setStickyTableHeadTop] = useState(0);
   const tableFields = useMemo(
     () => getInmuebleTableFields(tipoOperacion),
     [tipoOperacion],
@@ -229,9 +232,12 @@ export function InmueblesPageContent({
     [tipoOperacion, extraColumnsVisible],
   );
   const isDenseTable = isDenseInmuebleTable(tipoOperacion);
+  const splitStickyHeader = isDenseTable && filtersVisible;
   const tableHeaderClass = getInmuebleTableHeaderClass(tipoOperacion);
-  const stickyHeadClass = isDenseTable
-    ? getInmuebleStickyHeadClass(tipoOperacion)
+  const denseTableHeadClass = isDenseTable
+    ? splitStickyHeader
+      ? getInmuebleTableHeaderClass(tipoOperacion)
+      : getInmuebleStickyHeadClass(tipoOperacion)
     : '';
   const stickyHeadActionsClass = isDenseTable
     ? getInmuebleStickyHeadActionsClass(tipoOperacion)
@@ -325,37 +331,35 @@ export function InmueblesPageContent({
   }, []);
 
   useLayoutEffect(() => {
-    if (!isDenseTable) return;
-
-    function computeStickyHeadTop() {
-      const navPx = window.matchMedia('(min-width: 640px)').matches ? 64 : 56;
-      const filtersPx =
-        filtersVisible && filterBarRef.current
-          ? filterBarRef.current.getBoundingClientRect().height
-          : 0;
-      setStickyTableHeadTop(navPx + filtersPx);
+    if (!isDenseTable || splitStickyHeader) {
+      setStickyTableHeadTop(0);
+      return;
     }
 
-    computeStickyHeadTop();
-    window.addEventListener('resize', computeStickyHeadTop);
+    function measureFilterHeight() {
+      if (!filterBarRef.current) {
+        setStickyTableHeadTop(0);
+        return;
+      }
+      setStickyTableHeadTop(filterBarRef.current.offsetHeight);
+    }
+
+    measureFilterHeight();
+    window.addEventListener('resize', measureFilterHeight);
 
     const observer =
       typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(computeStickyHeadTop)
+        ? new ResizeObserver(measureFilterHeight)
         : null;
     if (filterBarRef.current && observer) {
       observer.observe(filterBarRef.current);
     }
 
     return () => {
-      window.removeEventListener('resize', computeStickyHeadTop);
+      window.removeEventListener('resize', measureFilterHeight);
       observer?.disconnect();
     };
-  }, [isDenseTable, filtersVisible, alquilerFilters]);
-
-  const stickyHeadStyle = isDenseTable
-    ? { top: stickyTableHeadTop }
-    : undefined;
+  }, [isDenseTable, splitStickyHeader, alquilerFilters]);
 
   function denseHeadCellStyle(
     fieldKey: keyof InmuebleFormData | 'actions',
@@ -367,7 +371,7 @@ export function InmueblesPageContent({
       tipoOperacion,
     );
     return {
-      ...stickyHeadStyle,
+      ...(splitStickyHeader ? {} : { top: stickyTableHeadTop }),
       backgroundColor,
     };
   }
@@ -423,6 +427,23 @@ export function InmueblesPageContent({
     ]
       .filter(Boolean)
       .join(' ');
+  }
+
+  /** BCN: manual row color; other cells: yellow for 3 days after fecha entrada CRM, then default. */
+  function denseBodyCellStyle(
+    fieldKey: keyof InmuebleFormData | 'actions',
+    rowColor: string | null | undefined,
+    fechaEntradaInmueble: string | null | undefined,
+  ) {
+    if (!isDenseTable) return undefined;
+    return {
+      backgroundColor: getInmuebleDenseBodyCellBackground(
+        fieldKey,
+        rowColor,
+        tipoOperacion,
+        fechaEntradaInmueble,
+      ),
+    };
   }
 
   const tableColumns = useMemo(
@@ -579,7 +600,7 @@ export function InmueblesPageContent({
   function patchInmuebleInCache(
     inmuebleId: string,
     patch: Partial<
-      Pick<Inmueble, 'status' | 'row_color' | 'observaciones' | 'requisitos_propietario' | 'ref'>
+      Pick<Inmueble, 'status' | 'activo' | 'row_color' | 'observaciones' | 'requisitos_propietario' | 'ref'>
     >,
   ) {
     queryClient.setQueryData<Inmueble[]>(inmueblesQueryKey, (prev) =>
@@ -633,11 +654,277 @@ export function InmueblesPageContent({
     }
   }
 
+  const denseTableClass = isDenseTable
+    ? getInmuebleDenseTableClass(extraColumnsVisible)
+    : 'min-w-max w-full text-left text-sm';
+  const denseTableStyle = isDenseTable
+    ? getInmuebleDenseTableStyle(
+        displayedTableFields.map((field) => field.key),
+        extraColumnsVisible,
+        denseColOptions,
+      )
+    : undefined;
+
+  const denseColgroup = isDenseTable ? (
+    <colgroup>
+      {displayedTableFields.map((field) => (
+        <col
+          key={field.key}
+          className={getInmuebleDenseColClass(field.key, denseColOptions)}
+          style={getInmuebleDenseColStyle(
+            field.key,
+            extraColumnsVisible,
+            denseColOptions,
+          )}
+        />
+      ))}
+      <col
+        className={INMUEBLE_DENSE_ACTIONS_COL_CLASS}
+        style={
+          extraColumnsVisible
+            ? {
+                width: INMUEBLE_DENSE_ACTIONS_COL_WIDTH,
+                minWidth: INMUEBLE_DENSE_ACTIONS_COL_WIDTH,
+              }
+            : undefined
+        }
+      />
+    </colgroup>
+  ) : null;
+
+  const inmuebleTableHead = (
+    <thead>
+      <tr className={isDenseTable ? undefined : 'text-white'}>
+          {displayedTableFields.map((field, columnIndex) => {
+          const isPrecioSortable =
+            enablePrecioColumnSort && field.key === 'precio';
+          const precioSortActive =
+            isPrecioSortable && tableSort?.column === 'precio';
+
+          if (isPrecioSortable) {
+            return (
+              <th
+                key={field.key}
+                style={denseHeadCellStyle(field.key, columnIndex)}
+                className={`${denseTableHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase text-center ${EXCEL_CELL_BORDER} ${denseHeadTextClass(field.key, columnIndex)} ${field.headClassName ?? ''}`}
+              >
+                <button
+                  type="button"
+                  onClick={togglePrecioSort}
+                  className={`inline-flex w-full items-center justify-center gap-0.5 transition hover:opacity-90 ${denseHeadTextClass(field.key, columnIndex)}`}
+                  title={
+                    precioSortActive
+                      ? tableSort.direction === 'asc'
+                        ? 'Más barato primero — clic para más caro'
+                        : 'Más caro primero — clic para más barato'
+                      : 'Clic para ordenar por precio'
+                  }
+                >
+                  <span className="whitespace-nowrap leading-none">
+                    {formatTableHeaderLabel(
+                      field.shortLabel ?? field.label,
+                    )}
+                  </span>
+                  {precioSortActive ? (
+                    tableSort.direction === 'asc' ? (
+                      <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
+                    ) : (
+                      <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
+                    )
+                  ) : (
+                    <ArrowUpDown
+                      className="h-3 w-3 shrink-0 opacity-70"
+                      aria-hidden
+                    />
+                  )}
+                </button>
+              </th>
+            );
+          }
+
+          if (
+            isDenseTable &&
+            denseHeaderFilterKeys.has(field.key) &&
+            field.key !== 'status' &&
+            !isInmuebleMaskedTextFieldKey(field.key)
+          ) {
+            return (
+              <InmuebleDenseSimpleFilterHead
+                key={field.key}
+                label={field.label}
+                shortLabel={field.shortLabel}
+                uniqueValues={columnUniqueValues.get(field.key) ?? []}
+                filter={columnFilters[field.key]}
+                isOpen={openFilterColumn === field.key}
+                isFilterActive={isFilterActiveForColumn(field.key)}
+                onOpenChange={(open) =>
+                  setOpenFilterColumn(open ? field.key : null)
+                }
+                onApply={(next) => setColumnFilter(field.key, next)}
+                style={denseHeadCellStyle(field.key, columnIndex)}
+                className={`${denseTableHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase text-center ${EXCEL_CELL_BORDER} ${denseHeadTextClass(field.key, columnIndex)} ${field.headClassName ?? ''}`}
+                labelClassName={denseHeadTextClass(
+                  field.key,
+                  columnIndex,
+                )}
+              />
+            );
+          }
+
+          if (isDenseTable && field.key === 'status') {
+            return (
+              <InmuebleBcnStatusFilterHead
+                key={field.key}
+                uniqueValues={columnUniqueValues.get('status') ?? []}
+                filter={columnFilters.status}
+                isOpen={openFilterColumn === field.key}
+                isFilterActive={isFilterActiveForColumn('status')}
+                onOpenChange={(open) =>
+                  setOpenFilterColumn(open ? field.key : null)
+                }
+                onApply={(next) => setColumnFilter('status', next)}
+                style={denseHeadCellStyle('status', columnIndex)}
+                className={`${denseTableHeadClass} min-h-[3.5rem] px-0.5 py-3 text-[10px] font-semibold sm:py-3.5 sm:text-xs ${field.headClassName ?? ''}`}
+              />
+            );
+          }
+
+          if (enableExcelColumnFilters) {
+            return (
+              <TableColumnFilterHead
+                key={field.key}
+                label={field.label}
+                shortLabel={field.shortLabel}
+                fieldType={getColumnFilterFieldType(field.key)}
+                uniqueValues={columnUniqueValues.get(field.key) ?? []}
+                filter={columnFilters[field.key]}
+                sortDirection={
+                  tableSort?.column === field.key
+                    ? tableSort.direction
+                    : null
+                }
+                isSortColumn={tableSort?.column === field.key}
+                isOpen={openFilterColumn === field.key}
+                isFilterActive={isFilterActiveForColumn(field.key)}
+                onOpenChange={(open) =>
+                  setOpenFilterColumn(open ? field.key : null)
+                }
+                onApply={(next) => setColumnFilter(field.key, next)}
+                onSort={(direction) => setSort(field.key, direction)}
+              />
+            );
+          }
+
+          if (isDenseTable && isInmuebleMaskedTextFieldKey(field.key)) {
+            const maskedKey = field.key;
+            const maskedMeta = INMUEBLE_MASKED_TEXT_FIELDS[maskedKey];
+            return (
+              <InmuebleObservacionesColumnHead
+                key={maskedKey}
+                allVisible={maskedTextAllVisible[maskedKey]}
+                onToggleAllVisible={() =>
+                  toggleAllMaskedTextVisible(maskedKey)
+                }
+                style={denseHeadCellStyle(maskedKey, columnIndex)}
+                className={`${denseTableHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase text-center ${denseHeadTextClass(maskedKey, columnIndex)} ${field.headClassName ?? ''}`}
+                label={field.shortLabel ?? field.label}
+                visibilityEntity={maskedMeta.visibilityEntity}
+              />
+            );
+          }
+
+          const compactHead = isInmuebleCompactHeadKey(field.key);
+          const linkHead = isInmuebleDenseLinkColumnKey(field.key);
+
+          return (
+            <th
+              key={field.key}
+              style={denseHeadCellStyle(field.key, columnIndex)}
+              className={`${
+                isDenseTable
+                  ? `${denseTableHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase ${compactHead ? 'px-0' : ''} text-center ${EXCEL_CELL_BORDER} ${denseHeadTextClass(field.key, columnIndex)} ${field.headClassName ?? ''}`
+                  : 'px-3 py-4 text-xs font-semibold uppercase'
+              }`}
+              title={formatTableHeaderLabel(field.label)}
+            >
+              <span
+                className={
+                  compactHead
+                    ? 'whitespace-nowrap leading-none'
+                    : linkHead
+                      ? 'inline-flex w-full flex-col items-center justify-center whitespace-pre-line leading-tight'
+                      : 'break-words whitespace-normal leading-tight'
+                }
+              >
+                {formatTableHeaderLabel(
+                  isDenseTable
+                    ? field.shortLabel ?? field.label
+                    : field.label,
+                )}
+              </span>
+            </th>
+          );
+        })}
+        <th
+          style={denseHeadCellStyle(
+            'actions',
+            displayedTableFields.length,
+          )}
+          className={`${
+            isDenseTable
+              ? `${denseTableHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} px-0.5 ${denseHeadTextClass('actions', displayedTableFields.length)} ${EXCEL_CELL_BORDER}${
+                  extraColumnsVisible
+                              ? ' sticky right-0 z-40 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.12)]'
+                    : ''
+                }`
+              : `${stickyHeadActionsClass} px-3 py-4 text-xs font-semibold`
+          } ${INMUEBLE_DENSE_ACTIONS_COL_CLASS} shrink-0 text-center uppercase`}
+        >
+          {isDenseTable ? (
+            <div className="flex flex-col items-center gap-1">
+              <span
+                className={`whitespace-nowrap text-[9px] font-semibold leading-none sm:text-[10px] ${denseHeadTextClass('actions', displayedTableFields.length)}`}
+              >
+                ACC
+              </span>
+              <button
+                type="button"
+                onClick={() => setExtraColumnsVisible((prev) => !prev)}
+                className={`flex h-5 w-5 items-center justify-center rounded-sm shadow-sm transition ${
+                  extraColumnsVisible
+                    ? isVentaTable
+                      ? 'bg-sky-300 text-sky-900'
+                      : 'bg-emerald-300 text-emerald-900'
+                    : isVentaTable
+                      ? 'bg-sky-600 text-white hover:bg-sky-500'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                }`}
+                title={
+                  extraColumnsVisible
+                    ? 'Ocultar Ref, Visitas y Capt'
+                    : 'Mostrar Ref, Visitas y Capt'
+                }
+              >
+                {extraColumnsVisible ? (
+                  <Minus className="h-3 w-3" strokeWidth={2.5} />
+                ) : (
+                  <Plus className="h-3 w-3" strokeWidth={2.5} />
+                )}
+              </button>
+            </div>
+          ) : (
+            'Ficha / Acciones'
+          )}
+        </th>
+      </tr>
+    </thead>
+  );
+
   return (
     <div
       className={
         isDenseTable
-          ? '-mx-4 -mt-5 min-w-0 rounded-b-xl px-4 pb-5 pt-5 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pb-8 lg:pt-8'
+          ? '-mx-4 min-w-0 rounded-b-xl px-4 pb-5 pt-5 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-6 lg:-mx-8 lg:px-8 lg:pb-8 lg:pt-8'
           : undefined
       }
       style={
@@ -737,10 +1024,9 @@ export function InmueblesPageContent({
         </div>
       </header>
 
-      {isDenseTable && filtersVisible ? (
+      {isDenseTable && filtersVisible && (showPageLoading || inmuebles.length === 0) ? (
         <div
-          ref={filterBarRef}
-          className="sticky top-14 z-30 mb-4 overflow-hidden rounded-xl border border-slate-200/80 shadow-sm sm:top-16"
+          className="mb-4 overflow-hidden border border-slate-200/80 shadow-sm"
           style={{
             backgroundColor: isVentaTable
               ? DEFAULT_VENTA_DENSE_ROW_COLOR
@@ -783,7 +1069,45 @@ export function InmueblesPageContent({
           ) : null}
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <>
+        {splitStickyHeader && effectiveFilteredInmuebles.length > 0 ? (
+          <div
+            className={`${INMUEBLE_DENSE_STICKY_STACK_CLASS} overflow-hidden border border-b-0 border-slate-200`}
+          >
+            <div
+              ref={filterBarRef}
+              className="border-b border-slate-200/80"
+              style={{
+                backgroundColor: isVentaTable
+                  ? DEFAULT_VENTA_DENSE_ROW_COLOR
+                  : pageTheme?.filterBackground,
+              }}
+            >
+              <InmuebleAlquilerFiltersBar
+                inmuebles={inmuebles}
+                filters={alquilerFilters}
+                onChange={setAlquilerFilters}
+                onClear={() =>
+                  setAlquilerFilters(EMPTY_INMUEBLE_ALQUILER_FILTERS)
+                }
+                disabled={showPageLoading}
+                hasActiveFilters={alquilerFiltersActive}
+                tipoOperacion={tipoOperacion}
+              />
+            </div>
+            <table className={denseTableClass} style={denseTableStyle}>
+              {denseColgroup}
+              {inmuebleTableHead}
+            </table>
+          </div>
+        ) : null}
+        <div
+          className={`overflow-visible border border-slate-200 bg-white shadow-sm${
+            splitStickyHeader && effectiveFilteredInmuebles.length > 0
+              ? ' rounded-b-xl border-t-0'
+              : ' rounded-xl'
+          }`}
+        >
           {effectiveFiltersActive && (
             <TableFilterBar
               filteredCount={effectiveFilteredInmuebles.length}
@@ -796,6 +1120,7 @@ export function InmueblesPageContent({
           {effectiveFilteredInmuebles.length === 0 ? (
             <TableFilterEmptyState onClear={clearAllFilters} />
           ) : (
+          <>
           <div
             className={
               isDenseTable
@@ -804,289 +1129,41 @@ export function InmueblesPageContent({
             }
           >
             <table
-              className={
-                isDenseTable
-                  ? getInmuebleDenseTableClass(extraColumnsVisible)
-                  : 'min-w-max w-full text-left text-sm'
-              }
-              style={
-                isDenseTable
-                  ? getInmuebleDenseTableStyle(
-                      displayedTableFields.map((field) => field.key),
-                      extraColumnsVisible,
-                      denseColOptions,
-                    )
-                  : undefined
-              }
+              className={isDenseTable ? denseTableClass : 'min-w-max w-full text-left text-sm'}
+              style={isDenseTable ? denseTableStyle : undefined}
             >
-              {isDenseTable ? (
-                <colgroup>
-                  {displayedTableFields.map((field) => (
-                    <col
-                      key={field.key}
-                      className={getInmuebleDenseColClass(field.key, denseColOptions)}
-                      style={getInmuebleDenseColStyle(
-                        field.key,
-                        extraColumnsVisible,
-                        denseColOptions,
-                      )}
-                    />
-                  ))}
-                  <col
-                    className={INMUEBLE_DENSE_ACTIONS_COL_CLASS}
-                    style={
-                      extraColumnsVisible
-                        ? {
-                            width: INMUEBLE_DENSE_ACTIONS_COL_WIDTH,
-                            minWidth: INMUEBLE_DENSE_ACTIONS_COL_WIDTH,
-                          }
-                        : undefined
-                    }
-                  />
-                </colgroup>
-              ) : null}
-              <thead>
-                <tr className={isDenseTable ? undefined : 'text-white'}>
-                    {displayedTableFields.map((field, columnIndex) => {
-                    const isPrecioSortable =
-                      enablePrecioColumnSort && field.key === 'precio';
-                    const precioSortActive =
-                      isPrecioSortable && tableSort?.column === 'precio';
-
-                    if (isPrecioSortable) {
-                      return (
-                        <th
-                          key={field.key}
-                          style={denseHeadCellStyle(field.key, columnIndex)}
-                          className={`${stickyHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase text-center ${EXCEL_CELL_BORDER} ${denseHeadTextClass(field.key, columnIndex)} ${field.headClassName ?? ''}`}
-                        >
-                          <button
-                            type="button"
-                            onClick={togglePrecioSort}
-                            className={`inline-flex w-full items-center justify-center gap-0.5 transition hover:opacity-90 ${denseHeadTextClass(field.key, columnIndex)}`}
-                            title={
-                              precioSortActive
-                                ? tableSort.direction === 'asc'
-                                  ? 'Más barato primero — clic para más caro'
-                                  : 'Más caro primero — clic para más barato'
-                                : 'Clic para ordenar por precio'
-                            }
-                          >
-                            <span className="whitespace-nowrap leading-none">
-                              {formatTableHeaderLabel(
-                                field.shortLabel ?? field.label,
-                              )}
-                            </span>
-                            {precioSortActive ? (
-                              tableSort.direction === 'asc' ? (
-                                <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
-                              ) : (
-                                <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="h-3 w-3 shrink-0 opacity-70"
-                                aria-hidden
-                              />
-                            )}
-                          </button>
-                        </th>
-                      );
-                    }
-
-                    if (
-                      isDenseTable &&
-                      denseHeaderFilterKeys.has(field.key) &&
-                      field.key !== 'status' &&
-                      !isInmuebleMaskedTextFieldKey(field.key)
-                    ) {
-                      return (
-                        <InmuebleDenseSimpleFilterHead
-                          key={field.key}
-                          label={field.label}
-                          shortLabel={field.shortLabel}
-                          uniqueValues={columnUniqueValues.get(field.key) ?? []}
-                          filter={columnFilters[field.key]}
-                          isOpen={openFilterColumn === field.key}
-                          isFilterActive={isFilterActiveForColumn(field.key)}
-                          onOpenChange={(open) =>
-                            setOpenFilterColumn(open ? field.key : null)
-                          }
-                          onApply={(next) => setColumnFilter(field.key, next)}
-                          style={denseHeadCellStyle(field.key, columnIndex)}
-                          className={`${stickyHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase text-center ${EXCEL_CELL_BORDER} ${denseHeadTextClass(field.key, columnIndex)} ${field.headClassName ?? ''}`}
-                          labelClassName={denseHeadTextClass(
-                            field.key,
-                            columnIndex,
-                          )}
-                        />
-                      );
-                    }
-
-                    if (isDenseTable && field.key === 'status') {
-                      return (
-                        <InmuebleBcnStatusFilterHead
-                          key={field.key}
-                          uniqueValues={columnUniqueValues.get('status') ?? []}
-                          filter={columnFilters.status}
-                          isOpen={openFilterColumn === field.key}
-                          isFilterActive={isFilterActiveForColumn('status')}
-                          onOpenChange={(open) =>
-                            setOpenFilterColumn(open ? field.key : null)
-                          }
-                          onApply={(next) => setColumnFilter('status', next)}
-                          style={denseHeadCellStyle('status', columnIndex)}
-                          className={`${stickyHeadClass} min-h-[3.5rem] px-0.5 py-3 text-[10px] font-semibold sm:py-3.5 sm:text-xs ${field.headClassName ?? ''}`}
-                        />
-                      );
-                    }
-
-                    if (enableExcelColumnFilters) {
-                      return (
-                        <TableColumnFilterHead
-                          key={field.key}
-                          label={field.label}
-                          shortLabel={field.shortLabel}
-                          fieldType={getColumnFilterFieldType(field.key)}
-                          uniqueValues={columnUniqueValues.get(field.key) ?? []}
-                          filter={columnFilters[field.key]}
-                          sortDirection={
-                            tableSort?.column === field.key
-                              ? tableSort.direction
-                              : null
-                          }
-                          isSortColumn={tableSort?.column === field.key}
-                          isOpen={openFilterColumn === field.key}
-                          isFilterActive={isFilterActiveForColumn(field.key)}
-                          onOpenChange={(open) =>
-                            setOpenFilterColumn(open ? field.key : null)
-                          }
-                          onApply={(next) => setColumnFilter(field.key, next)}
-                          onSort={(direction) => setSort(field.key, direction)}
-                        />
-                      );
-                    }
-
-                    if (isDenseTable && isInmuebleMaskedTextFieldKey(field.key)) {
-                      const maskedKey = field.key;
-                      const maskedMeta = INMUEBLE_MASKED_TEXT_FIELDS[maskedKey];
-                      return (
-                        <InmuebleObservacionesColumnHead
-                          key={maskedKey}
-                          allVisible={maskedTextAllVisible[maskedKey]}
-                          onToggleAllVisible={() =>
-                            toggleAllMaskedTextVisible(maskedKey)
-                          }
-                          style={denseHeadCellStyle(maskedKey, columnIndex)}
-                          className={`${stickyHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase text-center ${denseHeadTextClass(maskedKey, columnIndex)} ${field.headClassName ?? ''}`}
-                          label={field.shortLabel ?? field.label}
-                          visibilityEntity={maskedMeta.visibilityEntity}
-                        />
-                      );
-                    }
-
-                    const compactHead = isInmuebleCompactHeadKey(field.key);
-                    const linkHead = isInmuebleDenseLinkColumnKey(field.key);
-
-                    return (
-                      <th
-                        key={field.key}
-                        style={denseHeadCellStyle(field.key, columnIndex)}
-                        className={`${
-                          isDenseTable
-                            ? `${stickyHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} uppercase ${compactHead ? 'px-0' : ''} text-center ${EXCEL_CELL_BORDER} ${denseHeadTextClass(field.key, columnIndex)} ${field.headClassName ?? ''}`
-                            : 'px-3 py-4 text-xs font-semibold uppercase'
-                        }`}
-                        title={formatTableHeaderLabel(field.label)}
-                      >
-                        <span
-                          className={
-                            compactHead
-                              ? 'whitespace-nowrap leading-none'
-                              : linkHead
-                                ? 'inline-flex w-full flex-col items-center justify-center whitespace-pre-line leading-tight'
-                                : 'break-words whitespace-normal leading-tight'
-                          }
-                        >
-                          {formatTableHeaderLabel(
-                            isDenseTable
-                              ? field.shortLabel ?? field.label
-                              : field.label,
-                          )}
-                        </span>
-                      </th>
-                    );
-                  })}
-                  <th
-                    style={denseHeadCellStyle(
-                      'actions',
-                      displayedTableFields.length,
-                    )}
-                    className={`${
-                      isDenseTable
-                        ? `${stickyHeadClass} ${INMUEBLE_DENSE_HEAD_CELL_CLASS} px-0.5 ${denseHeadTextClass('actions', displayedTableFields.length)} ${EXCEL_CELL_BORDER}${
-                            extraColumnsVisible
-                              ? ' sticky right-0 z-30 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.12)]'
-                              : ''
-                          }`
-                        : `${stickyHeadActionsClass} px-3 py-4 text-xs font-semibold`
-                    } ${INMUEBLE_DENSE_ACTIONS_COL_CLASS} shrink-0 text-center uppercase`}
-                  >
-                    {isDenseTable ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <span
-                          className={`whitespace-nowrap text-[9px] font-semibold leading-none sm:text-[10px] ${denseHeadTextClass('actions', displayedTableFields.length)}`}
-                        >
-                          ACC
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setExtraColumnsVisible((prev) => !prev)}
-                          className={`flex h-5 w-5 items-center justify-center rounded-sm shadow-sm transition ${
-                            extraColumnsVisible
-                              ? isVentaTable
-                                ? 'bg-sky-300 text-sky-900'
-                                : 'bg-emerald-300 text-emerald-900'
-                              : isVentaTable
-                                ? 'bg-sky-600 text-white hover:bg-sky-500'
-                                : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                          }`}
-                          title={
-                            extraColumnsVisible
-                              ? 'Ocultar Ref, Visitas y Capt'
-                              : 'Mostrar Ref, Visitas y Capt'
-                          }
-                        >
-                          {extraColumnsVisible ? (
-                            <Minus className="h-3 w-3" strokeWidth={2.5} />
-                          ) : (
-                            <Plus className="h-3 w-3" strokeWidth={2.5} />
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      'Ficha / Acciones'
-                    )}
-                  </th>
-                </tr>
-              </thead>
+              {denseColgroup}
+              {!splitStickyHeader ? inmuebleTableHead : null}
               <tbody className={isDenseTable ? undefined : 'divide-y divide-slate-100'}>
                 {paginatedItems.map((inmueble) => {
                   const rowStyle = getInmuebleRowStyle(
                     inmueble.row_color,
                     tipoOperacion,
+                    inmueble.fecha_entrada_inmueble,
                   );
-                  const hasRowBackground = Boolean(
-                    resolveInmuebleRowColor(inmueble.row_color, tipoOperacion),
+                  const defaultRowBg = getInmuebleDefaultRowColor(tipoOperacion);
+                  const statusCellBg = getInmuebleDenseBodyCellBackground(
+                    'status',
+                    inmueble.row_color,
+                    tipoOperacion,
+                    inmueble.fecha_entrada_inmueble,
                   );
-
+                  const statusOnAccentBackground =
+                    statusCellBg !== defaultRowBg;
                   const rowData = hydrateInmuebleSplitFields(inmueble);
+                  const hasRowBackground = Boolean(
+                    resolveInmuebleRowColor(
+                      inmueble.row_color,
+                      tipoOperacion,
+                      inmueble.fecha_entrada_inmueble,
+                    ),
+                  );
 
                   return (
                   <tr
                     key={inmueble.id}
-                    className={hasRowBackground ? '' : 'hover:bg-slate-50'}
-                    style={rowStyle}
+                    className={`${!isDenseTable && !hasRowBackground ? 'hover:bg-slate-50' : ''}${isDenseTable ? ' relative z-0' : ''}`}
+                    style={isDenseTable ? undefined : rowStyle}
                   >
                     {displayedTableFields.map((field, columnIndex) => {
                       let value = toInmuebleCellValue(rowData[field.key]);
@@ -1105,7 +1182,11 @@ export function InmueblesPageContent({
 
                       if (field.key === 'ref' && isDenseTable) {
                         return (
-                          <td key={field.key} className={inmuebleCellClass(field)}>
+                          <td
+                            key={field.key}
+                            className={inmuebleCellClass(field)}
+                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                          >
                             <InmuebleRefInlineCell
                               inmuebleId={inmueble.id}
                               value={inmueble.ref}
@@ -1126,17 +1207,18 @@ export function InmueblesPageContent({
                         return (
                           <td
                             key={field.key}
-                            className={`${inmuebleCellClass(field)} relative`}
-                            style={getInmuebleDenseHeaderStyle(tipoOperacion)}
+                            className={`${inmuebleCellClass(field)} relative p-0`}
+                            style={denseBodyCellStyle('status', inmueble.row_color, inmueble.fecha_entrada_inmueble)}
                           >
                             <InmuebleStatusRowEditor
                               inmuebleId={inmueble.id}
                               status={inmueble.status}
                               rowColor={inmueble.row_color}
+                              fechaEntradaInmueble={inmueble.fecha_entrada_inmueble}
                               tipoOperacion={tipoOperacion}
                               compact
                               fillCell
-                              onAccentBackground
+                              onAccentBackground={statusOnAccentBackground}
                               disabled={!canManageInmuebles}
                               onUpdated={(patch) =>
                                 patchInmuebleInCache(inmueble.id, patch)
@@ -1150,7 +1232,11 @@ export function InmueblesPageContent({
                         const propietarios = getInmueblePropietarios(inmueble);
 
                         return (
-                          <td key={field.key} className={inmuebleCellClass(field)}>
+                          <td
+                            key={field.key}
+                            className={inmuebleCellClass(field)}
+                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                          >
                             <span className="block min-w-0 text-center leading-snug">
                               <InmueblePropiCell
                                 propietarios={propietarios}
@@ -1171,6 +1257,7 @@ export function InmueblesPageContent({
                           <td
                             key={maskedKey}
                             className={`${inmuebleCellClass(field)} relative`}
+                            style={denseBodyCellStyle(maskedKey, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
                           >
                             <InmuebleObservacionesLineCell
                               inmuebleId={inmueble.id}
@@ -1208,6 +1295,7 @@ export function InmueblesPageContent({
                             className={`${inmuebleCellClass(field)} ${
                               extraColumnsVisible ? 'align-top' : ''
                             }`}
+                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
                           >
                             <div
                               className={
@@ -1256,6 +1344,7 @@ export function InmueblesPageContent({
                             className={`${inmuebleCellClass(field)} ${
                               extraColumnsVisible ? 'align-top' : ''
                             }`}
+                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
                           >
                             <div
                               className={
@@ -1369,7 +1458,11 @@ export function InmueblesPageContent({
                         const url =
                           typeof value === 'string' ? value.trim() : '';
                         return (
-                          <td key={field.key} className={inmuebleCellClass(field)}>
+                          <td
+                            key={field.key}
+                            className={inmuebleCellClass(field)}
+                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                          >
                             {url ? (
                               <InmuebleDenseLinkButtons
                                 url={url}
@@ -1426,7 +1519,11 @@ export function InmueblesPageContent({
                       const isNumericCell = isInmuebleDenseNumericCellKey(field.key);
 
                       return (
-                        <td key={field.key} className={inmuebleCellClass(field)}>
+                        <td
+                          key={field.key}
+                          className={inmuebleCellClass(field)}
+                          style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                        >
                           <span
                             className={
                               isNumericCell
@@ -1448,8 +1545,8 @@ export function InmueblesPageContent({
                                 : ''
                             }`
                           : 'sticky right-0 z-10 px-3 py-2'
-                      } ${hasRowBackground ? '' : 'bg-white'}`}
-                      style={rowStyle}
+                      } ${!isDenseTable && !hasRowBackground ? 'bg-white' : ''}`}
+                      style={denseBodyCellStyle('actions', inmueble.row_color, inmueble.fecha_entrada_inmueble)}
                     >
                       <div className="flex flex-col items-stretch gap-0.5">
                         {isDenseTable ? (
@@ -1512,6 +1609,14 @@ export function InmueblesPageContent({
                             >
                               Plan
                             </Link>
+                            <InmuebleActivoToggle
+                              inmuebleId={inmueble.id}
+                              activo={inmueble.activo ?? true}
+                              disabled={!canManageInmuebles}
+                              onUpdated={(activo) =>
+                                patchInmuebleInCache(inmueble.id, { activo })
+                              }
+                            />
                           </>
                         ) : null}
                       </div>
@@ -1522,6 +1627,7 @@ export function InmueblesPageContent({
               </tbody>
             </table>
           </div>
+          </>
           )}
           {effectiveFilteredInmuebles.length > 0 && (
           <TablePagination
@@ -1534,6 +1640,7 @@ export function InmueblesPageContent({
           />
           )}
         </div>
+        </>
       )}
 
       {previewImage && (

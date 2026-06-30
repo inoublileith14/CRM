@@ -44,6 +44,9 @@ async function fetchCalendarStatus() {
     calendarId: string | null;
     connectedAt: string | null;
     canCreateEvents: boolean;
+    pushSyncEnabled: boolean;
+    isShared: boolean;
+    canManageConnection: boolean;
   };
 }
 
@@ -98,7 +101,6 @@ export function useClientesByTipoQuery(
     queryKey: queryKeys.clientes.byTipo(tipo, params),
     queryFn: () => getInmuebleClientesByTipo(tipo, params),
     staleTime: QUERY_STALE_TIME.list,
-    placeholderData: (previousData) => previousData,
     ...defaultQueryOptions,
   });
 }
@@ -262,6 +264,8 @@ export function useInvalidateDashboardQueries() {
       queryClient.invalidateQueries({ queryKey: ['whatsapp'] }),
     invalidateCalendar: () =>
       queryClient.invalidateQueries({ queryKey: ['calendar'] }),
+    invalidateCalendarEvents: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendar.events() }),
   };
 }
 

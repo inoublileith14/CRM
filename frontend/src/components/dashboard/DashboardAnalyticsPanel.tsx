@@ -87,7 +87,7 @@ function formatTooltipValue(value: number | string | undefined) {
 
 export function DashboardAnalyticsPanel() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-5 sm:pt-6 lg:pt-8">
       <header>
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
           Panel principal

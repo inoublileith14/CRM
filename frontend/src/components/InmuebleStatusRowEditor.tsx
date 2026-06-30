@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getInmuebleStatusOption,
+  getInmuebleDefaultRowColor,
   INMUEBLE_ROW_COLOR_PRESETS,
   INMUEBLE_STATUS_OPTIONS,
   normalizeRowColor,
   resolveInmuebleRowColor,
-  DEFAULT_DENSE_ROW_COLOR,
-  DEFAULT_VENTA_DENSE_ROW_COLOR,
   type InmuebleStatus,
 } from '@/lib/inmueble-status';
 import { updateInmueble } from '@/lib/inmuebles-api';
@@ -22,9 +21,12 @@ interface InmuebleStatusRowEditorProps {
   inmuebleId: string;
   status: Inmueble['status'];
   rowColor: string | null;
+  fechaEntradaInmueble?: string | null;
   tipoOperacion?: TipoOperacion;
   compact?: boolean;
   fillCell?: boolean;
+  /** Rendered centered below the status label; receives its own pointer events. */
+  stackedBottom?: ReactNode;
   onAccentBackground?: boolean;
   disabled?: boolean;
   onUpdated: (patch: { status: Inmueble['status']; row_color: string | null }) => void;
@@ -34,9 +36,11 @@ export function InmuebleStatusRowEditor({
   inmuebleId,
   status,
   rowColor,
+  fechaEntradaInmueble,
   tipoOperacion,
   compact,
   fillCell = false,
+  stackedBottom,
   onAccentBackground = false,
   disabled,
   onUpdated,
@@ -55,7 +59,14 @@ export function InmuebleStatusRowEditor({
     estimatedHeight: 320,
   });
   const current = getInmuebleStatusOption(status);
-  const effectiveRowColor = resolveInmuebleRowColor(rowColor, tipoOperacion);
+  const effectiveRowColor = resolveInmuebleRowColor(
+    rowColor,
+    tipoOperacion,
+    fechaEntradaInmueble,
+  );
+  const defaultRowColor = getInmuebleDefaultRowColor(tipoOperacion);
+  const canRestoreDefault =
+    effectiveRowColor !== null && effectiveRowColor !== defaultRowColor;
   const normalizedRowColor = effectiveRowColor ?? INMUEBLE_ROW_COLOR_PRESETS[0].value;
 
   useEffect(() => setMounted(true), []);
@@ -113,28 +124,38 @@ export function InmuebleStatusRowEditor({
     await persist({ status: next });
   }
 
-  async function handleRowColorSelect(next: string | null) {
-    const normalized = normalizeRowColor(next);
-    let toSave: string | null = normalized;
-    if (tipoOperacion === 'alquiler' && normalized === DEFAULT_DENSE_ROW_COLOR) {
-      toSave = null;
-    }
-    if (
-      tipoOperacion === 'venta' &&
-      normalized === DEFAULT_VENTA_DENSE_ROW_COLOR
-    ) {
-      toSave = null;
-    }
+  async function handleRestoreDefault() {
+    const currentEffective = resolveInmuebleRowColor(
+      rowColor,
+      tipoOperacion,
+      fechaEntradaInmueble,
+    );
+    if (currentEffective === defaultRowColor) return;
 
-    const currentEffective = resolveInmuebleRowColor(rowColor, tipoOperacion);
-    const nextEffective = resolveInmuebleRowColor(toSave, tipoOperacion);
+    await persist({ row_color: defaultRowColor });
+  }
+
+  async function handleRowColorSelect(next: string) {
+    const normalized = normalizeRowColor(next);
+    if (!normalized) return;
+
+    const currentEffective = resolveInmuebleRowColor(
+      rowColor,
+      tipoOperacion,
+      fechaEntradaInmueble,
+    );
+    const nextEffective = resolveInmuebleRowColor(
+      normalized,
+      tipoOperacion,
+      fechaEntradaInmueble,
+    );
     if (currentEffective === nextEffective) return;
 
-    await persist({ row_color: toSave });
+    await persist({ row_color: normalized });
   }
 
   const labelClass = fillCell
-    ? `text-base font-extrabold leading-none sm:text-lg${
+    ? `text-sm font-extrabold leading-none sm:text-base${
         onAccentBackground ? ' text-white' : ' text-slate-900'
       }`
     : compact
@@ -211,8 +232,8 @@ export function InmuebleStatusRowEditor({
 
       <button
         type="button"
-        disabled={saving || !normalizeRowColor(rowColor)}
-        onClick={() => void handleRowColorSelect(null)}
+        disabled={saving || !canRestoreDefault}
+        onClick={() => void handleRestoreDefault()}
         className="mt-3 w-full rounded border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
       >
         {tipoOperacion === 'alquiler'
@@ -224,6 +245,16 @@ export function InmuebleStatusRowEditor({
     </div>
   ) : null;
 
+  const fillCellHoverClass = onAccentBackground
+    ? 'hover:bg-white/10'
+    : 'hover:bg-black/5';
+
+  const statusLabel = saving ? (
+    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+  ) : (
+    <span>{current.label}</span>
+  );
+
   return (
     <div
       ref={rootRef}
@@ -231,30 +262,41 @@ export function InmuebleStatusRowEditor({
         fillCell ? 'absolute inset-0' : 'relative inline-block h-full w-full'
       }
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        disabled={disabled || saving}
-        onClick={() => setOpen((prev) => !prev)}
-        className={
-          fillCell
-            ? `absolute inset-0 flex cursor-pointer items-center justify-center bg-transparent transition disabled:opacity-60 ${labelClass} ${
-                onAccentBackground
-                  ? 'hover:bg-white/10'
-                  : 'hover:bg-black/5'
-              }`
-            : `inline-flex items-center justify-center bg-transparent text-slate-900 transition hover:opacity-80 disabled:opacity-60 ${labelClass}`
-        }
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title="Cambiar estado y color de fila"
-      >
-        {saving ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-        ) : (
-          <span>{current.label}</span>
-        )}
-      </button>
+      {fillCell && stackedBottom ? (
+        <>
+          <button
+            ref={triggerRef}
+            type="button"
+            disabled={disabled || saving}
+            onClick={() => setOpen((prev) => !prev)}
+            className={`absolute inset-0 z-0 cursor-pointer bg-transparent transition disabled:opacity-60 ${fillCellHoverClass}`}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            title="Cambiar estado y color de fila"
+          />
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-0.5">
+            <div className={labelClass}>{statusLabel}</div>
+            <div className="pointer-events-auto">{stackedBottom}</div>
+          </div>
+        </>
+      ) : (
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled || saving}
+          onClick={() => setOpen((prev) => !prev)}
+          className={
+            fillCell
+              ? `absolute inset-0 flex cursor-pointer items-center justify-center bg-transparent transition disabled:opacity-60 ${labelClass} ${fillCellHoverClass}`
+              : `inline-flex min-h-0 items-center justify-center bg-transparent text-[9px] font-bold leading-none transition hover:opacity-80 disabled:opacity-60 ${labelClass}`
+          }
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title="Cambiar estado y color de fila"
+        >
+          {statusLabel}
+        </button>
+      )}
 
       {panel ? createPortal(panel, document.body) : null}
     </div>

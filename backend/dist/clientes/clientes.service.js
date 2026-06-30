@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const supabase_service_1 = require("../supabase/supabase.service");
 const cliente_duplicate_util_1 = require("./cliente-duplicate.util");
 const cliente_gestion_estado_1 = require("./cliente-gestion-estado");
+const cliente_entrada_prevista_1 = require("./cliente-entrada-prevista");
 const enrich_import_cliente_util_1 = require("./enrich-import-cliente.util");
 const match_inmueble_ref_util_1 = require("./match-inmueble-ref.util");
 const SELECT_FIELDS = `
@@ -117,7 +118,8 @@ let ClientesService = ClientesService_1 = class ClientesService {
     }
     async create(dto) {
         const { inmueble_ids, worker_ids, ...clienteData } = dto;
-        const duplicate = await this.findDuplicateByPhoneDateAndInmuebles(clienteData.telefono, clienteData.fecha_contacto, inmueble_ids ?? []);
+        const payload = this.sanitizeClienteWriteData(clienteData);
+        const duplicate = await this.findDuplicateByPhoneDateAndInmuebles(payload.telefono, payload.fecha_contacto, inmueble_ids ?? []);
         if (duplicate) {
             throw new common_1.ConflictException({
                 message: 'Ya existe un cliente con el mismo teléfono, fecha de contacto e inmueble',
@@ -128,8 +130,8 @@ let ClientesService = ClientesService_1 = class ClientesService {
             .getAdmin()
             .from('clientes')
             .insert({
-            ...clienteData,
-            estado: clienteData.estado ?? 'activo',
+            ...payload,
+            estado: payload.estado ?? 'activo',
         })
             .select(SELECT_FIELDS)
             .single();
@@ -143,10 +145,11 @@ let ClientesService = ClientesService_1 = class ClientesService {
     async update(id, dto) {
         await this.findOne(id);
         const { inmueble_ids, worker_ids, ...clienteData } = dto;
+        const payload = this.sanitizeClienteWriteData(clienteData);
         const { error } = await this.supabase
             .getAdmin()
             .from('clientes')
-            .update({ ...clienteData, updated_at: new Date().toISOString() })
+            .update({ ...payload, updated_at: new Date().toISOString() })
             .eq('id', id);
         if (error) {
             this.logger.error(`Error al actualizar cliente ${id}: ${error.message}`);
@@ -820,6 +823,15 @@ let ClientesService = ClientesService_1 = class ClientesService {
         }
         return null;
     }
+    sanitizeClienteWriteData(data) {
+        if (data.fecha_entrada_inmueble === undefined) {
+            return data;
+        }
+        return {
+            ...data,
+            fecha_entrada_inmueble: (0, cliente_entrada_prevista_1.parseClienteEntradaPrevistaInput)(data.fecha_entrada_inmueble),
+        };
+    }
     buildClienteInsertPayload(raw, fixedTipo) {
         return {
             nombre: raw.nombre.trim(),
@@ -860,6 +872,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
         const { cliente_inmuebles: _ci, cliente_workers: _cw, cliente_perfiles: _cp, ...rest } = row;
         return {
             ...rest,
+            fecha_entrada_inmueble: (0, cliente_entrada_prevista_1.normalizeClienteEntradaPrevista)(rest.fecha_entrada_inmueble ?? null),
             inmueble_ids: clienteInmuebles.map((r) => r.inmueble_id),
             worker_ids: clienteWorkers.map((r) => r.worker_id),
             inmuebles_count: inmuebles?.length ?? 0,

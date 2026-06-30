@@ -138,6 +138,7 @@ export function emptyInmuebleRow(): InmuebleFormData {
     alquilado_por: null,
     captador_alquilado_por: null,
     status: null,
+    activo: true,
     row_color: null,
     tipo_operacion: null,
   };

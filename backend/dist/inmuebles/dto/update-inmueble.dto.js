@@ -33,6 +33,7 @@ class UpdateInmuebleDto {
     alquilado_por;
     captador_alquilado_por;
     status;
+    activo;
     row_color;
     tipo_operacion;
 }

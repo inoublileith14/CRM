@@ -10,6 +10,8 @@ export declare class CalendarService {
     private supabase;
     private calendarSync;
     private readonly logger;
+    private readonly eventsListCache;
+    private readonly watchNotifyTimers;
     constructor(config: ConfigService, supabase: SupabaseService, calendarSync: CalendarSyncService);
     getConnectUrl(userId: string): {
         url: string;
@@ -18,7 +20,7 @@ export declare class CalendarService {
         connected: true;
         googleEmail: string | null;
     }>;
-    getStatus(userId: string): Promise<CalendarConnectionStatus>;
+    getStatus(userId: string, userRol?: string): Promise<CalendarConnectionStatus>;
     disconnect(userId: string): Promise<{
         disconnected: true;
     }>;
@@ -41,9 +43,15 @@ export declare class CalendarService {
     private findUserIdByWatchChannel;
     private getWebhookUrl;
     private readHeader;
+    private eventsListCacheKey;
+    private invalidateEventsListCache;
+    private scheduleWatchNotify;
     private notifyCalendarChanged;
     updateEvent(userId: string, eventId: string, dto: UpdateCalendarEventDto): Promise<CalendarEventItem>;
     private eventDateTimeErrorMessage;
+    private resolveCalendarContext;
+    private requireCalendarContext;
+    private findOrganizationCalendar;
     private findByUserId;
     private exchangeCodeForTokens;
     private refreshAccessToken;

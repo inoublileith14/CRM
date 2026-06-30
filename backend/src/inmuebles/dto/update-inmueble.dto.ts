@@ -30,6 +30,7 @@ export class UpdateInmuebleDto {
   alquilado_por?: string | null;
   captador_alquilado_por?: string | null;
   status?: 'I' | 'P' | 'I-M' | null;
+  activo?: boolean;
   row_color?: string | null;
   tipo_operacion?: 'alquiler' | 'venta' | null;
 }

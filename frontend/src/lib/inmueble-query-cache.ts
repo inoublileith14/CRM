@@ -83,6 +83,7 @@ export function mapRealtimeRowToInmueble(
       row.status === 'I' || row.status === 'P' || row.status === 'I-M'
         ? row.status
         : null,
+    activo: row.activo !== false,
     row_color: toStringOrNull(row.row_color),
     tipo_operacion,
     created_at: String(row.created_at ?? new Date().toISOString()),

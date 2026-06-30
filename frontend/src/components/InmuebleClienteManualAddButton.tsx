@@ -3,29 +3,51 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  GestionCalendarEventDialog,
+  GestionCalendarEventFormValues,
+} from '@/components/GestionCalendarEventDialog';
 import { createCliente } from '@/lib/clientes-api';
 import { getDefaultClienteEntradaIso } from '@/lib/cliente-date-utils';
 import {
   ClienteGestionEstado,
   getClienteGestionEstadoOptions,
   getDefaultClienteGestionEstado,
+  requiresCalendarEventDialog,
 } from '@/lib/cliente-gestion-estado';
+import {
+  handleGestionCalendarError,
+  saveGestionWithCalendar,
+} from '@/lib/save-gestion-with-calendar';
 import {
   updateClienteFechaUltimaGestion,
   updateClienteGestionEstado,
 } from '@/lib/inmuebles-api';
+import { useCalendarStatusQuery } from '@/hooks/use-dashboard-queries';
 import { TipoOperacion } from '@/types/inmueble';
 import { Worker, getWorkerRolLabel } from '@/types/worker';
 
 interface InmuebleClienteManualAddButtonProps {
   inmuebleId: string;
   inmuebleRef: string | null | undefined;
+  inmuebleLabel?: string | null;
   tipoOperacion: TipoOperacion;
   workers: Worker[];
   onComplete: () => void;
   disabled?: boolean;
   compact?: boolean;
 }
+
+type PendingManualCliente = {
+  nombre: string;
+  telefono: string | null;
+  fechaContactoRaw: string;
+  fechaUltimaRaw: string;
+  gestionEstado: Extract<ClienteGestionEstado, 'visita_concertada' | 'videollamada'>;
+  notas: string | null;
+  workerId: string;
+};
 
 function isoToDateInput(iso: string): string {
   const match = iso.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -40,14 +62,23 @@ function dateInputToIso(value: string): string | null {
 export function InmuebleClienteManualAddButton({
   inmuebleId,
   inmuebleRef,
+  inmuebleLabel = null,
   tipoOperacion,
   workers,
   onComplete,
   disabled,
   compact = false,
 }: InmuebleClienteManualAddButtonProps) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
+  const [pendingCalendarCliente, setPendingCalendarCliente] =
+    useState<PendingManualCliente | null>(null);
+
+  const calendarStatusQuery = useCalendarStatusQuery(calendarDialogOpen);
+  const calendarConnected = calendarStatusQuery.data?.connected ?? false;
+  const canCreateEvents = calendarStatusQuery.data?.canCreateEvents ?? false;
 
   const defaultGestion = getDefaultClienteGestionEstado(tipoOperacion);
   const gestionOptions = useMemo(
@@ -70,14 +101,99 @@ export function InmuebleClienteManualAddButton({
     setOpen(false);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function createClienteRecord(form: PendingManualCliente | FormData) {
     const ref = inmuebleRef?.trim();
     if (!ref) {
-      toast.error('Este inmueble no tiene referencia. Añádela antes de crear clientes.');
+      throw new Error(
+        'Este inmueble no tiene referencia. Añádela antes de crear clientes.',
+      );
+    }
+
+    const nombre =
+      form instanceof FormData
+        ? (form.get('nombre') as string).trim()
+        : form.nombre.trim();
+    if (!nombre) {
+      throw new Error('El nombre es obligatorio');
+    }
+
+    const telefono =
+      form instanceof FormData
+        ? ((form.get('telefono') as string) || '').trim() || null
+        : form.telefono;
+    const fechaContactoRaw =
+      form instanceof FormData
+        ? (form.get('fecha_contacto') as string) || ''
+        : form.fechaContactoRaw;
+    const notas =
+      form instanceof FormData
+        ? ((form.get('notas') as string) || '').trim() || null
+        : form.notas;
+    const workerId =
+      form instanceof FormData ? (form.get('worker_id') as string) || '' : form.workerId;
+
+    return createCliente({
+      nombre,
+      email: null,
+      telefono,
+      ciudad: null,
+      barrio: null,
+      distrito: null,
+      tipo_nomina: null,
+      tipo_cliente: null,
+      estado: 'pendiente',
+      origen: null,
+      estado_contacto: null,
+      descripcion: null,
+      ref_cliente: ref,
+      mensaje: null,
+      fecha_contacto: dateInputToIso(fechaContactoRaw),
+      fecha_entrada_inmueble: null,
+      fecha_ultima_gestion: null,
+      presupuesto_maximo: null,
+      banos: null,
+      notas,
+      tipo_operacion: tipoOperacion,
+      inmueble_ids: [inmuebleId],
+      worker_ids: workerId ? [workerId] : [],
+    });
+  }
+
+  async function finalizeClienteGestion(
+    createdId: string,
+    gestionEstado: ClienteGestionEstado,
+    formValues?: GestionCalendarEventFormValues,
+    fechaUltimaRaw?: string,
+  ) {
+    if (requiresCalendarEventDialog(gestionEstado)) {
+      await saveGestionWithCalendar({
+        inmuebleId,
+        clienteId: createdId,
+        next: gestionEstado,
+        formValues,
+        queryClient,
+      });
       return;
     }
+
+    if (gestionEstado !== defaultGestion) {
+      await updateClienteGestionEstado(inmuebleId, createdId, gestionEstado);
+    }
+
+    const fechaUltimaIso = dateInputToIso(fechaUltimaRaw ?? '');
+    if (fechaUltimaIso) {
+      await updateClienteFechaUltimaGestion(
+        inmuebleId,
+        createdId,
+        fechaUltimaIso,
+      );
+    }
+
+    toast.success('Cliente añadido');
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
     const form = new FormData(event.currentTarget);
     const nombre = (form.get('nombre') as string).trim();
@@ -86,55 +202,32 @@ export function InmuebleClienteManualAddButton({
       return;
     }
 
-    const telefono = ((form.get('telefono') as string) || '').trim() || null;
-    const fechaContactoRaw = (form.get('fecha_contacto') as string) || '';
-    const fechaUltimaRaw = (form.get('fecha_ultima_gestion') as string) || '';
-    const gestionEstado = (form.get('gestion_estado') as ClienteGestionEstado) || defaultGestion;
-    const notas = ((form.get('notas') as string) || '').trim() || null;
-    const workerId = (form.get('worker_id') as string) || '';
+    const gestionEstado =
+      (form.get('gestion_estado') as ClienteGestionEstado) || defaultGestion;
+
+    if (requiresCalendarEventDialog(gestionEstado)) {
+      setPendingCalendarCliente({
+        nombre,
+        telefono: ((form.get('telefono') as string) || '').trim() || null,
+        fechaContactoRaw: (form.get('fecha_contacto') as string) || '',
+        fechaUltimaRaw: (form.get('fecha_ultima_gestion') as string) || '',
+        gestionEstado,
+        notas: ((form.get('notas') as string) || '').trim() || null,
+        workerId: (form.get('worker_id') as string) || '',
+      });
+      setCalendarDialogOpen(true);
+      return;
+    }
 
     setSaving(true);
     try {
-      const created = await createCliente({
-        nombre,
-        email: null,
-        telefono,
-        ciudad: null,
-        barrio: null,
-        distrito: null,
-        tipo_nomina: null,
-        tipo_cliente: null,
-        estado: 'pendiente',
-        origen: null,
-        estado_contacto: null,
-        descripcion: null,
-        ref_cliente: ref,
-        mensaje: null,
-        fecha_contacto: dateInputToIso(fechaContactoRaw),
-        fecha_entrada_inmueble: null,
-        fecha_ultima_gestion: null,
-        presupuesto_maximo: null,
-        banos: null,
-        notas,
-        tipo_operacion: tipoOperacion,
-        inmueble_ids: [inmuebleId],
-        worker_ids: workerId ? [workerId] : [],
-      });
-
-      if (gestionEstado !== defaultGestion) {
-        await updateClienteGestionEstado(inmuebleId, created.id, gestionEstado);
-      }
-
-      const fechaUltimaIso = dateInputToIso(fechaUltimaRaw);
-      if (fechaUltimaIso) {
-        await updateClienteFechaUltimaGestion(
-          inmuebleId,
-          created.id,
-          fechaUltimaIso,
-        );
-      }
-
-      toast.success('Cliente añadido');
+      const created = await createClienteRecord(form);
+      await finalizeClienteGestion(
+        created.id,
+        gestionEstado,
+        undefined,
+        (form.get('fecha_ultima_gestion') as string) || '',
+      );
       setOpen(false);
       onComplete();
     } catch (error) {
@@ -144,6 +237,34 @@ export function InmuebleClienteManualAddButton({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleCalendarConfirm(formValues: GestionCalendarEventFormValues) {
+    if (!pendingCalendarCliente) return;
+
+    setSaving(true);
+    try {
+      const created = await createClienteRecord(pendingCalendarCliente);
+      await finalizeClienteGestion(
+        created.id,
+        pendingCalendarCliente.gestionEstado,
+        formValues,
+      );
+      setCalendarDialogOpen(false);
+      setPendingCalendarCliente(null);
+      setOpen(false);
+      onComplete();
+    } catch (error) {
+      handleGestionCalendarError(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCalendarCancel() {
+    if (saving) return;
+    setCalendarDialogOpen(false);
+    setPendingCalendarCliente(null);
   }
 
   const defaultEntradaDate = isoToDateInput(getDefaultClienteEntradaIso());
@@ -362,6 +483,23 @@ export function InmuebleClienteManualAddButton({
             </form>
           </div>
         </div>
+      ) : null}
+
+      {pendingCalendarCliente ? (
+        <GestionCalendarEventDialog
+          open={calendarDialogOpen}
+          gestionEstado={pendingCalendarCliente.gestionEstado}
+          clienteNombre={pendingCalendarCliente.nombre}
+          clienteTelefono={pendingCalendarCliente.telefono}
+          clienteRef={inmuebleRef?.trim() ?? null}
+          clienteNotas={pendingCalendarCliente.notas}
+          inmuebleLabel={inmuebleLabel}
+          calendarConnected={calendarConnected}
+          canCreateEvents={canCreateEvents}
+          loading={saving}
+          onConfirm={(formValues) => void handleCalendarConfirm(formValues)}
+          onCancel={handleCalendarCancel}
+        />
       ) : null}
     </>
   );

@@ -30,6 +30,9 @@ export type MessageKey =
   | 'calendar.subtitle'
   | 'calendar.connectTitle'
   | 'calendar.connectHint'
+  | 'calendar.waitingAdminTitle'
+  | 'calendar.waitingAdminHint'
+  | 'calendar.sharedHint'
   | 'calendar.refresh'
   | 'calendar.loadingEvents'
   | 'calendar.noEvents'
@@ -118,10 +121,15 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.calendar': 'Calendario',
     'nav.logout': 'Cerrar sesión',
     'calendar.title': 'Calendario',
-    'calendar.subtitle': 'Próximas visitas y eventos de tu Google Calendar',
-    'calendar.connectTitle': 'Conecta tu Google Calendar',
+    'calendar.subtitle': 'Próximas visitas y eventos del calendario de la agencia',
+    'calendar.connectTitle': 'Conecta el Google Calendar de la agencia',
     'calendar.connectHint':
-      'Autoriza Coconut para ver tus próximos eventos y programar visitas.',
+      'Solo un administrador debe conectar la cuenta de Google Calendar que usará todo el equipo.',
+    'calendar.waitingAdminTitle': 'Calendario no disponible todavía',
+    'calendar.waitingAdminHint':
+      'Un administrador debe conectar Google Calendar en Ajustes. Después podrás ver y crear visitas aquí.',
+    'calendar.sharedHint':
+      'Usando el calendario compartido de la agencia ({email}).',
     'calendar.refresh': 'Actualizar',
     'calendar.loadingEvents': 'Cargando eventos…',
     'calendar.noEvents': 'No hay eventos próximos en tu calendario.',
@@ -213,10 +221,15 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.calendar': 'Calendar',
     'nav.logout': 'Log out',
     'calendar.title': 'Calendar',
-    'calendar.subtitle': 'Upcoming visits and events from your Google Calendar',
-    'calendar.connectTitle': 'Connect your Google Calendar',
+    'calendar.subtitle': 'Upcoming visits and events from the agency calendar',
+    'calendar.connectTitle': 'Connect the agency Google Calendar',
     'calendar.connectHint':
-      'Authorize Coconut to view your upcoming events and schedule visits.',
+      'Only an administrator should connect the Google Calendar account the whole team will use.',
+    'calendar.waitingAdminTitle': 'Calendar not available yet',
+    'calendar.waitingAdminHint':
+      'An administrator must connect Google Calendar in Settings. You will then be able to view and create visits here.',
+    'calendar.sharedHint':
+      'Using the shared agency calendar ({email}).',
     'calendar.refresh': 'Refresh',
     'calendar.loadingEvents': 'Loading events…',
     'calendar.noEvents': 'No upcoming events on your calendar.',

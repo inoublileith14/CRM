@@ -4,13 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   GestionCalendarEventDialog,
   GestionCalendarEventFormValues,
-  toCalendarEventPayload,
-  toScheduledGestionIso,
 } from '@/components/GestionCalendarEventDialog';
 import {
   ClienteGestionEstado,
@@ -20,10 +17,11 @@ import {
   normalizeClienteGestionEstado,
   requiresCalendarEventDialog,
 } from '@/lib/cliente-gestion-estado';
-import { createCalendarEvent } from '@/lib/calendar-api';
-import { updateClienteGestionEstado } from '@/lib/inmuebles-api';
+import {
+  handleGestionCalendarError,
+  saveGestionWithCalendar,
+} from '@/lib/save-gestion-with-calendar';
 import { useCalendarStatusQuery } from '@/hooks/use-dashboard-queries';
-import { ApiError } from '@/lib/api';
 import { TipoOperacion } from '@/types/inmueble';
 
 export interface ClienteGestionEventContext {
@@ -72,7 +70,7 @@ export function ClienteGestionEstadoSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
 
-  const calendarStatusQuery = useCalendarStatusQuery(dialogOpen);
+  const calendarStatusQuery = useCalendarStatusQuery(dialogOpen || open);
   const calendarConnected = calendarStatusQuery.data?.connected ?? false;
   const canCreateEvents = calendarStatusQuery.data?.canCreateEvents ?? false;
 
@@ -121,42 +119,16 @@ export function ClienteGestionEstadoSelect({
   ) {
     setSaving(true);
     try {
-      if (formValues?.createInGoogleCalendar) {
-        const payload = toCalendarEventPayload(formValues);
-        await createCalendarEvent(payload);
-        await queryClient.invalidateQueries({ queryKey: ['calendar'] });
-      }
-
-      const fechaUltimaGestion = formValues
-        ? toScheduledGestionIso(formValues)
-        : undefined;
-
-      const result = await updateClienteGestionEstado(
+      const result = await saveGestionWithCalendar({
         inmuebleId,
         clienteId,
         next,
-        fechaUltimaGestion,
-      );
+        formValues,
+        queryClient,
+      });
       onUpdated(result);
-
-      if (formValues?.createInGoogleCalendar) {
-        toast.success('Gestión guardada y evento creado en Google Calendar');
-      } else {
-        toast.success('Gestión guardada');
-      }
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.code === 'CALENDAR_SCOPE_INSUFFICIENT'
-      ) {
-        toast.error(error.message, { duration: 8000 });
-      } else {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'No se pudo guardar el estado de gestión',
-        );
-      }
+      handleGestionCalendarError(error);
     } finally {
       setSaving(false);
       setPendingEstado(null);

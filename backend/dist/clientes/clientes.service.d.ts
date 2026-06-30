@@ -46,6 +46,7 @@ export declare class ClientesService {
     }>;
     private syncRelations;
     private findDuplicateByPhoneDateAndInmuebles;
+    private sanitizeClienteWriteData;
     private buildClienteInsertPayload;
     private mapCliente;
     private mapPerfil;

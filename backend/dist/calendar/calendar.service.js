@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const crypto_1 = require("crypto");
 const supabase_service_1 = require("../supabase/supabase.service");
+const auth_roles_1 = require("../auth/auth-roles");
 const calendar_sync_service_1 = require("./calendar-sync.service");
 const calendar_oauth_state_1 = require("./calendar-oauth.state");
 const google_calendar_event_util_1 = require("./google-calendar-event.util");
@@ -29,11 +30,15 @@ const CALENDAR_WRITE_SCOPES = new Set([
 ]);
 const WATCH_RENEW_BEFORE_MS = 24 * 60 * 60 * 1000;
 const WATCH_TTL_MS = 6 * 24 * 60 * 60 * 1000;
+const EVENTS_LIST_CACHE_TTL_MS = 20_000;
+const WATCH_NOTIFY_DEBOUNCE_MS = 3_000;
 let CalendarService = CalendarService_1 = class CalendarService {
     config;
     supabase;
     calendarSync;
     logger = new common_1.Logger(CalendarService_1.name);
+    eventsListCache = new Map();
+    watchNotifyTimers = new Map();
     constructor(config, supabase, calendarSync) {
         this.config = config;
         this.supabase = supabase;
@@ -96,32 +101,43 @@ let CalendarService = CalendarService_1 = class CalendarService {
         });
         return { connected: true, googleEmail };
     }
-    async getStatus(userId) {
-        const row = await this.findByUserId(userId);
-        if (!row) {
+    async getStatus(userId, userRol) {
+        const ctx = await this.resolveCalendarContext(userId);
+        const canManageConnection = (0, auth_roles_1.isAdminUser)(userRol);
+        if (!ctx) {
             return {
                 connected: false,
                 googleEmail: null,
                 calendarId: null,
                 connectedAt: null,
                 canCreateEvents: false,
+                pushSyncEnabled: false,
+                isShared: false,
+                canManageConnection,
             };
         }
+        const { ownerUserId, row, isShared } = ctx;
         let canCreateEvents = false;
         try {
-            const accessToken = await this.getValidAccessToken(userId);
+            const accessToken = await this.getValidAccessToken(ownerUserId);
             const scopes = await this.fetchTokenScopes(accessToken);
             canCreateEvents = this.hasCalendarWriteScope(scopes);
         }
         catch {
             canCreateEvents = false;
         }
+        const watchActive = Boolean(row.watch_channel_id) &&
+            Boolean(row.watch_expiration_ms) &&
+            row.watch_expiration_ms > Date.now();
         return {
             connected: true,
             googleEmail: row.google_email,
             calendarId: row.calendar_id,
             connectedAt: row.connected_at,
             canCreateEvents,
+            pushSyncEnabled: Boolean(this.getWebhookUrl() && watchActive),
+            isShared,
+            canManageConnection,
         };
     }
     async disconnect(userId) {
@@ -171,14 +187,14 @@ let CalendarService = CalendarService_1 = class CalendarService {
         return tokens.access_token;
     }
     async listEvents(userId, options) {
-        const row = await this.findByUserId(userId);
-        if (!row) {
-            throw new common_1.BadRequestException({
-                message: 'Google Calendar no está conectado',
-                code: 'CALENDAR_NOT_CONNECTED',
-            });
+        const ctx = await this.requireCalendarContext(userId);
+        const { ownerUserId, row } = ctx;
+        const cacheKey = this.eventsListCacheKey(ownerUserId, options?.from, options?.to, options?.maxResults);
+        const cached = this.eventsListCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.data;
         }
-        const accessToken = await this.getValidAccessToken(userId);
+        const accessToken = await this.getValidAccessToken(ownerUserId);
         const calendarId = row.calendar_id || 'primary';
         const calendarColorId = await this.fetchCalendarListColorId(accessToken, calendarId);
         const timeMin = options?.from?.trim() || new Date().toISOString();
@@ -204,7 +220,12 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_EVENTS_FAILED',
             });
         }
-        return (data.items ?? []).map((event) => (0, google_calendar_event_util_1.mapGoogleEventToCalendarItem)(event, calendarColorId));
+        const items = (data.items ?? []).map((event) => (0, google_calendar_event_util_1.mapGoogleEventToCalendarItem)(event, calendarColorId));
+        this.eventsListCache.set(cacheKey, {
+            expiresAt: Date.now() + EVENTS_LIST_CACHE_TTL_MS,
+            data: items,
+        });
+        return items;
     }
     async fetchCalendarListColorId(accessToken, calendarId) {
         try {
@@ -246,14 +267,9 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code,
             });
         }
-        const row = await this.findByUserId(userId);
-        if (!row) {
-            throw new common_1.BadRequestException({
-                message: 'Google Calendar no está conectado',
-                code: 'CALENDAR_NOT_CONNECTED',
-            });
-        }
-        const accessToken = await this.getValidAccessToken(userId);
+        const ctx = await this.requireCalendarContext(userId);
+        const { ownerUserId, row } = ctx;
+        const accessToken = await this.getValidAccessToken(ownerUserId);
         const calendarId = row.calendar_id || 'primary';
         const body = (0, google_calendar_event_util_1.buildGoogleEventBody)({
             summary,
@@ -288,7 +304,7 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_EVENT_CREATE_FAILED',
             });
         }
-        this.notifyCalendarChanged(userId);
+        this.notifyCalendarChanged(ownerUserId);
         return {
             id: data.id ?? '',
             title: data.summary ?? summary,
@@ -298,8 +314,12 @@ let CalendarService = CalendarService_1 = class CalendarService {
         };
     }
     subscribeToStream(userId, res) {
-        void this.ensureWatchChannel(userId).catch((error) => {
-            this.logger.warn(`No se pudo renovar watch al abrir stream: ${String(error)}`);
+        void this.resolveCalendarContext(userId).then((ctx) => {
+            if (!ctx)
+                return;
+            void this.ensureWatchChannel(ctx.ownerUserId).catch((error) => {
+                this.logger.warn(`No se pudo renovar watch al abrir stream: ${String(error)}`);
+            });
         });
         return this.calendarSync.addSubscriber(userId, res);
     }
@@ -318,7 +338,7 @@ let CalendarService = CalendarService_1 = class CalendarService {
             return;
         }
         if (state === 'exists' || state === 'not_exists') {
-            this.calendarSync.notifyUser(userId);
+            this.scheduleWatchNotify(userId);
         }
     }
     getWatchSupport() {
@@ -448,8 +468,31 @@ let CalendarService = CalendarService_1 = class CalendarService {
             return value[0] ?? '';
         return value ?? '';
     }
-    notifyCalendarChanged(userId) {
-        this.calendarSync.notifyUser(userId);
+    eventsListCacheKey(userId, from, to, maxResults) {
+        return `${userId}:${from?.trim() ?? ''}:${to?.trim() ?? ''}:${maxResults ?? ''}`;
+    }
+    invalidateEventsListCache(userId) {
+        const prefix = `${userId}:`;
+        for (const key of this.eventsListCache.keys()) {
+            if (key.startsWith(prefix)) {
+                this.eventsListCache.delete(key);
+            }
+        }
+    }
+    scheduleWatchNotify(userId) {
+        this.invalidateEventsListCache(userId);
+        const existing = this.watchNotifyTimers.get(userId);
+        if (existing)
+            clearTimeout(existing);
+        const timer = setTimeout(() => {
+            this.watchNotifyTimers.delete(userId);
+            this.calendarSync.notifyAll();
+        }, WATCH_NOTIFY_DEBOUNCE_MS);
+        this.watchNotifyTimers.set(userId, timer);
+    }
+    notifyCalendarChanged(ownerUserId) {
+        this.invalidateEventsListCache(ownerUserId);
+        this.calendarSync.notifyAll();
     }
     async updateEvent(userId, eventId, dto) {
         const summary = dto.summary?.trim();
@@ -477,14 +520,9 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code,
             });
         }
-        const row = await this.findByUserId(userId);
-        if (!row) {
-            throw new common_1.BadRequestException({
-                message: 'Google Calendar no está conectado',
-                code: 'CALENDAR_NOT_CONNECTED',
-            });
-        }
-        const accessToken = await this.getValidAccessToken(userId);
+        const ctx = await this.requireCalendarContext(userId);
+        const { ownerUserId, row } = ctx;
+        const accessToken = await this.getValidAccessToken(ownerUserId);
         const calendarId = row.calendar_id || 'primary';
         const calendarColorId = await this.fetchCalendarListColorId(accessToken, calendarId);
         const body = (0, google_calendar_event_util_1.buildGoogleEventBody)({
@@ -520,7 +558,7 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_EVENT_UPDATE_FAILED',
             });
         }
-        this.notifyCalendarChanged(userId);
+        this.notifyCalendarChanged(ownerUserId);
         return (0, google_calendar_event_util_1.mapGoogleEventToCalendarItem)(data, calendarColorId);
     }
     eventDateTimeErrorMessage(code) {
@@ -532,6 +570,60 @@ let CalendarService = CalendarService_1 = class CalendarService {
             default:
                 return 'Fecha u hora no válida';
         }
+    }
+    async resolveCalendarContext(requestingUserId) {
+        const personal = await this.findByUserId(requestingUserId);
+        if (personal) {
+            return {
+                ownerUserId: requestingUserId,
+                row: personal,
+                isShared: false,
+            };
+        }
+        const organization = await this.findOrganizationCalendar();
+        if (!organization)
+            return null;
+        return {
+            ownerUserId: organization.user_id,
+            row: organization,
+            isShared: organization.user_id !== requestingUserId,
+        };
+    }
+    async requireCalendarContext(requestingUserId) {
+        const ctx = await this.resolveCalendarContext(requestingUserId);
+        if (!ctx) {
+            throw new common_1.BadRequestException({
+                message: 'Google Calendar no está conectado',
+                code: 'CALENDAR_NOT_CONNECTED',
+            });
+        }
+        return ctx;
+    }
+    async findOrganizationCalendar() {
+        const admin = this.supabase.getAdmin();
+        const { data: adminProfiles, error: profilesError } = await admin
+            .from('profiles')
+            .select('id')
+            .in('rol', ['admin', 'administracion']);
+        if (profilesError) {
+            this.logger.error(`Error buscando admins para calendario compartido: ${profilesError.message}`);
+            return null;
+        }
+        const adminIds = (adminProfiles ?? []).map((profile) => profile.id);
+        if (adminIds.length === 0)
+            return null;
+        const { data, error } = await admin
+            .from('user_google_calendar')
+            .select('*')
+            .in('user_id', adminIds)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+        if (error) {
+            this.logger.error(`Error leyendo calendario compartido de admin: ${error.message}`);
+            return null;
+        }
+        const row = data?.[0];
+        return row ? row : null;
     }
     async findByUserId(userId) {
         const admin = this.supabase.getAdmin();

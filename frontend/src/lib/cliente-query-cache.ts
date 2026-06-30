@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { normalizeClienteEntradaPrevista } from '@/lib/cliente-entrada-prevista';
 import { ClienteGestionEstado } from '@/lib/cliente-gestion-estado';
 import { queryKeys } from '@/lib/query-keys';
 import { isClienteTipoCliente } from '@/lib/cliente-tipo';
@@ -60,7 +61,9 @@ export function mapRealtimeRowToCliente(
     ref_cliente: toStringOrNull(row.ref_cliente),
     mensaje: toStringOrNull(row.mensaje),
     fecha_contacto: toStringOrNull(row.fecha_contacto),
-    fecha_entrada_inmueble: toStringOrNull(row.fecha_entrada_inmueble),
+    fecha_entrada_inmueble: normalizeClienteEntradaPrevista(
+      toStringOrNull(row.fecha_entrada_inmueble),
+    ),
     fecha_ultima_gestion: toStringOrNull(row.fecha_ultima_gestion),
     presupuesto_maximo: toStringOrNull(row.presupuesto_maximo),
     banos: toNumberOrNull(row.banos),

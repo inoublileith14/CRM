@@ -41,8 +41,9 @@ import {
 } from '@/hooks/use-dashboard-queries';
 import { useClientesByTipoRealtime } from '@/hooks/use-clientes-by-tipo-realtime';
 import {
-  ClientesGeneralPageSize,
+  CLIENTES_GENERAL_DEFAULT_PAGE_SIZE,
   CLIENTES_GENERAL_PAGE_SIZE_OPTIONS,
+  ClientesGeneralPageSize,
   parseClientesGeneralPageSize,
   resolveClientesGeneralPageSize,
 } from '@/hooks/usePagination';
@@ -53,7 +54,7 @@ import { TableSort } from '@/lib/table-column-filters';
 import { useQueryUiState } from '@/hooks/use-query-ui';
 import { buildVentaGlobalClienteTableColumns } from '@/lib/table-columns';
 import { formatTableHeaderLabel } from '@/lib/table-header-label';
-import { EXCEL_CELL_ALIGN, EXCEL_CELL_BORDER, EXCEL_TABLE_CLASS, TABLE_HEAD_PADDING_DENSE, TABLE_HEAD_TEXT_CLASS } from '@/lib/excel-table-styles';
+import { EXCEL_CELL_ALIGN, EXCEL_CELL_BORDER, EXCEL_STICKY_TABLE_CLASS, TABLE_HEAD_PADDING_DENSE, TABLE_HEAD_TEXT_CLASS } from '@/lib/excel-table-styles';
 import {
   EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
   filterClienteLinkRowsByText,
@@ -76,6 +77,7 @@ import { ClientesByTipoListParams } from '@/types/clientes-by-tipo-page';
 import { TIPO_OPERACION_LABELS, TipoOperacion } from '@/types/inmueble';
 import { ClienteRefValue, clienteDenseTextClass } from '@/components/ClienteRefValue';
 import { getWorkerRolLabel } from '@/types/worker';
+import { normalizeClienteEntradaPrevista } from '@/lib/cliente-entrada-prevista';
 
 const PAGE_THEMES = {
   alquiler: {
@@ -88,7 +90,7 @@ const PAGE_THEMES = {
     accentCheckbox: 'text-emerald-600 focus:ring-emerald-500',
     accentSelectFocus:
       'focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20',
-    selectedRow: 'bg-emerald-50/60',
+    selectedRow: 'bg-emerald-100',
     stickyAccCellBg: 'bg-emerald-50',
     retryLink: 'text-emerald-600 hover:text-emerald-500',
   },
@@ -101,18 +103,29 @@ const PAGE_THEMES = {
     accentButton: 'bg-blue-700 hover:bg-blue-600',
     accentCheckbox: 'text-blue-700 focus:ring-blue-600',
     accentSelectFocus: 'focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20',
-    selectedRow: 'bg-blue-50/70',
+    selectedRow: 'bg-blue-100',
     stickyAccCellBg: 'bg-blue-50',
     retryLink: 'text-blue-700 hover:text-blue-600',
   },
 } as const;
 
-/** Sticky ACC: inset L/R lines stay visible inside the scroll clip; left shadow separates from scrolling cells. */
-const STICKY_ACTIONS_SHADOW =
-  'shadow-[-5px_0_8px_-2px_rgba(0,0,0,0.14),inset_1px_0_0_0_#000,inset_-1px_0_0_0_#000]';
-const STICKY_ACTIONS_HEAD_CLASS = `sticky right-0 z-40 border-y border-black bg-slate-50 ${STICKY_ACTIONS_SHADOW}`;
-const STICKY_ACTIONS_CELL_BASE = `sticky right-0 z-20 border-y border-black ${STICKY_ACTIONS_SHADOW}`;
+/** Header cells in the synced horizontal scroll area (vertical stick is on the wrapper). */
+const CLIENTES_TABLE_HEAD_CELL_CLASS = 'bg-slate-50';
+const CLIENTES_DENSE_TABLE_CLASS = `${EXCEL_STICKY_TABLE_CLASS} min-w-[100rem] bg-white`;
+const CLIENTES_TABLE_HEAD_STICKY_CLASS =
+  'sticky top-0 z-30 isolate border-b border-slate-200 bg-white shadow-[0_1px_0_0_rgb(203,213,225)]';
+/** Horizontal scroll only inside the table; hide scrollbar on the synced header track. */
+const CLIENTES_TABLE_X_SCROLL_CLASS = 'max-w-full min-w-0 overflow-x-auto';
+const CLIENTES_TABLE_HEAD_X_SCROLL_CLASS = `${CLIENTES_TABLE_X_SCROLL_CLASS} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`;
+const CLIENTES_TABLE_BODY_WRAPPER_CLASS = 'relative max-w-full min-w-0 bg-white pr-px';
+/** ACC column: pinned right on horizontal scroll; header also sticks on vertical scroll. */
+const CLIENTES_ACC_HEAD_SHADOW =
+  'shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.12),inset_1px_0_0_0_#000]';
+const CLIENTES_DENSE_ACTIONS_HEAD_CLASS = `sticky right-0 z-40 border-y border-black bg-slate-50 ${CLIENTES_ACC_HEAD_SHADOW} ${EXCEL_CELL_BORDER}`;
+const CLIENTES_DENSE_ACTIONS_CELL_CLASS = `sticky right-0 z-20 border-y border-black bg-white ${CLIENTES_ACC_HEAD_SHADOW} ${EXCEL_CELL_BORDER}`;
 const DENSE_NARROW_HEAD_LABEL_CLASS =
+  'text-[9px] font-semibold uppercase leading-tight text-slate-600 sm:text-[10px]';
+const DENSE_ENTRADA_PREVISTA_HEAD_LABEL_CLASS =
   'text-[9px] font-semibold uppercase leading-tight text-slate-600 sm:text-[10px]';
 
 interface InmuebleClientesGeneralPageContentProps {
@@ -122,9 +135,9 @@ interface InmuebleClientesGeneralPageContentProps {
 
 const DEFAULT_CLIENTES_GENERAL_LIST_STATE = {
   page: 1,
-  pageSize: 100 as ClientesGeneralPageSize,
+  pageSize: CLIENTES_GENERAL_DEFAULT_PAGE_SIZE,
   tableSort: {
-    column: 'fecha_entrada_peticion',
+    column: 'fecha_peticion',
     direction: 'desc',
   } as TableSort | null,
   ventaRangeFilters: EMPTY_VENTA_RANGE_FILTERS,
@@ -143,7 +156,7 @@ export function InmuebleClientesGeneralPageContent({
     useInvalidateDashboardQueries();
 
   const [listState, setListState] = usePersistedState(
-    `${buildTableStateKey(pathname, expectedTipo)}:clientes-general`,
+    `${buildTableStateKey(pathname, expectedTipo)}:clientes-general:v2`,
     DEFAULT_CLIENTES_GENERAL_LIST_STATE,
   );
   const { page, tableSort } = listState;
@@ -196,7 +209,7 @@ export function InmuebleClientesGeneralPageContent({
       page,
       limit: effectiveLimit,
     };
-    if (tableSort?.column === 'fecha_entrada_peticion') {
+    if (tableSort?.column === 'fecha_peticion') {
       params.sort = 'fecha_entrada';
       params.dir = tableSort.direction;
     }
@@ -235,7 +248,11 @@ export function InmuebleClientesGeneralPageContent({
     useState<ClienteGlobalTextFilterColumn | null>(null);
   const assigningBusy = assigningWorker || assigningInmueble || deletingClientes;
   const tableAnchorRef = useRef<HTMLElement>(null);
+  const tableHeadScrollRef = useRef<HTMLDivElement>(null);
+  const tableBodyScrollRef = useRef<HTMLDivElement>(null);
+  const syncingTableScrollRef = useRef(false);
   const skipScrollOnPageRef = useRef(true);
+  const isPageFetching = rowsQuery.isFetching && !rowsQuery.isLoading;
 
   const rowsAfterRangeFilters = useMemo(() => {
     return filterRowsByVentaRange(rows, ventaRangeFilters);
@@ -276,7 +293,7 @@ export function InmuebleClientesGeneralPageContent({
 
   function denseCellClass(key: string, extra = '') {
     const base = denseCellClassByKey.get(key) ?? '';
-    return ['px-3 py-2.5', EXCEL_CELL_BORDER, EXCEL_CELL_ALIGN, base, extra].filter(Boolean).join(' ');
+    return ['bg-white px-3 py-2.5', EXCEL_CELL_BORDER, EXCEL_CELL_ALIGN, base, extra].filter(Boolean).join(' ');
   }
 
   function updateClienteById(clienteId: string, patch: Partial<Cliente>) {
@@ -306,12 +323,12 @@ export function InmuebleClientesGeneralPageContent({
   function toggleEntradaSort() {
     setPage(1);
     if (
-      tableSort?.column !== 'fecha_entrada_peticion' ||
+      tableSort?.column !== 'fecha_peticion' ||
       tableSort.direction === 'desc'
     ) {
-      setTableSort({ column: 'fecha_entrada_peticion', direction: 'asc' });
+      setTableSort({ column: 'fecha_peticion', direction: 'asc' });
     } else {
-      setTableSort({ column: 'fecha_entrada_peticion', direction: 'desc' });
+      setTableSort({ column: 'fecha_peticion', direction: 'desc' });
     }
   }
 
@@ -320,6 +337,12 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   useResetPageOnFilterChange([ventaRangeFilters, textFilters], setPage);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages, setPage]);
 
   useEffect(() => {
     setSelectedRowKeys(new Set());
@@ -341,6 +364,20 @@ export function InmuebleClientesGeneralPageContent({
     setVentaRangeFilters(EMPTY_VENTA_RANGE_FILTERS);
     setTextFilters(EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS);
   }
+
+  const syncTableHorizontalScroll = useCallback((source: 'head' | 'body') => {
+    if (syncingTableScrollRef.current) return;
+
+    const head = tableHeadScrollRef.current;
+    const body = tableBodyScrollRef.current;
+    if (!head || !body) return;
+
+    syncingTableScrollRef.current = true;
+    const nextLeft = source === 'body' ? body.scrollLeft : head.scrollLeft;
+    head.scrollLeft = nextLeft;
+    body.scrollLeft = nextLeft;
+    syncingTableScrollRef.current = false;
+  }, []);
 
   function setTextFilter(
     column: ClienteGlobalTextFilterColumn,
@@ -566,6 +603,144 @@ export function InmuebleClientesGeneralPageContent({
     };
   }, [rows, selectedRowKeys]);
 
+  const allRowsSelected =
+    displayRows.length > 0 &&
+    displayRows.every((row) => selectedRowKeys.has(row.row_key));
+  const someRowsSelected =
+    displayRows.some((row) => selectedRowKeys.has(row.row_key)) &&
+    !allRowsSelected;
+
+  const clientesDenseColgroup = (
+    <colgroup>
+      <col className="w-8" />
+      {tableColumns.map((col) => (
+        <col key={col.key} className={col.headClassName} />
+      ))}
+      <col className="w-10 min-w-[2.5rem]" />
+    </colgroup>
+  );
+
+  const clientesTableHead = (
+    <thead className="bg-slate-50">
+      <tr className="bg-slate-50">
+        <th
+          className={`w-8 ${CLIENTES_TABLE_HEAD_CELL_CLASS} ${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER}`}
+        >
+          <input
+            type="checkbox"
+            checked={allRowsSelected}
+            ref={(el) => {
+              if (el) {
+                el.indeterminate = someRowsSelected;
+              }
+            }}
+            onChange={() => toggleSelectAllFiltered(displayRows)}
+            disabled={assigningBusy}
+            className={`h-4 w-4 rounded border-slate-300 ${pageTheme.accentCheckbox}`}
+            aria-label="Seleccionar todos los clientes (todas las páginas)"
+          />
+        </th>
+        {tableColumns.map((col) => {
+          if (col.key === 'fecha_peticion') {
+            return (
+              <th
+                key={col.key}
+                className={`whitespace-nowrap ${CLIENTES_TABLE_HEAD_CELL_CLASS} ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`}
+              >
+                <button
+                  type="button"
+                  onClick={toggleEntradaSort}
+                  className={`inline-flex w-full flex-col items-center justify-center gap-0.5 uppercase transition hover:text-slate-900 ${DENSE_NARROW_HEAD_LABEL_CLASS}`}
+                  title={
+                    tableSort?.column === 'fecha_peticion'
+                      ? tableSort.direction === 'asc'
+                        ? 'Más antigua primero — clic para más reciente'
+                        : 'Más reciente primero — clic para más antigua'
+                      : 'Clic para ordenar por fecha de petición'
+                  }
+                >
+                  <span className="text-center whitespace-pre-line break-words leading-tight">
+                    {formatTableHeaderLabel(col.shortLabel ?? col.label)}
+                  </span>
+                  {tableSort?.column === 'fecha_peticion' ? (
+                    tableSort.direction === 'asc' ? (
+                      <ArrowUp className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                    ) : (
+                      <ArrowDown className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                    )
+                  ) : (
+                    <ArrowUpDown
+                      className="h-2.5 w-2.5 shrink-0 opacity-70"
+                      aria-hidden
+                    />
+                  )}
+                </button>
+              </th>
+            );
+          }
+
+          if (col.key === 'nombre' || col.key === 'telefono') {
+            const filterKey = col.key as ClienteGlobalTextFilterColumn;
+            return (
+              <TableColumnTextFilterHead
+                key={col.key}
+                label={col.label}
+                shortLabel={col.shortLabel}
+                value={textFilters[filterKey] ?? ''}
+                placeholder={
+                  col.key === 'nombre' ? 'Buscar nombre…' : 'Buscar teléfono…'
+                }
+                isOpen={openTextFilterColumn === filterKey}
+                isFilterActive={(textFilters[filterKey] ?? '').trim() !== ''}
+                onOpenChange={(open) =>
+                  setOpenTextFilterColumn(open ? filterKey : null)
+                }
+                onApply={(value) => setTextFilter(filterKey, value)}
+                accent={filterAccent}
+                className={`${CLIENTES_TABLE_HEAD_CELL_CLASS} ${col.headClassName ?? ''}`}
+              />
+            );
+          }
+
+          return (
+            <th
+              key={col.key}
+              className={`${
+                col.key === 'fecha_entrada_inmueble'
+                  ? 'whitespace-normal'
+                  : 'whitespace-nowrap'
+              } ${CLIENTES_TABLE_HEAD_CELL_CLASS} ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`}
+              title={formatTableHeaderLabel(col.label)}
+            >
+              <span
+                className={`flex w-full items-center justify-center ${
+                  col.key === 'fecha_entrada_inmueble'
+                    ? DENSE_ENTRADA_PREVISTA_HEAD_LABEL_CLASS
+                    : ''
+                }`}
+              >
+                <span
+                  className={`text-center break-words ${
+                    col.key === 'fecha_entrada_inmueble'
+                      ? 'whitespace-pre-line leading-tight'
+                      : ''
+                  }`}
+                >
+                  {formatTableHeaderLabel(col.shortLabel ?? col.label)}
+                </span>
+              </span>
+            </th>
+          );
+        })}
+        <th
+          className={`w-10 min-w-[2.5rem] ${TABLE_HEAD_PADDING_DENSE} ${DENSE_NARROW_HEAD_LABEL_CLASS} text-center ${CLIENTES_DENSE_ACTIONS_HEAD_CLASS}`}
+        >
+          <span className="flex w-full items-center justify-center">ACC</span>
+        </th>
+      </tr>
+    </thead>
+  );
+
   const selectClass = `rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition ${pageTheme.accentSelectFocus} disabled:opacity-60`;
 
   if (showError) {
@@ -587,13 +762,6 @@ export function InmuebleClientesGeneralPageContent({
     );
   }
 
-  const allRowsSelected =
-    displayRows.length > 0 &&
-    displayRows.every((row) => selectedRowKeys.has(row.row_key));
-  const someRowsSelected =
-    displayRows.some((row) => selectedRowKeys.has(row.row_key)) &&
-    !allRowsSelected;
-
   const title =
     expectedTipo === 'alquiler'
       ? 'CLIENTES GENERAL ALQUILER'
@@ -601,7 +769,7 @@ export function InmuebleClientesGeneralPageContent({
 
   return (
     <div
-      className="-mx-4 -mt-5 rounded-b-xl px-4 pb-5 pt-5 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pb-8 lg:pt-8"
+      className="-mx-4 min-w-0 rounded-b-xl px-4 pb-5 pt-5 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-6 lg:-mx-8 lg:px-8 lg:pb-8 lg:pt-8"
       style={{
         backgroundColor: pageTheme.background,
         borderColor: pageTheme.border,
@@ -639,7 +807,7 @@ export function InmuebleClientesGeneralPageContent({
 
       <section
         ref={tableAnchorRef}
-        className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm scroll-mt-20 sm:scroll-mt-24"
+        className="min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm scroll-mt-20 sm:scroll-mt-24"
       >
         <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:px-6">
           <div>
@@ -755,158 +923,32 @@ export function InmuebleClientesGeneralPageContent({
                 onClear={clearAllFilters}
               />
             )}
-            <div className="overflow-x-auto pr-px">
-              <table
-                className={
-                  isDenseClienteTable
-                    ? `${EXCEL_TABLE_CLASS} min-w-[100rem]`
-                    : 'min-w-[56rem] w-full text-left text-sm'
-                }
+            <div className={CLIENTES_TABLE_HEAD_STICKY_CLASS}>
+              <div
+                ref={tableHeadScrollRef}
+                className={CLIENTES_TABLE_HEAD_X_SCROLL_CLASS}
+                onScroll={() => syncTableHorizontalScroll('head')}
               >
-                {isDenseClienteTable ? (
-                  <colgroup>
-                    <col className="w-8" />
-                    {tableColumns.map((col) => (
-                      <col key={col.key} className={col.headClassName} />
-                    ))}
-                    <col className="w-10 min-w-[2.5rem]" />
-                  </colgroup>
-                ) : null}
-                <thead className="border-b border-slate-200 bg-slate-50">
-                  <tr>
-                    <th
-                      className={
-                        isDenseClienteTable
-                          ? `w-8 ${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER}`
-                          : 'w-10 px-3 py-3'
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={allRowsSelected}
-                        ref={(el) => {
-                          if (el) {
-                            el.indeterminate = someRowsSelected;
-                          }
-                        }}
-                        onChange={() => toggleSelectAllFiltered(displayRows)}
-                        disabled={assigningBusy}
-                        className={`h-4 w-4 rounded border-slate-300 ${pageTheme.accentCheckbox}`}
-                        aria-label="Seleccionar todos los clientes (todas las páginas)"
-                      />
-                    </th>
-                    {tableColumns.map((col) => {
-                      if (col.key === 'fecha_entrada_peticion') {
-                        return (
-                          <th
-                            key={col.key}
-                            className={`whitespace-nowrap ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${
-                              isDenseClienteTable
-                                ? `${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
-                                : 'px-4 py-4'
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              onClick={toggleEntradaSort}
-                              className={`inline-flex w-full flex-col items-center justify-center gap-0.5 uppercase transition hover:text-slate-900 ${DENSE_NARROW_HEAD_LABEL_CLASS}`}
-                              title={
-                                tableSort?.column === 'fecha_entrada_peticion'
-                                  ? tableSort.direction === 'asc'
-                                    ? 'Más antigua primero — clic para más reciente'
-                                    : 'Más reciente primero — clic para más antigua'
-                                  : 'Clic para ordenar por fecha de entrada'
-                              }
-                            >
-                              <span className="text-center break-words whitespace-normal">
-                                {formatTableHeaderLabel(
-                                  isDenseClienteTable
-                                    ? col.shortLabel ?? col.label
-                                    : col.label,
-                                )}
-                              </span>
-                              {tableSort?.column === 'fecha_entrada_peticion' ? (
-                                tableSort.direction === 'asc' ? (
-                                  <ArrowUp className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                                ) : (
-                                  <ArrowDown className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                                )
-                              ) : (
-                                <ArrowUpDown
-                                  className="h-2.5 w-2.5 shrink-0 opacity-70"
-                                  aria-hidden
-                                />
-                              )}
-                            </button>
-                          </th>
-                        );
-                      }
-
-                      if (col.key === 'nombre' || col.key === 'telefono') {
-                        const filterKey = col.key as ClienteGlobalTextFilterColumn;
-                        return (
-                          <TableColumnTextFilterHead
-                            key={col.key}
-                            label={col.label}
-                            shortLabel={col.shortLabel}
-                            value={textFilters[filterKey] ?? ''}
-                            placeholder={
-                              col.key === 'nombre'
-                                ? 'Buscar nombre…'
-                                : 'Buscar teléfono…'
-                            }
-                            isOpen={openTextFilterColumn === filterKey}
-                            isFilterActive={(textFilters[filterKey] ?? '').trim() !== ''}
-                            onOpenChange={(open) =>
-                              setOpenTextFilterColumn(open ? filterKey : null)
-                            }
-                            onApply={(value) => setTextFilter(filterKey, value)}
-                            accent={filterAccent}
-                            className={col.headClassName ?? ''}
-                          />
-                        );
-                      }
-
-                      return (
-                        <th
-                          key={col.key}
-                          className={`whitespace-nowrap ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${
-                            isDenseClienteTable
-                              ? `${TABLE_HEAD_PADDING_DENSE} text-center ${EXCEL_CELL_BORDER} ${col.headClassName ?? ''}`
-                              : 'px-4 py-4'
-                          }`}
-                          title={formatTableHeaderLabel(col.label)}
-                        >
-                          <span
-                            className={`flex w-full items-center justify-center ${
-                              col.key === 'fecha_entrada_inmueble'
-                                ? DENSE_NARROW_HEAD_LABEL_CLASS
-                                : ''
-                            }`}
-                          >
-                            <span className="text-center break-words">
-                              {formatTableHeaderLabel(
-                                isDenseClienteTable
-                                  ? col.shortLabel ?? col.label
-                                  : col.label,
-                              )}
-                            </span>
-                          </span>
-                        </th>
-                      );
-                    })}
-                    <th
-                      className={
-                        isDenseClienteTable
-                          ? `w-10 min-w-[2.5rem] ${TABLE_HEAD_PADDING_DENSE} ${DENSE_NARROW_HEAD_LABEL_CLASS} text-center ${STICKY_ACTIONS_HEAD_CLASS}`
-                          : `sticky right-0 z-40 border-y border-black bg-slate-50 px-4 py-4 ${TABLE_HEAD_TEXT_CLASS} text-slate-600 ${STICKY_ACTIONS_SHADOW}`
-                      }
-                    >
-                      <span className="flex w-full items-center justify-center">ACC</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+                <table className={CLIENTES_DENSE_TABLE_CLASS}>
+                  {clientesDenseColgroup}
+                  {clientesTableHead}
+                </table>
+              </div>
+            </div>
+            <div className={CLIENTES_TABLE_BODY_WRAPPER_CLASS}>
+              {isPageFetching ? (
+                <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center bg-white/50 pt-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+                </div>
+              ) : null}
+              <div
+                ref={tableBodyScrollRef}
+                className={CLIENTES_TABLE_X_SCROLL_CLASS}
+                onScroll={() => syncTableHorizontalScroll('body')}
+              >
+                <table className={CLIENTES_DENSE_TABLE_CLASS}>
+                  {clientesDenseColgroup}
+                  <tbody>
                   {displayRows.map((row) => {
                     const { cliente } = row;
                     const isSelected = selectedRowKeys.has(row.row_key);
@@ -916,7 +958,7 @@ export function InmuebleClientesGeneralPageContent({
                         key={row.row_key}
                         className={`hover:bg-slate-50 ${isSelected ? pageTheme.selectedRow : ''}`}
                       >
-                        <td className={isDenseClienteTable ? `w-8 px-3 py-2.5 text-center ${EXCEL_CELL_BORDER}` : 'w-10 px-3 py-3'}>
+                        <td className={isDenseClienteTable ? `w-8 bg-white px-3 py-2.5 text-center ${EXCEL_CELL_BORDER}` : 'w-10 px-3 py-3'}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -953,7 +995,7 @@ export function InmuebleClientesGeneralPageContent({
                             }
                           />
                         </td>
-                        <td className={denseCellClass('fecha_entrada_peticion')}>
+                        <td className={denseCellClass('fecha_peticion')}>
                           <ClienteFechaContactoCell
                             clienteId={cliente.id}
                             value={cliente.fecha_contacto}
@@ -966,7 +1008,16 @@ export function InmuebleClientesGeneralPageContent({
                             }
                           />
                         </td>
-                        <td className={denseCellClass('fecha_entrada_inmueble')}>
+                        <td
+                          className={denseCellClass(
+                            'fecha_entrada_inmueble',
+                            normalizeClienteEntradaPrevista(
+                              cliente.fecha_entrada_inmueble,
+                            ) === 'ya'
+                              ? 'bg-yellow-300'
+                              : '',
+                          )}
+                        >
                           <ClienteFechaEntradaInmuebleCell
                             clienteId={cliente.id}
                             value={cliente.fecha_entrada_inmueble}
@@ -991,9 +1042,7 @@ export function InmuebleClientesGeneralPageContent({
                         >
                           {cliente.nombre}
                         </td>
-                        <td
-                          className={denseCellClass('telefono', 'text-slate-600')}
-                        >
+                        <td className={denseCellClass('telefono', 'text-slate-600')}>
                           {cliente.telefono || '—'}
                         </td>
                         <td
@@ -1126,8 +1175,8 @@ export function InmuebleClientesGeneralPageContent({
                           />
                         </td>
                         <td
-                          className={`${STICKY_ACTIONS_CELL_BASE} w-10 min-w-[2.5rem] max-w-[2.5rem] px-0 py-2.5 align-middle ${
-                            isSelected ? pageTheme.stickyAccCellBg : 'bg-white'
+                          className={`${CLIENTES_DENSE_ACTIONS_CELL_CLASS} w-10 min-w-[2.5rem] max-w-[2.5rem] px-0 py-2.5 align-middle ${
+                            isSelected ? pageTheme.stickyAccCellBg : ''
                           }`}
                         >
                           <div className="flex w-full items-center justify-center">
@@ -1146,20 +1195,24 @@ export function InmuebleClientesGeneralPageContent({
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
-            <TablePagination
-              page={page}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              onPageSizeChange={(size) =>
-                changePageSize(parseClientesGeneralPageSize(String(size)))
-              }
-              pageSizeOptions={CLIENTES_GENERAL_PAGE_SIZE_OPTIONS}
-            />
           </>
         )}
+
+        {totalItems > 0 ? (
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            onPageSizeChange={(size) =>
+              changePageSize(parseClientesGeneralPageSize(String(size)))
+            }
+            pageSizeOptions={CLIENTES_GENERAL_PAGE_SIZE_OPTIONS}
+          />
+        ) : null}
       </section>
 
       <ConfirmDialog

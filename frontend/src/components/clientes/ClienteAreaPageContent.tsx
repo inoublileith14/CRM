@@ -21,6 +21,7 @@ import {
 import { createClientePerfil, updateCliente } from '@/lib/clientes-api';
 import { getClienteTipoNominaLabel } from '@/lib/cliente-tipo-nomina';
 import { ClientePerfilEditor } from '@/components/clientes/ClientePerfilEditor';
+import { ClienteFechaEntradaInmuebleCell } from '@/components/ClienteFechaEntradaInmuebleCell';
 import { parseRefCliente, refsMatchForInmueble } from '@/lib/parse-ref-cliente';
 import {
   formatInmueblePrecio,
@@ -404,7 +405,7 @@ export function ClienteAreaPageContent({
     : null;
 
   return (
-    <div className="-mt-5 min-h-0 sm:-mt-6 lg:-mt-8">
+    <div className="min-h-0 pt-5 sm:pt-6 lg:pt-8">
       <header className="sticky top-0 z-20 bg-slate-50/95 pt-4 backdrop-blur sm:pt-5">
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
@@ -862,19 +863,6 @@ function Card3DBorder({
   );
 }
 
-function toDateInputValue(value: string | null | undefined): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function fromDateInputValue(value: string): string | null {
-  if (!value.trim()) return null;
-  return `${value}T00:00:00.000Z`;
-}
-
 function PerfilEntradaViviendaField({
   clienteId,
   value,
@@ -886,54 +874,19 @@ function PerfilEntradaViviendaField({
   className?: string;
   onUpdated: () => void;
 }) {
-  const [draft, setDraft] = useState(() => toDateInputValue(value));
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setDraft(toDateInputValue(value));
-  }, [value]);
-
-  async function save(nextDraft: string) {
-    const current = toDateInputValue(value);
-    if (nextDraft === current) return;
-
-    setSaving(true);
-    try {
-      await updateCliente(clienteId, {
-        fecha_entrada_inmueble: fromDateInputValue(nextDraft),
-      });
-      onUpdated();
-    } catch (error) {
-      setDraft(current);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'No se pudo actualizar la fecha de entrada',
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
-    <label
-      className={`block rounded-xl bg-slate-50 px-3 py-2 ${className ?? ''}`}
-    >
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[10px]">
-        Entrada vivienda
-      </span>
-      <input
-        type="date"
-        value={draft}
-        disabled={saving}
-        onChange={(event) => {
-          const next = event.target.value;
-          setDraft(next);
-          void save(next);
-        }}
-        className="mt-0.5 w-full min-w-0 border-0 bg-transparent p-0 text-xs font-bold leading-snug text-slate-900 outline-none ring-0 focus:ring-0 disabled:opacity-60 sm:text-sm [color-scheme:light]"
-      />
-    </label>
+    <div className={`rounded-xl bg-slate-50 px-3 py-2 ${className ?? ''}`}>
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[10px]">
+        Entrada prevista
+      </p>
+      <div className="mt-0.5">
+        <ClienteFechaEntradaInmuebleCell
+          clienteId={clienteId}
+          value={value}
+          onUpdated={() => onUpdated()}
+        />
+      </div>
+    </div>
   );
 }
 

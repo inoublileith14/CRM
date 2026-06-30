@@ -38,6 +38,7 @@ export interface Inmueble {
   alquilado_por: string | null;
   captador_alquilado_por: string | null;
   status: 'I' | 'P' | 'I-M' | null;
+  activo: boolean;
   row_color: string | null;
   tipo_operacion: 'alquiler' | 'venta' | null;
   created_at: string;
@@ -174,6 +175,7 @@ export const emptyInmuebleForm = (): InmuebleFormData => ({
   alquilado_por: null,
   captador_alquilado_por: null,
   status: null,
+  activo: true,
   row_color: null,
   tipo_operacion: null,
 });

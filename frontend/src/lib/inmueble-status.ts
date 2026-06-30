@@ -47,8 +47,14 @@ export const INMUEBLE_ROW_COLOR_PRESETS: Array<{
   { value: '#fff2cc', label: 'Amarillo suave' },
   { value: '#ddebf7', label: 'Azul claro' },
   { value: '#f2f2f2', label: 'Gris' },
-  { value: '#ffffff', label: 'Blanco' },
+  { value: '#ffa500', label: 'Naranja' },
 ];
+
+/** Auto-highlight new CRM entries (matches preset amarillo). */
+export const INMUEBLE_ENTRADA_HIGHLIGHT_COLOR = '#ffff00';
+
+/** Days the entrada highlight stays yellow (entrada day + 2 more = 3 days). */
+export const INMUEBLE_ENTRADA_HIGHLIGHT_DAYS = 3;
 
 export function getInmuebleStatusOption(
   value: Inmueble['status'],
@@ -70,12 +76,100 @@ export function normalizeRowColor(value: string | null | undefined): string | nu
   return null;
 }
 
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function parseInmuebleEntradaLocalDate(value: string): Date | null {
+  const raw = value.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  }
+
+  const dmy4 = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(raw);
+  if (dmy4) {
+    return new Date(Number(dmy4[3]), Number(dmy4[2]) - 1, Number(dmy4[1]));
+  }
+
+  const dmy2 = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/.exec(raw);
+  if (dmy2) {
+    const yy = Number(dmy2[3]);
+    const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+    return new Date(year, Number(dmy2[2]) - 1, Number(dmy2[1]));
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return startOfLocalDay(parsed);
+}
+
+export function isInmuebleWithinEntradaHighlightWindow(
+  fechaEntradaInmueble: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!fechaEntradaInmueble?.trim()) return false;
+
+  const entrada = parseInmuebleEntradaLocalDate(fechaEntradaInmueble);
+  if (!entrada) return false;
+
+  const diffDays = Math.floor(
+    (startOfLocalDay(now).getTime() - startOfLocalDay(entrada).getTime()) /
+      (24 * 60 * 60 * 1000),
+  );
+
+  return diffDays >= 0 && diffDays < INMUEBLE_ENTRADA_HIGHLIGHT_DAYS;
+}
+
+function isManualRowColorOverride(rowColor: string | null): boolean {
+  return Boolean(rowColor);
+}
+
+export function getInmuebleDefaultRowColor(
+  tipoOperacion?: TipoOperacion,
+): string {
+  if (tipoOperacion === 'venta') return DEFAULT_VENTA_DENSE_ROW_COLOR;
+  return DEFAULT_DENSE_ROW_COLOR;
+}
+
+/** BCN uses manual/auto row color; all other dense cells use entrada CRM 3-day yellow window. */
+export function getInmuebleDenseBodyCellBackground(
+  fieldKey: keyof InmuebleFormData | 'actions',
+  rowColor: string | null | undefined,
+  tipoOperacion: TipoOperacion | undefined,
+  fechaEntradaInmueble: string | null | undefined,
+): string {
+  const defaultBg = getInmuebleDefaultRowColor(tipoOperacion);
+
+  if (fieldKey === 'status') {
+    return (
+      resolveInmuebleRowColor(rowColor, tipoOperacion, fechaEntradaInmueble) ??
+      defaultBg
+    );
+  }
+
+  if (isInmuebleWithinEntradaHighlightWindow(fechaEntradaInmueble)) {
+    return INMUEBLE_ENTRADA_HIGHLIGHT_COLOR;
+  }
+
+  return defaultBg;
+}
+
 export function resolveInmuebleRowColor(
   rowColor: string | null | undefined,
   tipoOperacion?: TipoOperacion,
+  fechaEntradaInmueble?: string | null,
 ): string | null {
   const normalized = normalizeRowColor(rowColor);
-  if (normalized) return normalized;
+
+  if (isManualRowColorOverride(normalized)) {
+    return normalized;
+  }
+
+  if (isInmuebleWithinEntradaHighlightWindow(fechaEntradaInmueble)) {
+    return INMUEBLE_ENTRADA_HIGHLIGHT_COLOR;
+  }
+
   if (tipoOperacion === 'venta') return DEFAULT_VENTA_DENSE_ROW_COLOR;
   if (tipoOperacion === 'alquiler') return DEFAULT_DENSE_ROW_COLOR;
   return null;
@@ -84,7 +178,12 @@ export function resolveInmuebleRowColor(
 export function getInmuebleRowStyle(
   rowColor: string | null | undefined,
   tipoOperacion?: TipoOperacion,
+  fechaEntradaInmueble?: string | null,
 ): { backgroundColor?: string } {
-  const resolved = resolveInmuebleRowColor(rowColor, tipoOperacion);
+  const resolved = resolveInmuebleRowColor(
+    rowColor,
+    tipoOperacion,
+    fechaEntradaInmueble,
+  );
   return resolved ? { backgroundColor: resolved } : {};
 }

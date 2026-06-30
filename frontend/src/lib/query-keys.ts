@@ -10,7 +10,14 @@ export const queryKeys = {
     all: ['clientes'] as const,
     detail: (id: string) => ['clientes', id] as const,
     byTipo: (tipo: TipoOperacion, params?: ClientesByTipoListParams) =>
-      ['clientes-by-tipo', tipo, params ?? {}] as const,
+      [
+        'clientes-by-tipo',
+        tipo,
+        params?.page ?? 1,
+        params?.limit ?? 50,
+        params?.sort ?? '',
+        params?.dir ?? '',
+      ] as const,
   },
   inmuebles: {
     all: (filters?: InmueblesFilters) =>

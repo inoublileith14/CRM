@@ -26,6 +26,8 @@ import {
 import { useCalendarSyncStream } from '@/hooks/use-calendar-sync-stream';
 import { useQueryUiState } from '@/hooks/use-query-ui';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useCurrentUser } from '@/contexts/CurrentUserContext';
+import { isAdminUser } from '@/lib/auth-roles';
 import { getInitialCalendarRange } from '@/lib/calendar-range';
 import { formatListRangeTitle } from '@/lib/format-calendar-range';
 import { CalendarEventsRange, CalendarEventItem } from '@/types/calendar';
@@ -84,8 +86,10 @@ function shiftRangeByDays(
 
 export function CalendarPageContent() {
   const { t, locale } = useLanguage();
+  const { user } = useCurrentUser();
   const searchParams = useSearchParams();
-  const { invalidateCalendar } = useInvalidateDashboardQueries();
+  const { invalidateCalendar, invalidateCalendarEvents } =
+    useInvalidateDashboardQueries();
   const statusQuery = useCalendarStatusQuery();
   const { data: status = null, showInitialLoading, isRefreshing } =
     useQueryUiState(statusQuery);
@@ -106,16 +110,21 @@ export function CalendarPageContent() {
     getInitialCalendarRange(),
   );
 
-  const handleCalendarRefresh = useCallback(() => {
-    void invalidateCalendar();
-  }, [invalidateCalendar]);
+  const pushSyncActive = Boolean(status?.pushSyncEnabled);
 
-  useCalendarSyncStream(Boolean(status?.connected), handleCalendarRefresh);
+  const handleCalendarRefresh = useCallback(() => {
+    void invalidateCalendarEvents();
+  }, [invalidateCalendarEvents]);
+
+  useCalendarSyncStream(
+    Boolean(status?.connected && pushSyncActive),
+    handleCalendarRefresh,
+  );
 
   const eventsQuery = useCalendarEventsQuery(
     Boolean(status?.connected),
     range,
-    { refetchIntervalMs: 45_000 },
+    { refetchIntervalMs: pushSyncActive ? undefined : 60_000 },
   );
   const {
     data: events = [],
@@ -135,6 +144,8 @@ export function CalendarPageContent() {
   const localeTag = locale === 'en' ? 'en-GB' : 'es-ES';
   const eventsLoading = eventsInitialLoading || eventsRefreshing;
   const canEditEvents = status?.canCreateEvents !== false;
+  const canManageConnection = status?.canManageConnection ?? isAdminUser(user?.rol);
+  const isAdmin = isAdminUser(user?.rol);
 
   const viewLabels = useMemo(
     () => ({
@@ -372,6 +383,7 @@ export function CalendarPageContent() {
       {showInitialLoading ? (
         <p className="text-sm text-slate-500">{t('settings.calendarLoading')}</p>
       ) : !status?.connected ? (
+        isAdmin ? (
         <div className="max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
@@ -395,21 +407,42 @@ export function CalendarPageContent() {
             {t('settings.calendarConnect')}
           </button>
         </div>
+        ) : (
+        <div className="max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-slate-100 p-2 text-slate-500">
+              <CalendarDays className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">
+                {t('calendar.waitingAdminTitle')}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {t('calendar.waitingAdminHint')}
+              </p>
+            </div>
+          </div>
+        </div>
+        )
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
+          {status.isShared && status.googleEmail ? (
+            <p className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {t('calendar.sharedHint').replace('{email}', status.googleEmail)}
+            </p>
+          ) : null}
           {status.canCreateEvents === false ? (
             <p className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               {locale === 'en' ? (
                 <>
-                  Your account is connected with read-only access. Use{' '}
-                  <strong>Reconnect Google Calendar</strong> in the menu (⋮) to
-                  create visits from Coconut.
+                  The agency calendar is connected with read-only access. Ask an
+                  administrator to reconnect Google Calendar with write access.
                 </>
               ) : (
                 <>
-                  Tu cuenta está conectada solo con permiso de lectura. Usa{' '}
-                  <strong>Reconectar Google Calendar</strong> en el menú (⋮)
-                  para poder crear visitas desde Coconut.
+                  El calendario de la agencia está conectado solo con permiso de
+                  lectura. Pide a un administrador que reconecte Google Calendar
+                  con permiso de escritura.
                 </>
               )}
             </p>
@@ -429,6 +462,7 @@ export function CalendarPageContent() {
               reconnectLabel={t('calendar.reconnect')}
               linkedAsLabel={t('settings.calendarLinkedAs')}
               canCreateEvents={canEditEvents}
+              canManageConnection={canManageConnection}
               eventsLoading={eventsLoading}
               busy={busy}
               onToday={handleToday}

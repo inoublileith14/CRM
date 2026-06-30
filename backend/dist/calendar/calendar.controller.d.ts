@@ -7,6 +7,7 @@ import { UpdateCalendarEventDto } from './dto/update-calendar-event.dto';
 export declare class CalendarController {
     private calendarService;
     constructor(calendarService: CalendarService);
+    private assertCanManageCalendar;
     handleWebhook(headers: Record<string, string | string[] | undefined>): Promise<{
         received: boolean;
     }>;

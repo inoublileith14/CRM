@@ -19,6 +19,7 @@ export type DashboardNavLink = {
   labelKey: MessageKey;
   icon: LucideIcon;
   adminOnly?: boolean;
+  hiddenInNav?: boolean;
 };
 
 export type DashboardNavGroup = {
@@ -109,6 +110,7 @@ export const dashboardNavEntries: DashboardNavEntry[] = [
     href: '/dashboard/calendar',
     labelKey: 'nav.calendar',
     icon: CalendarDays,
+    hiddenInNav: true,
   },
 ];
 
@@ -118,6 +120,9 @@ export function getDashboardNavEntries(options?: {
   const isAdmin = options?.isAdmin ?? false;
   return dashboardNavEntries.filter((entry) => {
     if (entry.adminOnly && !isAdmin) {
+      return false;
+    }
+    if (entry.type === 'link' && entry.hiddenInNav) {
       return false;
     }
     return true;

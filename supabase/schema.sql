@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS public.inmuebles (
   alquilado_por TEXT,
   captador_alquilado_por TEXT,
   status TEXT CHECK (status IN ('I', 'P', 'I-M')),
+  activo BOOLEAN NOT NULL DEFAULT true,
   row_color TEXT,
   tipo_operacion TEXT CHECK (tipo_operacion IN ('alquiler', 'venta')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

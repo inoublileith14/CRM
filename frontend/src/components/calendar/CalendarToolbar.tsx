@@ -29,6 +29,7 @@ type CalendarToolbarProps = {
   reconnectLabel: string;
   linkedAsLabel: string;
   canCreateEvents: boolean;
+  canManageConnection?: boolean;
   eventsLoading?: boolean;
   busy?: boolean;
   onToday: () => void;
@@ -61,6 +62,7 @@ export function CalendarToolbar({
   reconnectLabel,
   linkedAsLabel,
   canCreateEvents,
+  canManageConnection = true,
   eventsLoading = false,
   busy = false,
   onToday,
@@ -238,7 +240,7 @@ export function CalendarToolbar({
                   />
                   {refreshLabel}
                 </button>
-                {!canCreateEvents ? (
+                {!canCreateEvents && canManageConnection ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -251,6 +253,7 @@ export function CalendarToolbar({
                     {reconnectLabel}
                   </button>
                 ) : null}
+                {canManageConnection ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -262,6 +265,7 @@ export function CalendarToolbar({
                 >
                   {disconnectLabel}
                 </button>
+                ) : null}
               </div>
             ) : null}
           </div>

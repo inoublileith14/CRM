@@ -13,6 +13,7 @@ import {
   normalizeClienteTelefono,
 } from './cliente-duplicate.util';
 import { getDefaultClienteGestionEstado } from './cliente-gestion-estado';
+import { parseClienteEntradaPrevistaInput, normalizeClienteEntradaPrevista } from './cliente-entrada-prevista';
 import { BulkAssignInmuebleDto } from './dto/bulk-assign-inmueble.dto';
 import { BulkAssignWorkerDto } from './dto/bulk-assign-worker.dto';
 import {
@@ -143,10 +144,11 @@ export class ClientesService {
 
   async create(dto: CreateClienteDto): Promise<Cliente> {
     const { inmueble_ids, worker_ids, ...clienteData } = dto;
+    const payload = this.sanitizeClienteWriteData(clienteData);
 
     const duplicate = await this.findDuplicateByPhoneDateAndInmuebles(
-      clienteData.telefono,
-      clienteData.fecha_contacto,
+      payload.telefono,
+      payload.fecha_contacto,
       inmueble_ids ?? [],
     );
     if (duplicate) {
@@ -161,8 +163,8 @@ export class ClientesService {
       .getAdmin()
       .from('clientes')
       .insert({
-        ...clienteData,
-        estado: clienteData.estado ?? 'activo',
+        ...payload,
+        estado: payload.estado ?? 'activo',
       })
       .select(SELECT_FIELDS)
       .single();
@@ -180,11 +182,12 @@ export class ClientesService {
     await this.findOne(id);
 
     const { inmueble_ids, worker_ids, ...clienteData } = dto;
+    const payload = this.sanitizeClienteWriteData(clienteData);
 
     const { error } = await this.supabase
       .getAdmin()
       .from('clientes')
-      .update({ ...clienteData, updated_at: new Date().toISOString() })
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) {
@@ -1291,6 +1294,21 @@ export class ClientesService {
     return null;
   }
 
+  private sanitizeClienteWriteData<T extends { fecha_entrada_inmueble?: string | null }>(
+    data: T,
+  ): T {
+    if (data.fecha_entrada_inmueble === undefined) {
+      return data;
+    }
+
+    return {
+      ...data,
+      fecha_entrada_inmueble: parseClienteEntradaPrevistaInput(
+        data.fecha_entrada_inmueble,
+      ),
+    };
+  }
+
   private buildClienteInsertPayload(
     raw: BulkImportClienteItemDto,
     fixedTipo: 'alquiler' | 'venta' | null,
@@ -1354,6 +1372,9 @@ export class ClientesService {
 
     return {
       ...(rest as unknown as Cliente),
+      fecha_entrada_inmueble: normalizeClienteEntradaPrevista(
+        (rest.fecha_entrada_inmueble as string | null) ?? null,
+      ),
       inmueble_ids: clienteInmuebles.map((r) => r.inmueble_id),
       worker_ids: clienteWorkers.map((r) => r.worker_id),
       inmuebles_count: inmuebles?.length ?? 0,

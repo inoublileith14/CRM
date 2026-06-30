@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CalendarController = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const auth_roles_1 = require("../auth/auth-roles");
 const calendar_service_1 = require("./calendar.service");
 const create_calendar_event_dto_1 = require("./dto/create-calendar-event.dto");
 const update_calendar_event_dto_1 = require("./dto/update-calendar-event.dto");
@@ -22,6 +23,14 @@ let CalendarController = class CalendarController {
     calendarService;
     constructor(calendarService) {
         this.calendarService = calendarService;
+    }
+    assertCanManageCalendar(user) {
+        if (!(0, auth_roles_1.isAdminUser)(user.rol)) {
+            throw new common_1.ForbiddenException({
+                message: 'Solo un administrador puede gestionar la conexión de Google Calendar',
+                code: 'CALENDAR_ADMIN_ONLY',
+            });
+        }
     }
     async handleWebhook(headers) {
         await this.calendarService.handleWatchNotification(headers);
@@ -40,16 +49,18 @@ let CalendarController = class CalendarController {
         });
     }
     connect(req) {
+        this.assertCanManageCalendar(req.user);
         return this.calendarService.getConnectUrl(req.user.id);
     }
     callback(req, code, state) {
+        this.assertCanManageCalendar(req.user);
         if (!code || !state) {
             return { connected: false, error: 'missing_params' };
         }
         return this.calendarService.handleCallback(req.user.id, code, state);
     }
     status(req) {
-        return this.calendarService.getStatus(req.user.id);
+        return this.calendarService.getStatus(req.user.id, req.user.rol);
     }
     watchSupport() {
         return this.calendarService.getWatchSupport();
@@ -64,6 +75,7 @@ let CalendarController = class CalendarController {
         return this.calendarService.updateEvent(req.user.id, eventId, dto);
     }
     disconnect(req) {
+        this.assertCanManageCalendar(req.user);
         return this.calendarService.disconnect(req.user.id);
     }
 };

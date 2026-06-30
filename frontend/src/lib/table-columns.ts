@@ -5,7 +5,11 @@ import {
   formatClienteEntradaDate,
   resolveClienteEntradaIso,
 } from '@/lib/cliente-date-utils';
-import { getClienteTipoClienteLabel } from '@/lib/cliente-tipo';
+import {
+  formatClienteEntradaPrevistaLabel,
+  normalizeClienteEntradaPrevista,
+  CLIENTE_ENTRADA_PREVISTA_OPTIONS,
+} from '@/lib/cliente-entrada-prevista';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import {
   CLIENTE_ESTADO_LABELS,
@@ -228,8 +232,8 @@ export function buildInmuebleClienteTableColumns(
     },
     {
       key: 'fecha_contacto',
-      label: 'FECHA ENTRADA',
-      shortLabel: 'FECHA\nENTRADA',
+      label: 'FECHA PETICIÓN',
+      shortLabel: 'FECHA\nPETICIÓN',
       fieldType: 'date',
       getDisplayValue: (c) => formatClienteEntradaDate(c.fecha_contacto),
       getDateIso: (c) => resolveClienteEntradaIso(c.fecha_contacto),
@@ -291,24 +295,34 @@ export function buildVentaDenseClienteTableColumns(
       getDateIso: (cliente) => cliente.fecha_ultima_gestion ?? null,
     },
     {
-      key: 'fecha_entrada_peticion',
-      label: 'FECHA ENTRADA PETICIÓN',
-      shortLabel: 'ENTRADA',
-      headClassName: 'w-[4.25rem] text-center',
-      cellClassName: `w-[4.25rem] ${center}`,
+      key: 'fecha_peticion',
+      label: 'FECHA PETICIÓN',
+      shortLabel: 'FECHA\nPETICIÓN',
+      headClassName: 'w-[4.75rem] text-center',
+      cellClassName: `w-[4.75rem] ${center}`,
       fieldType: 'date',
       getDisplayValue: (cliente) => formatClienteEntradaDate(cliente.fecha_contacto),
       getDateIso: (cliente) => resolveClienteEntradaIso(cliente.fecha_contacto),
     },
     {
       key: 'fecha_entrada_inmueble',
-      label: 'FECHA ENTRADA INMUEBLE',
-      shortLabel: 'ENT. INM.',
-      headClassName: 'w-[4.25rem] text-center',
-      cellClassName: `w-[4.25rem] ${center}`,
-      fieldType: 'date',
-      getDisplayValue: (cliente) => formatClienteDate(cliente.fecha_entrada_inmueble),
-      getDateIso: (cliente) => cliente.fecha_entrada_inmueble ?? null,
+      label: 'ENTRADA PREVISTA CLIENTES',
+      shortLabel: 'ENTRADA\nPREVISTA\nCLIENTES',
+      headClassName: 'w-[6rem] min-w-[6rem] text-center',
+      cellClassName: `w-[6rem] min-w-[6rem] ${center}`,
+      fieldType: 'number',
+      getDisplayValue: (cliente) =>
+        formatClienteEntradaPrevistaLabel(cliente.fecha_entrada_inmueble),
+      getNumberValue: (cliente) => {
+        const value = normalizeClienteEntradaPrevista(
+          cliente.fecha_entrada_inmueble,
+        );
+        if (!value) return null;
+        const index = CLIENTE_ENTRADA_PREVISTA_OPTIONS.findIndex(
+          (option) => option.value === value,
+        );
+        return index >= 0 ? index : null;
+      },
     },
     {
       key: 'ref_cliente',

@@ -95,7 +95,11 @@ export function GestionCalendarEventDialog({
         clienteNotas,
       }),
     );
-    setLocation(inmuebleLabel?.trim() ?? '');
+    setLocation(
+      gestionEstado === 'videollamada'
+        ? ''
+        : (inmuebleLabel?.trim() ?? ''),
+    );
     setDate(formatDateInputValue(defaultStart));
     setStartTime(formatTimeInputValue(defaultStart));
     setEndTime(formatTimeInputValue(defaultEnd));
@@ -220,14 +224,18 @@ export function GestionCalendarEventDialog({
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Ubicación
+                {gestionEstado === 'videollamada' ? 'Enlace / notas' : 'Ubicación'}
               </span>
               <input
                 type="text"
                 value={location}
                 onChange={(event) => setLocation(event.target.value)}
                 disabled={loading}
-                placeholder="Dirección del inmueble"
+                placeholder={
+                  gestionEstado === 'videollamada'
+                    ? 'Enlace Meet, Zoom…'
+                    : 'Dirección del inmueble'
+                }
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
               />
             </label>
@@ -319,14 +327,14 @@ export function GestionCalendarEventDialog({
               </label>
             ) : calendarConnected ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Google Calendar está conectado solo con permiso de lectura. Ve a
-                Ajustes → Google Calendar → <strong>Reconectar</strong> y acepta
-                los permisos para crear eventos.
+                El calendario de la agencia está conectado solo con permiso de
+                lectura. Un administrador debe reconectar Google Calendar con
+                permiso de escritura.
               </p>
             ) : (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 Google Calendar no está conectado. Se guardará la gestión sin
-                crear evento. Conéctalo en Ajustes o Calendario.
+                crear evento. Un administrador debe conectarlo en Ajustes.
               </p>
             )}
           </div>

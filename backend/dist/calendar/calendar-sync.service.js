@@ -50,6 +50,11 @@ let CalendarSyncService = CalendarSyncService_1 = class CalendarSyncService {
             }
         }
     }
+    notifyAll() {
+        for (const userId of this.subscribers.keys()) {
+            this.notifyUser(userId);
+        }
+    }
     removeSubscriber(userId, subscriber) {
         clearInterval(subscriber.heartbeat);
         const bucket = this.subscribers.get(userId);
