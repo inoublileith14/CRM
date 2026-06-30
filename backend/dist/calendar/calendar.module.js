@@ -10,14 +10,15 @@ exports.CalendarModule = void 0;
 const common_1 = require("@nestjs/common");
 const calendar_controller_1 = require("./calendar.controller");
 const calendar_service_1 = require("./calendar.service");
+const calendar_sync_service_1 = require("./calendar-sync.service");
 let CalendarModule = class CalendarModule {
 };
 exports.CalendarModule = CalendarModule;
 exports.CalendarModule = CalendarModule = __decorate([
     (0, common_1.Module)({
         controllers: [calendar_controller_1.CalendarController],
-        providers: [calendar_service_1.CalendarService],
-        exports: [calendar_service_1.CalendarService],
+        providers: [calendar_service_1.CalendarService, calendar_sync_service_1.CalendarSyncService],
+        exports: [calendar_service_1.CalendarService, calendar_sync_service_1.CalendarSyncService],
     })
 ], CalendarModule);
 //# sourceMappingURL=calendar.module.js.map

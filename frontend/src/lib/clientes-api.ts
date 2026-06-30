@@ -1,4 +1,4 @@
-import { Cliente, ClienteFormData } from '@/types/cliente';
+import { Cliente, ClienteFormData, ClientePerfil, ClientePerfilInput } from '@/types/cliente';
 import { TipoOperacion } from '@/types/inmueble';
 import { parseApiResponse } from './parse-api-error';
 import { ApiError } from './api';
@@ -174,4 +174,30 @@ export function deleteCliente(id: string): Promise<{ mensaje: string }> {
   return request<{ mensaje: string }>(`/api/clientes/${id}`, {
     method: 'DELETE',
   });
+}
+
+export function createClientePerfil(
+  clienteId: string,
+  data: Partial<ClientePerfilInput>,
+): Promise<ClientePerfil> {
+  return request<ClientePerfil>(`/api/clientes/${clienteId}/perfiles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateClientePerfil(
+  clienteId: string,
+  perfilId: string,
+  data: Partial<ClientePerfilInput>,
+): Promise<ClientePerfil> {
+  return request<ClientePerfil>(
+    `/api/clientes/${clienteId}/perfiles/${perfilId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+  );
 }

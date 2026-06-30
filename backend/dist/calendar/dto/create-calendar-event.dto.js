@@ -9,6 +9,7 @@ class CreateCalendarEventDto {
     end;
     timeZone;
     colorId;
+    allDay;
 }
 exports.CreateCalendarEventDto = CreateCalendarEventDto;
 //# sourceMappingURL=create-calendar-event.dto.js.map

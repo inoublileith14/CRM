@@ -6,4 +6,5 @@ export declare class CreateCalendarEventDto {
     end: string;
     timeZone?: string;
     colorId?: string;
+    allDay?: boolean;
 }

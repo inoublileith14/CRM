@@ -1,5 +1,6 @@
 import { Inmueble } from '../../inmuebles/interfaces/inmueble.interface';
 import { Worker } from '../../workers/interfaces/worker.interface';
+import { ClientePerfil } from './cliente-perfil.interface';
 
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
@@ -58,6 +59,7 @@ export interface Cliente {
     gestion_estado: ClienteGestionEstado | null;
     fecha_ultima_gestion?: string | null;
   }>;
+  perfiles?: ClientePerfil[];
 }
 
 export type ClienteInput = Omit<

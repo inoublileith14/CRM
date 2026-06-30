@@ -3,8 +3,11 @@ import { BulkAssignInmuebleDto } from './dto/bulk-assign-inmueble.dto';
 import { BulkAssignWorkerDto } from './dto/bulk-assign-worker.dto';
 import { BulkImportClientesDto } from './dto/bulk-import-clientes.dto';
 import { CreateClienteDto } from './dto/create-cliente.dto';
+import { CreateClientePerfilDto } from './dto/create-cliente-perfil.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { UpdateClientePerfilDto } from './dto/update-cliente-perfil.dto';
 import { Cliente } from './interfaces/cliente.interface';
+import { ClientePerfil } from './interfaces/cliente-perfil.interface';
 export declare class ClientesService {
     private supabase;
     private readonly logger;
@@ -13,6 +16,9 @@ export declare class ClientesService {
     findOne(id: string): Promise<Cliente>;
     create(dto: CreateClienteDto): Promise<Cliente>;
     update(id: string, dto: UpdateClienteDto): Promise<Cliente>;
+    createPerfil(clienteId: string, dto: CreateClientePerfilDto): Promise<ClientePerfil>;
+    updatePerfil(clienteId: string, perfilId: string, dto: UpdateClientePerfilDto): Promise<ClientePerfil>;
+    removePerfil(clienteId: string, perfilId: string): Promise<void>;
     bulkAssignWorker(dto: BulkAssignWorkerDto): Promise<{
         assigned: number;
     }>;
@@ -42,4 +48,5 @@ export declare class ClientesService {
     private findDuplicateByPhoneDateAndInmuebles;
     private buildClienteInsertPayload;
     private mapCliente;
+    private mapPerfil;
 }

@@ -17,15 +17,18 @@ function normalizePhoneDigits(value: string | null | undefined): string {
 export function hasActiveClienteGlobalTextFilters(
   filters: ClienteGlobalTextFilters,
 ): boolean {
-  return filters.nombre.trim() !== '' || filters.telefono.trim() !== '';
+  return (
+    (filters.nombre ?? '').trim() !== '' ||
+    (filters.telefono ?? '').trim() !== ''
+  );
 }
 
 export function filterClienteLinkRowsByText(
   rows: InmuebleClienteLinkRow[],
   filters: ClienteGlobalTextFilters,
 ): InmuebleClienteLinkRow[] {
-  const nombreQuery = filters.nombre.trim().toLowerCase();
-  const phoneDigits = normalizePhoneDigits(filters.telefono.trim());
+  const nombreQuery = (filters.nombre ?? '').trim().toLowerCase();
+  const phoneDigits = normalizePhoneDigits((filters.telefono ?? '').trim());
 
   if (!nombreQuery && phoneDigits.length === 0) {
     return rows;

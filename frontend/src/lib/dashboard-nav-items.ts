@@ -1,5 +1,6 @@
 import {
   Building2,
+  CalendarDays,
   Home,
   KeyRound,
   LayoutDashboard,
@@ -102,6 +103,12 @@ export const dashboardNavEntries: DashboardNavEntry[] = [
     href: '/dashboard/whatsapp',
     labelKey: 'nav.whatsapp',
     icon: MessageSquare,
+  },
+  {
+    type: 'link',
+    href: '/dashboard/calendar',
+    labelKey: 'nav.calendar',
+    icon: CalendarDays,
   },
 ];
 

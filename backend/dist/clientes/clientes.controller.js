@@ -24,7 +24,9 @@ const bulk_assign_worker_dto_1 = require("./dto/bulk-assign-worker.dto");
 const bulk_unassign_worker_dto_1 = require("./dto/bulk-unassign-worker.dto");
 const bulk_import_clientes_dto_1 = require("./dto/bulk-import-clientes.dto");
 const create_cliente_dto_1 = require("./dto/create-cliente.dto");
+const create_cliente_perfil_dto_1 = require("./dto/create-cliente-perfil.dto");
 const update_cliente_dto_1 = require("./dto/update-cliente.dto");
+const update_cliente_perfil_dto_1 = require("./dto/update-cliente-perfil.dto");
 const IMPORT_FILE_LIMIT_BYTES = 50 * 1024 * 1024;
 let ClientesController = class ClientesController {
     clientesService;
@@ -72,6 +74,15 @@ let ClientesController = class ClientesController {
     }
     update(id, dto) {
         return this.clientesService.update(id, dto);
+    }
+    createPerfil(id, dto) {
+        return this.clientesService.createPerfil(id, dto);
+    }
+    updatePerfil(id, perfilId, dto) {
+        return this.clientesService.updatePerfil(id, perfilId, dto);
+    }
+    removePerfil(id, perfilId) {
+        return this.clientesService.removePerfil(id, perfilId);
     }
     remove(id) {
         return this.clientesService.remove(id);
@@ -159,6 +170,31 @@ __decorate([
     __metadata("design:paramtypes", [String, update_cliente_dto_1.UpdateClienteDto]),
     __metadata("design:returntype", void 0)
 ], ClientesController.prototype, "update", null);
+__decorate([
+    (0, common_1.Post)(':id/perfiles'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, create_cliente_perfil_dto_1.CreateClientePerfilDto]),
+    __metadata("design:returntype", void 0)
+], ClientesController.prototype, "createPerfil", null);
+__decorate([
+    (0, common_1.Patch)(':id/perfiles/:perfilId'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('perfilId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, update_cliente_perfil_dto_1.UpdateClientePerfilDto]),
+    __metadata("design:returntype", void 0)
+], ClientesController.prototype, "updatePerfil", null);
+__decorate([
+    (0, common_1.Delete)(':id/perfiles/:perfilId'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('perfilId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], ClientesController.prototype, "removePerfil", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),

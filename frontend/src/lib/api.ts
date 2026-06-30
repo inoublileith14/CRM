@@ -41,7 +41,8 @@ export type AuthErrorCode =
   | 'NETWORK_ERROR'
   | 'SERVER_ERROR'
   | 'UNKNOWN_ERROR'
-  | 'CLIENTE_DUPLICATE';
+  | 'CLIENTE_DUPLICATE'
+  | 'CALENDAR_SCOPE_INSUFFICIENT';
 
 export class ApiError extends Error {
   constructor(

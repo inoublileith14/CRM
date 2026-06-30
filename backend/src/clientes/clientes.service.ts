@@ -22,8 +22,11 @@ import {
 import { enrichClienteImportRow } from './enrich-import-cliente.util';
 import { findInmuebleIdByClienteRef } from './match-inmueble-ref.util';
 import { CreateClienteDto } from './dto/create-cliente.dto';
+import { CreateClientePerfilDto } from './dto/create-cliente-perfil.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { UpdateClientePerfilDto } from './dto/update-cliente-perfil.dto';
 import { Cliente } from './interfaces/cliente.interface';
+import { ClientePerfil } from './interfaces/cliente-perfil.interface';
 
 const SELECT_FIELDS = `
   id,
@@ -55,7 +58,23 @@ const SELECT_FIELDS = `
 const RELATIONS_SELECT = `
   ${SELECT_FIELDS},
   cliente_inmuebles(inmueble_id, inmuebles(*)),
-  cliente_workers(worker_id, workers(*))
+  cliente_workers(worker_id, workers(*)),
+  cliente_perfiles(id, cliente_id, orden, nombre, telefono, tipo_nomina, tipo_ingreso, ingreso_monto, pais, notas, created_at, updated_at)
+`;
+
+const PERFIL_SELECT = `
+  id,
+  cliente_id,
+  orden,
+  nombre,
+  telefono,
+  tipo_nomina,
+  tipo_ingreso,
+  ingreso_monto,
+  pais,
+  notas,
+  created_at,
+  updated_at
 `;
 
 async function fetchAll<T>(
@@ -185,6 +204,137 @@ export class ClientesService {
     }
 
     return this.findOne(id);
+  }
+
+  async createPerfil(
+    clienteId: string,
+    dto: CreateClientePerfilDto,
+  ): Promise<ClientePerfil> {
+    await this.findOne(clienteId);
+
+    const admin = this.supabase.getAdmin();
+    const { data: existing, error: listError } = await admin
+      .from('cliente_perfiles')
+      .select('orden')
+      .eq('cliente_id', clienteId)
+      .order('orden', { ascending: true });
+
+    if (listError) {
+      this.logger.error(
+        `Error al listar perfiles de ${clienteId}: ${listError.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudieron cargar los perfiles del cliente',
+      );
+    }
+
+    const usedOrders = new Set(
+      (existing ?? []).map((row) => row.orden as number),
+    );
+    let orden = dto.orden ?? 1;
+    if (usedOrders.has(orden)) {
+      orden =
+        [...usedOrders].reduce((max, value) => Math.max(max, value), 0) + 1;
+    }
+
+    const { data, error } = await admin
+      .from('cliente_perfiles')
+      .insert({
+        cliente_id: clienteId,
+        orden,
+        nombre: dto.nombre ?? null,
+        telefono: dto.telefono ?? null,
+        tipo_nomina: dto.tipo_nomina ?? null,
+        tipo_ingreso: dto.tipo_ingreso ?? null,
+        ingreso_monto: dto.ingreso_monto ?? null,
+        pais: dto.pais ?? null,
+        notas: dto.notas ?? null,
+      })
+      .select(PERFIL_SELECT)
+      .single();
+
+    if (error) {
+      this.logger.error(
+        `Error al crear perfil de ${clienteId}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo crear el perfil del cliente',
+      );
+    }
+
+    return this.mapPerfil(data);
+  }
+
+  async updatePerfil(
+    clienteId: string,
+    perfilId: string,
+    dto: UpdateClientePerfilDto,
+  ): Promise<ClientePerfil> {
+    await this.findOne(clienteId);
+
+    const { data: current, error: findError } = await this.supabase
+      .getAdmin()
+      .from('cliente_perfiles')
+      .select(PERFIL_SELECT)
+      .eq('id', perfilId)
+      .eq('cliente_id', clienteId)
+      .maybeSingle();
+
+    if (findError) {
+      this.logger.error(
+        `Error al buscar perfil ${perfilId}: ${findError.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo cargar el perfil del cliente',
+      );
+    }
+
+    if (!current) {
+      throw new NotFoundException('Perfil no encontrado');
+    }
+
+    const { data, error } = await this.supabase
+      .getAdmin()
+      .from('cliente_perfiles')
+      .update({
+        ...dto,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', perfilId)
+      .eq('cliente_id', clienteId)
+      .select(PERFIL_SELECT)
+      .single();
+
+    if (error) {
+      this.logger.error(
+        `Error al actualizar perfil ${perfilId}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo actualizar el perfil del cliente',
+      );
+    }
+
+    return this.mapPerfil(data);
+  }
+
+  async removePerfil(clienteId: string, perfilId: string): Promise<void> {
+    await this.findOne(clienteId);
+
+    const { error } = await this.supabase
+      .getAdmin()
+      .from('cliente_perfiles')
+      .delete()
+      .eq('id', perfilId)
+      .eq('cliente_id', clienteId);
+
+    if (error) {
+      this.logger.error(
+        `Error al eliminar perfil ${perfilId}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo eliminar el perfil del cliente',
+      );
+    }
   }
 
   async bulkAssignWorker(
@@ -1180,6 +1330,10 @@ export class ClientesService {
       worker_id: string;
       workers: Cliente['workers'] extends (infer U)[] | undefined ? U : never;
     }>;
+    const clientePerfiles = (row.cliente_perfiles ?? []) as Record<
+      string,
+      unknown
+    >[];
 
     const inmuebles = clienteInmuebles
       .map((r) => r.inmuebles)
@@ -1187,10 +1341,14 @@ export class ClientesService {
     const workers = clienteWorkers
       .map((r) => r.workers)
       .filter(Boolean) as Cliente['workers'];
+    const perfiles = clientePerfiles
+      .map((perfil) => this.mapPerfil(perfil))
+      .sort((a, b) => a.orden - b.orden);
 
     const {
       cliente_inmuebles: _ci,
       cliente_workers: _cw,
+      cliente_perfiles: _cp,
       ...rest
     } = row;
 
@@ -1202,6 +1360,25 @@ export class ClientesService {
       workers_count: workers?.length ?? 0,
       inmuebles,
       workers,
+      perfiles,
+    };
+  }
+
+  private mapPerfil(row: Record<string, unknown>): ClientePerfil {
+    return {
+      id: String(row.id),
+      cliente_id: String(row.cliente_id),
+      orden: Number(row.orden),
+      nombre: (row.nombre as string | null) ?? null,
+      telefono: (row.telefono as string | null) ?? null,
+      tipo_nomina: (row.tipo_nomina as string | null) ?? null,
+      tipo_ingreso: (row.tipo_ingreso as string | null) ?? null,
+      ingreso_monto:
+        row.ingreso_monto == null ? null : Number(row.ingreso_monto),
+      pais: (row.pais as string | null) ?? null,
+      notas: (row.notas as string | null) ?? null,
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
     };
   }
 }

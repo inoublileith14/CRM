@@ -33,6 +33,9 @@ export const queryKeys = {
   },
   calendar: {
     status: ['calendar', 'status'] as const,
-    events: ['calendar', 'events'] as const,
+    events: (range?: { from: string; to: string }) =>
+      range
+        ? (['calendar', 'events', range.from, range.to] as const)
+        : (['calendar', 'events'] as const),
   },
 };

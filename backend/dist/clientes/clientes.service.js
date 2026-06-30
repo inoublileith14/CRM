@@ -46,7 +46,22 @@ const SELECT_FIELDS = `
 const RELATIONS_SELECT = `
   ${SELECT_FIELDS},
   cliente_inmuebles(inmueble_id, inmuebles(*)),
-  cliente_workers(worker_id, workers(*))
+  cliente_workers(worker_id, workers(*)),
+  cliente_perfiles(id, cliente_id, orden, nombre, telefono, tipo_nomina, tipo_ingreso, ingreso_monto, pais, notas, created_at, updated_at)
+`;
+const PERFIL_SELECT = `
+  id,
+  cliente_id,
+  orden,
+  nombre,
+  telefono,
+  tipo_nomina,
+  tipo_ingreso,
+  ingreso_monto,
+  pais,
+  notas,
+  created_at,
+  updated_at
 `;
 async function fetchAll(queryFactory, pageSize = 1000) {
     const all = [];
@@ -142,6 +157,91 @@ let ClientesService = ClientesService_1 = class ClientesService {
             await this.syncRelations(id, inmueble_ids ?? current.inmueble_ids ?? [], worker_ids ?? current.worker_ids ?? []);
         }
         return this.findOne(id);
+    }
+    async createPerfil(clienteId, dto) {
+        await this.findOne(clienteId);
+        const admin = this.supabase.getAdmin();
+        const { data: existing, error: listError } = await admin
+            .from('cliente_perfiles')
+            .select('orden')
+            .eq('cliente_id', clienteId)
+            .order('orden', { ascending: true });
+        if (listError) {
+            this.logger.error(`Error al listar perfiles de ${clienteId}: ${listError.message}`);
+            throw new common_1.InternalServerErrorException('No se pudieron cargar los perfiles del cliente');
+        }
+        const usedOrders = new Set((existing ?? []).map((row) => row.orden));
+        let orden = dto.orden ?? 1;
+        if (usedOrders.has(orden)) {
+            orden =
+                [...usedOrders].reduce((max, value) => Math.max(max, value), 0) + 1;
+        }
+        const { data, error } = await admin
+            .from('cliente_perfiles')
+            .insert({
+            cliente_id: clienteId,
+            orden,
+            nombre: dto.nombre ?? null,
+            telefono: dto.telefono ?? null,
+            tipo_nomina: dto.tipo_nomina ?? null,
+            tipo_ingreso: dto.tipo_ingreso ?? null,
+            ingreso_monto: dto.ingreso_monto ?? null,
+            pais: dto.pais ?? null,
+            notas: dto.notas ?? null,
+        })
+            .select(PERFIL_SELECT)
+            .single();
+        if (error) {
+            this.logger.error(`Error al crear perfil de ${clienteId}: ${error.message}`);
+            throw new common_1.InternalServerErrorException('No se pudo crear el perfil del cliente');
+        }
+        return this.mapPerfil(data);
+    }
+    async updatePerfil(clienteId, perfilId, dto) {
+        await this.findOne(clienteId);
+        const { data: current, error: findError } = await this.supabase
+            .getAdmin()
+            .from('cliente_perfiles')
+            .select(PERFIL_SELECT)
+            .eq('id', perfilId)
+            .eq('cliente_id', clienteId)
+            .maybeSingle();
+        if (findError) {
+            this.logger.error(`Error al buscar perfil ${perfilId}: ${findError.message}`);
+            throw new common_1.InternalServerErrorException('No se pudo cargar el perfil del cliente');
+        }
+        if (!current) {
+            throw new common_1.NotFoundException('Perfil no encontrado');
+        }
+        const { data, error } = await this.supabase
+            .getAdmin()
+            .from('cliente_perfiles')
+            .update({
+            ...dto,
+            updated_at: new Date().toISOString(),
+        })
+            .eq('id', perfilId)
+            .eq('cliente_id', clienteId)
+            .select(PERFIL_SELECT)
+            .single();
+        if (error) {
+            this.logger.error(`Error al actualizar perfil ${perfilId}: ${error.message}`);
+            throw new common_1.InternalServerErrorException('No se pudo actualizar el perfil del cliente');
+        }
+        return this.mapPerfil(data);
+    }
+    async removePerfil(clienteId, perfilId) {
+        await this.findOne(clienteId);
+        const { error } = await this.supabase
+            .getAdmin()
+            .from('cliente_perfiles')
+            .delete()
+            .eq('id', perfilId)
+            .eq('cliente_id', clienteId);
+        if (error) {
+            this.logger.error(`Error al eliminar perfil ${perfilId}: ${error.message}`);
+            throw new common_1.InternalServerErrorException('No se pudo eliminar el perfil del cliente');
+        }
     }
     async bulkAssignWorker(dto) {
         const { worker_id: workerId, assignments } = dto;
@@ -747,13 +847,17 @@ let ClientesService = ClientesService_1 = class ClientesService {
     mapCliente(row) {
         const clienteInmuebles = (row.cliente_inmuebles ?? []);
         const clienteWorkers = (row.cliente_workers ?? []);
+        const clientePerfiles = (row.cliente_perfiles ?? []);
         const inmuebles = clienteInmuebles
             .map((r) => r.inmuebles)
             .filter(Boolean);
         const workers = clienteWorkers
             .map((r) => r.workers)
             .filter(Boolean);
-        const { cliente_inmuebles: _ci, cliente_workers: _cw, ...rest } = row;
+        const perfiles = clientePerfiles
+            .map((perfil) => this.mapPerfil(perfil))
+            .sort((a, b) => a.orden - b.orden);
+        const { cliente_inmuebles: _ci, cliente_workers: _cw, cliente_perfiles: _cp, ...rest } = row;
         return {
             ...rest,
             inmueble_ids: clienteInmuebles.map((r) => r.inmueble_id),
@@ -762,6 +866,23 @@ let ClientesService = ClientesService_1 = class ClientesService {
             workers_count: workers?.length ?? 0,
             inmuebles,
             workers,
+            perfiles,
+        };
+    }
+    mapPerfil(row) {
+        return {
+            id: String(row.id),
+            cliente_id: String(row.cliente_id),
+            orden: Number(row.orden),
+            nombre: row.nombre ?? null,
+            telefono: row.telefono ?? null,
+            tipo_nomina: row.tipo_nomina ?? null,
+            tipo_ingreso: row.tipo_ingreso ?? null,
+            ingreso_monto: row.ingreso_monto == null ? null : Number(row.ingreso_monto),
+            pais: row.pais ?? null,
+            notas: row.notas ?? null,
+            created_at: String(row.created_at),
+            updated_at: String(row.updated_at),
         };
     }
 };

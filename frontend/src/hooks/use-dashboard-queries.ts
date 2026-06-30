@@ -23,6 +23,10 @@ import {
 } from '@/lib/whatsapp-inbox-api';
 import { TipoOperacion } from '@/types/inmueble';
 import { ClientesByTipoListParams } from '@/types/clientes-by-tipo-page';
+import {
+  CalendarEventItem,
+  CalendarEventsRange,
+} from '@/types/calendar';
 
 const defaultQueryOptions = {
   gcTime: QUERY_GC_TIME,
@@ -43,19 +47,19 @@ async function fetchCalendarStatus() {
   };
 }
 
-async function fetchCalendarEvents() {
-  const res = await fetch('/api/calendar/events', { cache: 'no-store' });
+async function fetchCalendarEvents(
+  range: CalendarEventsRange,
+): Promise<CalendarEventItem[]> {
+  const params = new URLSearchParams({
+    from: range.from,
+    to: range.to,
+  });
+  const res = await fetch(`/api/calendar/events?${params.toString()}`, {
+    cache: 'no-store',
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? 'Error al cargar eventos');
-  return data as Array<{
-    id: string;
-    title: string;
-    start: string;
-    end: string | null;
-    allDay: boolean;
-    location: string | null;
-    htmlLink: string | null;
-  }>;
+  return data as CalendarEventItem[];
 }
 
 export function useAuthMeQuery() {
@@ -189,12 +193,18 @@ export function useCalendarStatusQuery(enabled = true) {
   });
 }
 
-export function useCalendarEventsQuery(connected: boolean) {
+export function useCalendarEventsQuery(
+  connected: boolean,
+  range: CalendarEventsRange | null,
+  options?: { refetchIntervalMs?: number },
+) {
   return useQuery({
-    queryKey: queryKeys.calendar.events,
-    queryFn: fetchCalendarEvents,
+    queryKey: queryKeys.calendar.events(range ?? undefined),
+    queryFn: () => fetchCalendarEvents(range!),
     staleTime: QUERY_STALE_TIME.calendar,
-    enabled: connected,
+    refetchInterval: options?.refetchIntervalMs,
+    enabled: connected && Boolean(range),
+    placeholderData: (previousData) => previousData,
     ...defaultQueryOptions,
   });
 }

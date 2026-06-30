@@ -20,7 +20,9 @@ import { BulkAssignWorkerDto } from './dto/bulk-assign-worker.dto';
 import { BulkUnassignWorkerDto } from './dto/bulk-unassign-worker.dto';
 import { BulkImportClientesDto } from './dto/bulk-import-clientes.dto';
 import { CreateClienteDto } from './dto/create-cliente.dto';
+import { CreateClientePerfilDto } from './dto/create-cliente-perfil.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { UpdateClientePerfilDto } from './dto/update-cliente-perfil.dto';
 
 const IMPORT_FILE_LIMIT_BYTES = 50 * 1024 * 1024;
 
@@ -107,6 +109,31 @@ export class ClientesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateClienteDto) {
     return this.clientesService.update(id, dto);
+  }
+
+  @Post(':id/perfiles')
+  createPerfil(
+    @Param('id') id: string,
+    @Body() dto: CreateClientePerfilDto,
+  ) {
+    return this.clientesService.createPerfil(id, dto);
+  }
+
+  @Patch(':id/perfiles/:perfilId')
+  updatePerfil(
+    @Param('id') id: string,
+    @Param('perfilId') perfilId: string,
+    @Body() dto: UpdateClientePerfilDto,
+  ) {
+    return this.clientesService.updatePerfil(id, perfilId, dto);
+  }
+
+  @Delete(':id/perfiles/:perfilId')
+  removePerfil(
+    @Param('id') id: string,
+    @Param('perfilId') perfilId: string,
+  ) {
+    return this.clientesService.removePerfil(id, perfilId);
   }
 
   @Delete(':id')

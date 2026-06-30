@@ -3,6 +3,26 @@ import type { ClienteTipoCliente } from '@/lib/cliente-tipo';
 import { Inmueble, TipoOperacion } from '@/types/inmueble';
 import { Worker } from '@/types/worker';
 
+export interface ClientePerfil {
+  id: string;
+  cliente_id: string;
+  orden: number;
+  nombre: string | null;
+  telefono: string | null;
+  tipo_nomina: string | null;
+  tipo_ingreso: string | null;
+  ingreso_monto: number | null;
+  pais: string | null;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ClientePerfilInput = Omit<
+  ClientePerfil,
+  'id' | 'cliente_id' | 'created_at' | 'updated_at'
+>;
+
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
 export type { ClienteGestionEstado, ClienteTipoCliente };
@@ -44,6 +64,7 @@ export interface Cliente {
     gestion_estado: ClienteGestionEstado | null;
     fecha_ultima_gestion?: string | null;
   }>;
+  perfiles?: ClientePerfil[];
 }
 
 export type ClienteFormData = {

@@ -7,6 +7,9 @@ export interface UserGoogleCalendarRow {
     calendar_id: string;
     connected_at: string;
     updated_at: string;
+    watch_channel_id: string | null;
+    watch_resource_id: string | null;
+    watch_expiration_ms: number | null;
 }
 export interface GoogleTokenResponse {
     access_token: string;
@@ -25,11 +28,15 @@ export interface CalendarConnectionStatus {
 export interface CalendarEventItem {
     id: string;
     title: string;
+    description: string | null;
     start: string;
     end: string | null;
     allDay: boolean;
     location: string | null;
     htmlLink: string | null;
+    backgroundColor: string | null;
+    foregroundColor: string | null;
+    colorId: string | null;
 }
 export interface CreateCalendarEventResult {
     id: string;

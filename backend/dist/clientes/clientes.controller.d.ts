@@ -6,7 +6,9 @@ import { BulkAssignWorkerDto } from './dto/bulk-assign-worker.dto';
 import { BulkUnassignWorkerDto } from './dto/bulk-unassign-worker.dto';
 import { BulkImportClientesDto } from './dto/bulk-import-clientes.dto';
 import { CreateClienteDto } from './dto/create-cliente.dto';
+import { CreateClientePerfilDto } from './dto/create-cliente-perfil.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { UpdateClientePerfilDto } from './dto/update-cliente-perfil.dto';
 export declare class ClientesController {
     private clientesService;
     private clienteImportService;
@@ -42,6 +44,9 @@ export declare class ClientesController {
     findOne(id: string): Promise<import("./interfaces/cliente.interface").Cliente>;
     create(dto: CreateClienteDto): Promise<import("./interfaces/cliente.interface").Cliente>;
     update(id: string, dto: UpdateClienteDto): Promise<import("./interfaces/cliente.interface").Cliente>;
+    createPerfil(id: string, dto: CreateClientePerfilDto): Promise<import("./interfaces/cliente-perfil.interface").ClientePerfil>;
+    updatePerfil(id: string, perfilId: string, dto: UpdateClientePerfilDto): Promise<import("./interfaces/cliente-perfil.interface").ClientePerfil>;
+    removePerfil(id: string, perfilId: string): Promise<void>;
     remove(id: string): Promise<{
         mensaje: string;
     }>;

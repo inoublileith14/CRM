@@ -32,8 +32,8 @@ export const EMPTY_VENTA_RANGE_FILTERS: VentaRangeFilters = {
   distrito: '',
 };
 
-function parseIntegerInput(value: string): number | null {
-  const trimmed = value.trim();
+function parseIntegerInput(value: string | undefined): number | null {
+  const trimmed = (value ?? '').trim();
   if (!trimmed) return null;
   const n = Number(trimmed.replace(',', '.'));
   return Number.isFinite(n) ? n : null;
@@ -64,15 +64,15 @@ export function parseBudgetAmount(
   return n;
 }
 
-function parseBudgetFilterInput(value: string): number | null {
-  if (!value.trim()) return null;
+function parseBudgetFilterInput(value: string | undefined): number | null {
+  if (!(value ?? '').trim()) return null;
   return parseBudgetAmount(value);
 }
 
 function matchesRange(
   value: number | null,
-  minRaw: string,
-  maxRaw: string,
+  minRaw: string | undefined,
+  maxRaw: string | undefined,
 ): boolean {
   const min = parseIntegerInput(minRaw);
   const max = parseIntegerInput(maxRaw);
@@ -86,8 +86,8 @@ function matchesRange(
 
 function matchesBudgetRange(
   value: number | null,
-  minRaw: string,
-  maxRaw: string,
+  minRaw: string | undefined,
+  maxRaw: string | undefined,
 ): boolean {
   const min = parseBudgetFilterInput(minRaw);
   const max = parseBudgetFilterInput(maxRaw);
@@ -102,7 +102,7 @@ function matchesBudgetRange(
 export function hasActiveVentaRangeFilters(
   filters: VentaRangeFilters,
 ): boolean {
-  return Object.values(filters).some((value) => value.trim() !== '');
+  return Object.values(filters).some((value) => (value ?? '').trim() !== '');
 }
 
 export function filterRowsByVentaRange(
@@ -160,7 +160,7 @@ export function filterRowsByVentaRange(
       return false;
     }
 
-    const barrioQuery = filters.barrio.trim().toLowerCase();
+    const barrioQuery = (filters.barrio ?? '').trim().toLowerCase();
     if (barrioQuery) {
       const barrioValue = (
         cliente.barrio ??
@@ -172,7 +172,7 @@ export function filterRowsByVentaRange(
       }
     }
 
-    const distritoQuery = filters.distrito.trim().toLowerCase();
+    const distritoQuery = (filters.distrito ?? '').trim().toLowerCase();
     if (distritoQuery) {
       const distritoValue = (cliente.distrito ?? '').toLowerCase();
       if (!distritoValue.includes(distritoQuery)) {
@@ -238,7 +238,7 @@ export function filterClientesByVentaRange(
       return false;
     }
 
-    const barrioQuery = filters.barrio.trim().toLowerCase();
+    const barrioQuery = (filters.barrio ?? '').trim().toLowerCase();
     if (barrioQuery) {
       const barrioValue = (
         cliente.barrio ??
@@ -250,7 +250,7 @@ export function filterClientesByVentaRange(
       }
     }
 
-    const distritoQuery = filters.distrito.trim().toLowerCase();
+    const distritoQuery = (filters.distrito ?? '').trim().toLowerCase();
     if (distritoQuery) {
       const distritoValue = (cliente.distrito ?? '').toLowerCase();
       if (!distritoValue.includes(distritoQuery)) {

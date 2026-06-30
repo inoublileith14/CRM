@@ -146,7 +146,15 @@ export function InmuebleClientesGeneralPageContent({
     `${buildTableStateKey(pathname, expectedTipo)}:clientes-general`,
     DEFAULT_CLIENTES_GENERAL_LIST_STATE,
   );
-  const { page, tableSort, ventaRangeFilters, textFilters } = listState;
+  const { page, tableSort } = listState;
+  const ventaRangeFilters = {
+    ...EMPTY_VENTA_RANGE_FILTERS,
+    ...(listState.ventaRangeFilters ?? {}),
+  };
+  const textFilters = {
+    ...EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
+    ...(listState.textFilters ?? {}),
+  };
   const pageSize = resolveClientesGeneralPageSize(listState.pageSize);
 
   const setPage = useCallback((value: number) => {
@@ -841,14 +849,14 @@ export function InmuebleClientesGeneralPageContent({
                             key={col.key}
                             label={col.label}
                             shortLabel={col.shortLabel}
-                            value={textFilters[filterKey]}
+                            value={textFilters[filterKey] ?? ''}
                             placeholder={
                               col.key === 'nombre'
                                 ? 'Buscar nombre…'
                                 : 'Buscar teléfono…'
                             }
                             isOpen={openTextFilterColumn === filterKey}
-                            isFilterActive={textFilters[filterKey].trim() !== ''}
+                            isFilterActive={(textFilters[filterKey] ?? '').trim() !== ''}
                             onOpenChange={(open) =>
                               setOpenTextFilterColumn(open ? filterKey : null)
                             }

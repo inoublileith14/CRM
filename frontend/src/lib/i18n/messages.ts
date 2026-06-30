@@ -34,6 +34,37 @@ export type MessageKey =
   | 'calendar.loadingEvents'
   | 'calendar.noEvents'
   | 'calendar.openInGoogle'
+  | 'calendar.viewGrid'
+  | 'calendar.viewList'
+  | 'calendar.viewMonth'
+  | 'calendar.viewWeek'
+  | 'calendar.viewDay'
+  | 'calendar.today'
+  | 'calendar.reconnect'
+  | 'calendar.createEvent'
+  | 'calendar.createHeading'
+  | 'calendar.createSave'
+  | 'calendar.clickToCreate'
+  | 'calendar.eventCreated'
+  | 'calendar.eventCreateFailed'
+  | 'calendar.noEventsInRange'
+  | 'calendar.eventTitle'
+  | 'calendar.eventDescription'
+  | 'calendar.eventLocation'
+  | 'calendar.eventDate'
+  | 'calendar.eventEndDate'
+  | 'calendar.eventStartTime'
+  | 'calendar.eventEndTime'
+  | 'calendar.eventAllDay'
+  | 'calendar.eventColor'
+  | 'calendar.eventEdit'
+  | 'calendar.eventSave'
+  | 'calendar.eventCancel'
+  | 'calendar.eventClose'
+  | 'calendar.eventNoDescription'
+  | 'calendar.eventUpdated'
+  | 'calendar.eventUpdateFailed'
+  | 'calendar.eventReadOnlyHint'
   | 'header.language'
   | 'header.profile'
   | 'header.settings'
@@ -95,6 +126,39 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'calendar.loadingEvents': 'Cargando eventos…',
     'calendar.noEvents': 'No hay eventos próximos en tu calendario.',
     'calendar.openInGoogle': 'Abrir en Google',
+    'calendar.viewGrid': 'Calendario',
+    'calendar.viewList': 'Lista',
+    'calendar.viewMonth': 'Mes',
+    'calendar.viewWeek': 'Semana',
+    'calendar.viewDay': 'Día',
+    'calendar.today': 'Hoy',
+    'calendar.reconnect': 'Reconectar Google Calendar',
+    'calendar.createEvent': 'Crear',
+    'calendar.createHeading': 'Nuevo evento',
+    'calendar.createSave': 'Crear evento',
+    'calendar.clickToCreate':
+      'Haz clic en un hueco del calendario o arrastra para seleccionar un rango y crear un evento.',
+    'calendar.eventCreated': 'Evento creado en Google Calendar',
+    'calendar.eventCreateFailed': 'No se pudo crear el evento',
+    'calendar.noEventsInRange': 'No hay eventos en este periodo.',
+    'calendar.eventTitle': 'Título',
+    'calendar.eventDescription': 'Descripción',
+    'calendar.eventLocation': 'Ubicación',
+    'calendar.eventDate': 'Fecha',
+    'calendar.eventEndDate': 'Fecha fin',
+    'calendar.eventStartTime': 'Hora inicio',
+    'calendar.eventEndTime': 'Hora fin',
+    'calendar.eventAllDay': 'Todo el día',
+    'calendar.eventColor': 'Color',
+    'calendar.eventEdit': 'Editar',
+    'calendar.eventSave': 'Guardar cambios',
+    'calendar.eventCancel': 'Cancelar',
+    'calendar.eventClose': 'Cerrar',
+    'calendar.eventNoDescription': 'Sin descripción',
+    'calendar.eventUpdated': 'Evento actualizado en Google Calendar',
+    'calendar.eventUpdateFailed': 'No se pudo actualizar el evento',
+    'calendar.eventReadOnlyHint':
+      'Reconecta Google Calendar con permiso de escritura para editar eventos.',
     'header.language': 'Idioma',
     'header.profile': 'Perfil',
     'header.settings': 'Ajustes',
@@ -157,6 +221,39 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'calendar.loadingEvents': 'Loading events…',
     'calendar.noEvents': 'No upcoming events on your calendar.',
     'calendar.openInGoogle': 'Open in Google',
+    'calendar.viewGrid': 'Calendar',
+    'calendar.viewList': 'List',
+    'calendar.viewMonth': 'Month',
+    'calendar.viewWeek': 'Week',
+    'calendar.viewDay': 'Day',
+    'calendar.today': 'Today',
+    'calendar.reconnect': 'Reconnect Google Calendar',
+    'calendar.createEvent': 'Create',
+    'calendar.createHeading': 'New event',
+    'calendar.createSave': 'Create event',
+    'calendar.clickToCreate':
+      'Click an empty slot or drag to select a range and create an event.',
+    'calendar.eventCreated': 'Event created in Google Calendar',
+    'calendar.eventCreateFailed': 'Could not create the event',
+    'calendar.noEventsInRange': 'No events in this period.',
+    'calendar.eventTitle': 'Title',
+    'calendar.eventDescription': 'Description',
+    'calendar.eventLocation': 'Location',
+    'calendar.eventDate': 'Date',
+    'calendar.eventEndDate': 'End date',
+    'calendar.eventStartTime': 'Start time',
+    'calendar.eventEndTime': 'End time',
+    'calendar.eventAllDay': 'All day',
+    'calendar.eventColor': 'Color',
+    'calendar.eventEdit': 'Edit',
+    'calendar.eventSave': 'Save changes',
+    'calendar.eventCancel': 'Cancel',
+    'calendar.eventClose': 'Close',
+    'calendar.eventNoDescription': 'No description',
+    'calendar.eventUpdated': 'Event updated in Google Calendar',
+    'calendar.eventUpdateFailed': 'Could not update the event',
+    'calendar.eventReadOnlyHint':
+      'Reconnect Google Calendar with write access to edit events.',
     'header.language': 'Language',
     'header.profile': 'Profile',
     'header.settings': 'Settings',

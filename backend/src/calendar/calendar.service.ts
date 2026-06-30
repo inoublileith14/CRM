@@ -5,7 +5,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
+import type { Response } from 'express';
 import { SupabaseService } from '../supabase/supabase.service';
+import { CalendarSyncService } from './calendar-sync.service';
 import { createOAuthState, verifyOAuthState } from './calendar-oauth.state';
 import {
   CalendarConnectionStatus,
@@ -15,6 +18,13 @@ import {
   UserGoogleCalendarRow,
 } from './interfaces/user-google-calendar.interface';
 import { CreateCalendarEventDto } from './dto/create-calendar-event.dto';
+import { UpdateCalendarEventDto } from './dto/update-calendar-event.dto';
+import {
+  buildGoogleEventBody,
+  mapGoogleEventToCalendarItem,
+  validateEventDateTimes,
+  type GoogleCalendarApiEvent,
+} from './google-calendar-event.util';
 
 const GOOGLE_OAUTH_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
@@ -27,6 +37,9 @@ const CALENDAR_WRITE_SCOPES = new Set([
   'https://www.googleapis.com/auth/calendar.events',
 ]);
 
+const WATCH_RENEW_BEFORE_MS = 24 * 60 * 60 * 1000;
+const WATCH_TTL_MS = 6 * 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class CalendarService {
   private readonly logger = new Logger(CalendarService.name);
@@ -34,6 +47,7 @@ export class CalendarService {
   constructor(
     private config: ConfigService,
     private supabase: SupabaseService,
+    private calendarSync: CalendarSyncService,
   ) {}
 
   getConnectUrl(userId: string): { url: string } {
@@ -106,6 +120,12 @@ export class CalendarService {
       });
     }
 
+    await this.ensureWatchChannel(userId).catch((watchError) => {
+      this.logger.warn(
+        `No se pudo registrar watch de Google Calendar: ${String(watchError)}`,
+      );
+    });
+
     return { connected: true, googleEmail };
   }
 
@@ -140,6 +160,10 @@ export class CalendarService {
   }
 
   async disconnect(userId: string): Promise<{ disconnected: true }> {
+    await this.stopWatchChannel(userId).catch((error) => {
+      this.logger.warn(`Error deteniendo watch al desconectar: ${String(error)}`);
+    });
+
     const admin = this.supabase.getAdmin();
     const { error } = await admin
       .from('user_google_calendar')
@@ -193,9 +217,9 @@ export class CalendarService {
     return tokens.access_token;
   }
 
-  async listUpcomingEvents(
+  async listEvents(
     userId: string,
-    maxResults = 25,
+    options?: { from?: string; to?: string; maxResults?: number },
   ): Promise<CalendarEventItem[]> {
     const row = await this.findByUserId(userId);
     if (!row) {
@@ -207,12 +231,24 @@ export class CalendarService {
 
     const accessToken = await this.getValidAccessToken(userId);
     const calendarId = row.calendar_id || 'primary';
+    const calendarColorId = await this.fetchCalendarListColorId(
+      accessToken,
+      calendarId,
+    );
+    const timeMin = options?.from?.trim() || new Date().toISOString();
+    const timeMax = options?.to?.trim();
+    const maxResults =
+      options?.maxResults ?? (timeMax ? 250 : 25);
+
     const params = new URLSearchParams({
-      timeMin: new Date().toISOString(),
+      timeMin,
       maxResults: String(maxResults),
       singleEvents: 'true',
       orderBy: 'startTime',
     });
+    if (timeMax) {
+      params.set('timeMax', timeMax);
+    }
 
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
@@ -222,14 +258,7 @@ export class CalendarService {
     );
 
     const data = (await res.json().catch(() => ({}))) as {
-      items?: Array<{
-        id?: string;
-        summary?: string;
-        start?: { dateTime?: string; date?: string };
-        end?: { dateTime?: string; date?: string };
-        location?: string;
-        htmlLink?: string;
-      }>;
+      items?: GoogleCalendarApiEvent[];
       error?: { message?: string };
     };
 
@@ -244,21 +273,30 @@ export class CalendarService {
       });
     }
 
-    return (data.items ?? []).map((event) => {
-      const startRaw = event.start?.dateTime ?? event.start?.date ?? '';
-      const endRaw = event.end?.dateTime ?? event.end?.date ?? null;
-      const allDay = Boolean(event.start?.date && !event.start?.dateTime);
+    return (data.items ?? []).map((event) =>
+      mapGoogleEventToCalendarItem(event, calendarColorId),
+    );
+  }
 
-      return {
-        id: event.id ?? '',
-        title: event.summary ?? '(Sin título)',
-        start: startRaw,
-        end: endRaw,
-        allDay,
-        location: event.location ?? null,
-        htmlLink: event.htmlLink ?? null,
+  private async fetchCalendarListColorId(
+    accessToken: string,
+    calendarId: string,
+  ): Promise<string | null> {
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/users/me/calendarList/${encodeURIComponent(calendarId)}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        colorId?: string;
       };
-    });
+      if (!res.ok) return null;
+      return data.colorId ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async createEvent(
@@ -280,19 +318,16 @@ export class CalendarService {
       });
     }
 
-    const startMs = Date.parse(dto.start);
-    const endMs = Date.parse(dto.end);
-    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    try {
+      validateEventDateTimes(dto.start, dto.end, dto.allDay);
+    } catch (error) {
+      const code =
+        error instanceof Error
+          ? error.message
+          : 'CALENDAR_EVENT_DATETIME_INVALID';
       throw new BadRequestException({
-        message: 'Fecha u hora no válida',
-        code: 'CALENDAR_EVENT_DATETIME_INVALID',
-      });
-    }
-
-    if (endMs <= startMs) {
-      throw new BadRequestException({
-        message: 'La hora de fin debe ser posterior a la de inicio',
-        code: 'CALENDAR_EVENT_END_BEFORE_START',
+        message: this.eventDateTimeErrorMessage(code),
+        code,
       });
     }
 
@@ -306,23 +341,17 @@ export class CalendarService {
 
     const accessToken = await this.getValidAccessToken(userId);
     const calendarId = row.calendar_id || 'primary';
-    const timeZone = dto.timeZone?.trim() || 'Europe/Madrid';
 
-    const body: Record<string, unknown> = {
+    const body = buildGoogleEventBody({
       summary,
-      start: { dateTime: dto.start, timeZone },
-      end: { dateTime: dto.end, timeZone },
-    };
-
-    if (dto.description?.trim()) {
-      body.description = dto.description.trim();
-    }
-    if (dto.location?.trim()) {
-      body.location = dto.location.trim();
-    }
-    if (dto.colorId?.trim()) {
-      body.colorId = dto.colorId.trim();
-    }
+      description: dto.description?.trim() ?? '',
+      location: dto.location?.trim() ?? '',
+      start: dto.start,
+      end: dto.end,
+      timeZone: dto.timeZone,
+      colorId: dto.colorId,
+      allDay: dto.allDay,
+    });
 
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -366,6 +395,8 @@ export class CalendarService {
       });
     }
 
+    this.notifyCalendarChanged(userId);
+
     return {
       id: data.id ?? '',
       title: data.summary ?? summary,
@@ -373,6 +404,315 @@ export class CalendarService {
       end: data.end?.dateTime ?? data.end?.date ?? dto.end,
       htmlLink: data.htmlLink ?? null,
     };
+  }
+
+  subscribeToStream(userId: string, res: Response): () => void {
+    void this.ensureWatchChannel(userId).catch((error) => {
+      this.logger.warn(
+        `No se pudo renovar watch al abrir stream: ${String(error)}`,
+      );
+    });
+
+    return this.calendarSync.addSubscriber(userId, res);
+  }
+
+  async handleWatchNotification(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<void> {
+    const channelId = this.readHeader(headers, 'x-goog-channel-id');
+    const resourceId = this.readHeader(headers, 'x-goog-resource-id');
+    const state = this.readHeader(headers, 'x-goog-resource-state');
+
+    if (!channelId) return;
+
+    const userId = await this.findUserIdByWatchChannel(channelId, resourceId);
+    if (!userId) {
+      this.logger.warn(`Webhook de calendario desconocido: ${channelId}`);
+      return;
+    }
+
+    if (state === 'sync') {
+      return;
+    }
+
+    if (state === 'exists' || state === 'not_exists') {
+      this.calendarSync.notifyUser(userId);
+    }
+  }
+
+  getWatchSupport(): { pushEnabled: boolean; webhookUrl: string | null } {
+    const webhookUrl = this.getWebhookUrl();
+    return {
+      pushEnabled: Boolean(webhookUrl),
+      webhookUrl,
+    };
+  }
+
+  private async ensureWatchChannel(userId: string): Promise<void> {
+    const webhookUrl = this.getWebhookUrl();
+    if (!webhookUrl) {
+      this.logger.debug(
+        'Google Calendar watch omitido: falta GOOGLE_CALENDAR_WEBHOOK_URL HTTPS pública',
+      );
+      return;
+    }
+
+    const row = await this.findByUserId(userId);
+    if (!row) return;
+
+    const expirationMs = row.watch_expiration_ms ?? 0;
+    const renewNeeded =
+      !row.watch_channel_id ||
+      !row.watch_resource_id ||
+      expirationMs <= Date.now() + WATCH_RENEW_BEFORE_MS;
+
+    if (!renewNeeded) return;
+
+    await this.stopWatchChannel(userId, row);
+
+    const accessToken = await this.getValidAccessToken(userId);
+    const calendarId = row.calendar_id || 'primary';
+    const channelId = randomUUID();
+    const expiration = Date.now() + WATCH_TTL_MS;
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/watch`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: channelId,
+          type: 'web_hook',
+          address: webhookUrl,
+          token: userId,
+          expiration: String(expiration),
+        }),
+      },
+    );
+
+    const data = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      resourceId?: string;
+      expiration?: string;
+      error?: { message?: string };
+    };
+
+    if (!res.ok) {
+      throw new Error(data.error?.message ?? `watch failed: ${res.status}`);
+    }
+
+    const admin = this.supabase.getAdmin();
+    const { error } = await admin
+      .from('user_google_calendar')
+      .update({
+        watch_channel_id: data.id ?? channelId,
+        watch_resource_id: data.resourceId ?? null,
+        watch_expiration_ms: Number(data.expiration ?? expiration),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    this.logger.log(`Google Calendar watch activo para usuario ${userId}`);
+  }
+
+  private async stopWatchChannel(
+    userId: string,
+    row?: UserGoogleCalendarRow | null,
+  ): Promise<void> {
+    const current = row ?? (await this.findByUserId(userId));
+    if (!current?.watch_channel_id || !current.watch_resource_id) {
+      return;
+    }
+
+    try {
+      const accessToken = await this.getValidAccessToken(userId);
+      await fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: current.watch_channel_id,
+          resourceId: current.watch_resource_id,
+        }),
+      });
+    } catch (error) {
+      this.logger.warn(`Error deteniendo canal watch: ${String(error)}`);
+    }
+
+    const admin = this.supabase.getAdmin();
+    await admin
+      .from('user_google_calendar')
+      .update({
+        watch_channel_id: null,
+        watch_resource_id: null,
+        watch_expiration_ms: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+  }
+
+  private async findUserIdByWatchChannel(
+    channelId: string,
+    resourceId: string,
+  ): Promise<string | null> {
+    const admin = this.supabase.getAdmin();
+    const { data, error } = await admin
+      .from('user_google_calendar')
+      .select('user_id, watch_resource_id')
+      .eq('watch_channel_id', channelId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    if (resourceId && data.watch_resource_id !== resourceId) return null;
+    return data.user_id as string;
+  }
+
+  private getWebhookUrl(): string | null {
+    const explicit = this.config.get<string>('GOOGLE_CALENDAR_WEBHOOK_URL')?.trim();
+    const publicBase = this.config
+      .get<string>('BACKEND_PUBLIC_URL')
+      ?.trim()
+      .replace(/\/+$/, '');
+    const url = explicit || (publicBase ? `${publicBase}/calendar/webhook` : null);
+
+    if (!url) return null;
+    if (!url.startsWith('https://')) return null;
+    if (/localhost|127\.0\.0\.1/i.test(url)) return null;
+    return url;
+  }
+
+  private readHeader(
+    headers: Record<string, string | string[] | undefined>,
+    name: string,
+  ): string {
+    const value = headers[name];
+    if (Array.isArray(value)) return value[0] ?? '';
+    return value ?? '';
+  }
+
+  private notifyCalendarChanged(userId: string): void {
+    this.calendarSync.notifyUser(userId);
+  }
+
+  async updateEvent(
+    userId: string,
+    eventId: string,
+    dto: UpdateCalendarEventDto,
+  ): Promise<CalendarEventItem> {
+    const summary = dto.summary?.trim();
+    if (!summary) {
+      throw new BadRequestException({
+        message: 'El título del evento es obligatorio',
+        code: 'CALENDAR_EVENT_TITLE_REQUIRED',
+      });
+    }
+
+    if (!eventId?.trim()) {
+      throw new BadRequestException({
+        message: 'Identificador de evento no válido',
+        code: 'CALENDAR_EVENT_ID_REQUIRED',
+      });
+    }
+
+    try {
+      validateEventDateTimes(dto.start, dto.end, dto.allDay);
+    } catch (error) {
+      const code =
+        error instanceof Error
+          ? error.message
+          : 'CALENDAR_EVENT_DATETIME_INVALID';
+      throw new BadRequestException({
+        message: this.eventDateTimeErrorMessage(code),
+        code,
+      });
+    }
+
+    const row = await this.findByUserId(userId);
+    if (!row) {
+      throw new BadRequestException({
+        message: 'Google Calendar no está conectado',
+        code: 'CALENDAR_NOT_CONNECTED',
+      });
+    }
+
+    const accessToken = await this.getValidAccessToken(userId);
+    const calendarId = row.calendar_id || 'primary';
+    const calendarColorId = await this.fetchCalendarListColorId(
+      accessToken,
+      calendarId,
+    );
+
+    const body = buildGoogleEventBody({
+      summary,
+      description: dto.description?.trim() ?? '',
+      location: dto.location?.trim() ?? '',
+      start: dto.start,
+      end: dto.end,
+      timeZone: dto.timeZone,
+      colorId: dto.colorId,
+      allDay: dto.allDay,
+    });
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const data = (await res.json().catch(() => ({}))) as GoogleCalendarApiEvent & {
+      error?: { message?: string };
+    };
+
+    if (!res.ok) {
+      const errorMessage = data.error?.message ?? '';
+      this.logger.warn(
+        `Google event update failed: ${errorMessage || res.status}`,
+      );
+
+      if (this.isInsufficientScopeError(errorMessage)) {
+        throw new BadRequestException({
+          message:
+            'Tu conexión con Google Calendar no tiene permiso para editar eventos. Ve a Ajustes, desconecta Google Calendar y vuelve a conectar.',
+          code: 'CALENDAR_SCOPE_INSUFFICIENT',
+        });
+      }
+
+      throw new BadRequestException({
+        message:
+          errorMessage || 'No se pudo actualizar el evento en Google Calendar',
+        code: 'CALENDAR_EVENT_UPDATE_FAILED',
+      });
+    }
+
+    this.notifyCalendarChanged(userId);
+
+    return mapGoogleEventToCalendarItem(data, calendarColorId);
+  }
+
+  private eventDateTimeErrorMessage(code: string): string {
+    switch (code) {
+      case 'CALENDAR_EVENT_DATETIME_REQUIRED':
+        return 'La fecha y hora de inicio y fin son obligatorias';
+      case 'CALENDAR_EVENT_END_BEFORE_START':
+        return 'La hora de fin debe ser posterior a la de inicio';
+      default:
+        return 'Fecha u hora no válida';
+    }
   }
 
   private async findByUserId(

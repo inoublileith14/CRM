@@ -13,8 +13,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CalendarService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const crypto_1 = require("crypto");
 const supabase_service_1 = require("../supabase/supabase.service");
+const calendar_sync_service_1 = require("./calendar-sync.service");
 const calendar_oauth_state_1 = require("./calendar-oauth.state");
+const google_calendar_event_util_1 = require("./google-calendar-event.util");
 const GOOGLE_OAUTH_SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
@@ -24,13 +27,17 @@ const CALENDAR_WRITE_SCOPES = new Set([
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
 ]);
+const WATCH_RENEW_BEFORE_MS = 24 * 60 * 60 * 1000;
+const WATCH_TTL_MS = 6 * 24 * 60 * 60 * 1000;
 let CalendarService = CalendarService_1 = class CalendarService {
     config;
     supabase;
+    calendarSync;
     logger = new common_1.Logger(CalendarService_1.name);
-    constructor(config, supabase) {
+    constructor(config, supabase, calendarSync) {
         this.config = config;
         this.supabase = supabase;
+        this.calendarSync = calendarSync;
     }
     getConnectUrl(userId) {
         const clientId = this.config.getOrThrow('GOOGLE_CLIENT_ID');
@@ -84,6 +91,9 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_STORE_FAILED',
             });
         }
+        await this.ensureWatchChannel(userId).catch((watchError) => {
+            this.logger.warn(`No se pudo registrar watch de Google Calendar: ${String(watchError)}`);
+        });
         return { connected: true, googleEmail };
     }
     async getStatus(userId) {
@@ -115,6 +125,9 @@ let CalendarService = CalendarService_1 = class CalendarService {
         };
     }
     async disconnect(userId) {
+        await this.stopWatchChannel(userId).catch((error) => {
+            this.logger.warn(`Error deteniendo watch al desconectar: ${String(error)}`);
+        });
         const admin = this.supabase.getAdmin();
         const { error } = await admin
             .from('user_google_calendar')
@@ -157,7 +170,7 @@ let CalendarService = CalendarService_1 = class CalendarService {
             .eq('user_id', userId);
         return tokens.access_token;
     }
-    async listUpcomingEvents(userId, maxResults = 25) {
+    async listEvents(userId, options) {
         const row = await this.findByUserId(userId);
         if (!row) {
             throw new common_1.BadRequestException({
@@ -167,12 +180,19 @@ let CalendarService = CalendarService_1 = class CalendarService {
         }
         const accessToken = await this.getValidAccessToken(userId);
         const calendarId = row.calendar_id || 'primary';
+        const calendarColorId = await this.fetchCalendarListColorId(accessToken, calendarId);
+        const timeMin = options?.from?.trim() || new Date().toISOString();
+        const timeMax = options?.to?.trim();
+        const maxResults = options?.maxResults ?? (timeMax ? 250 : 25);
         const params = new URLSearchParams({
-            timeMin: new Date().toISOString(),
+            timeMin,
             maxResults: String(maxResults),
             singleEvents: 'true',
             orderBy: 'startTime',
         });
+        if (timeMax) {
+            params.set('timeMax', timeMax);
+        }
         const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`, {
             headers: { Authorization: `Bearer ${accessToken}` },
         });
@@ -184,20 +204,21 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_EVENTS_FAILED',
             });
         }
-        return (data.items ?? []).map((event) => {
-            const startRaw = event.start?.dateTime ?? event.start?.date ?? '';
-            const endRaw = event.end?.dateTime ?? event.end?.date ?? null;
-            const allDay = Boolean(event.start?.date && !event.start?.dateTime);
-            return {
-                id: event.id ?? '',
-                title: event.summary ?? '(Sin título)',
-                start: startRaw,
-                end: endRaw,
-                allDay,
-                location: event.location ?? null,
-                htmlLink: event.htmlLink ?? null,
-            };
-        });
+        return (data.items ?? []).map((event) => (0, google_calendar_event_util_1.mapGoogleEventToCalendarItem)(event, calendarColorId));
+    }
+    async fetchCalendarListColorId(accessToken, calendarId) {
+        try {
+            const res = await fetch(`https://www.googleapis.com/calendar/v3/users/me/calendarList/${encodeURIComponent(calendarId)}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const data = (await res.json().catch(() => ({})));
+            if (!res.ok)
+                return null;
+            return data.colorId ?? null;
+        }
+        catch {
+            return null;
+        }
     }
     async createEvent(userId, dto) {
         const summary = dto.summary?.trim();
@@ -213,18 +234,16 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_EVENT_DATETIME_REQUIRED',
             });
         }
-        const startMs = Date.parse(dto.start);
-        const endMs = Date.parse(dto.end);
-        if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
-            throw new common_1.BadRequestException({
-                message: 'Fecha u hora no válida',
-                code: 'CALENDAR_EVENT_DATETIME_INVALID',
-            });
+        try {
+            (0, google_calendar_event_util_1.validateEventDateTimes)(dto.start, dto.end, dto.allDay);
         }
-        if (endMs <= startMs) {
+        catch (error) {
+            const code = error instanceof Error
+                ? error.message
+                : 'CALENDAR_EVENT_DATETIME_INVALID';
             throw new common_1.BadRequestException({
-                message: 'La hora de fin debe ser posterior a la de inicio',
-                code: 'CALENDAR_EVENT_END_BEFORE_START',
+                message: this.eventDateTimeErrorMessage(code),
+                code,
             });
         }
         const row = await this.findByUserId(userId);
@@ -236,21 +255,16 @@ let CalendarService = CalendarService_1 = class CalendarService {
         }
         const accessToken = await this.getValidAccessToken(userId);
         const calendarId = row.calendar_id || 'primary';
-        const timeZone = dto.timeZone?.trim() || 'Europe/Madrid';
-        const body = {
+        const body = (0, google_calendar_event_util_1.buildGoogleEventBody)({
             summary,
-            start: { dateTime: dto.start, timeZone },
-            end: { dateTime: dto.end, timeZone },
-        };
-        if (dto.description?.trim()) {
-            body.description = dto.description.trim();
-        }
-        if (dto.location?.trim()) {
-            body.location = dto.location.trim();
-        }
-        if (dto.colorId?.trim()) {
-            body.colorId = dto.colorId.trim();
-        }
+            description: dto.description?.trim() ?? '',
+            location: dto.location?.trim() ?? '',
+            start: dto.start,
+            end: dto.end,
+            timeZone: dto.timeZone,
+            colorId: dto.colorId,
+            allDay: dto.allDay,
+        });
         const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
             method: 'POST',
             headers: {
@@ -274,6 +288,7 @@ let CalendarService = CalendarService_1 = class CalendarService {
                 code: 'CALENDAR_EVENT_CREATE_FAILED',
             });
         }
+        this.notifyCalendarChanged(userId);
         return {
             id: data.id ?? '',
             title: data.summary ?? summary,
@@ -281,6 +296,242 @@ let CalendarService = CalendarService_1 = class CalendarService {
             end: data.end?.dateTime ?? data.end?.date ?? dto.end,
             htmlLink: data.htmlLink ?? null,
         };
+    }
+    subscribeToStream(userId, res) {
+        void this.ensureWatchChannel(userId).catch((error) => {
+            this.logger.warn(`No se pudo renovar watch al abrir stream: ${String(error)}`);
+        });
+        return this.calendarSync.addSubscriber(userId, res);
+    }
+    async handleWatchNotification(headers) {
+        const channelId = this.readHeader(headers, 'x-goog-channel-id');
+        const resourceId = this.readHeader(headers, 'x-goog-resource-id');
+        const state = this.readHeader(headers, 'x-goog-resource-state');
+        if (!channelId)
+            return;
+        const userId = await this.findUserIdByWatchChannel(channelId, resourceId);
+        if (!userId) {
+            this.logger.warn(`Webhook de calendario desconocido: ${channelId}`);
+            return;
+        }
+        if (state === 'sync') {
+            return;
+        }
+        if (state === 'exists' || state === 'not_exists') {
+            this.calendarSync.notifyUser(userId);
+        }
+    }
+    getWatchSupport() {
+        const webhookUrl = this.getWebhookUrl();
+        return {
+            pushEnabled: Boolean(webhookUrl),
+            webhookUrl,
+        };
+    }
+    async ensureWatchChannel(userId) {
+        const webhookUrl = this.getWebhookUrl();
+        if (!webhookUrl) {
+            this.logger.debug('Google Calendar watch omitido: falta GOOGLE_CALENDAR_WEBHOOK_URL HTTPS pública');
+            return;
+        }
+        const row = await this.findByUserId(userId);
+        if (!row)
+            return;
+        const expirationMs = row.watch_expiration_ms ?? 0;
+        const renewNeeded = !row.watch_channel_id ||
+            !row.watch_resource_id ||
+            expirationMs <= Date.now() + WATCH_RENEW_BEFORE_MS;
+        if (!renewNeeded)
+            return;
+        await this.stopWatchChannel(userId, row);
+        const accessToken = await this.getValidAccessToken(userId);
+        const calendarId = row.calendar_id || 'primary';
+        const channelId = (0, crypto_1.randomUUID)();
+        const expiration = Date.now() + WATCH_TTL_MS;
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/watch`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: channelId,
+                type: 'web_hook',
+                address: webhookUrl,
+                token: userId,
+                expiration: String(expiration),
+            }),
+        });
+        const data = (await res.json().catch(() => ({})));
+        if (!res.ok) {
+            throw new Error(data.error?.message ?? `watch failed: ${res.status}`);
+        }
+        const admin = this.supabase.getAdmin();
+        const { error } = await admin
+            .from('user_google_calendar')
+            .update({
+            watch_channel_id: data.id ?? channelId,
+            watch_resource_id: data.resourceId ?? null,
+            watch_expiration_ms: Number(data.expiration ?? expiration),
+            updated_at: new Date().toISOString(),
+        })
+            .eq('user_id', userId);
+        if (error) {
+            throw new Error(error.message);
+        }
+        this.logger.log(`Google Calendar watch activo para usuario ${userId}`);
+    }
+    async stopWatchChannel(userId, row) {
+        const current = row ?? (await this.findByUserId(userId));
+        if (!current?.watch_channel_id || !current.watch_resource_id) {
+            return;
+        }
+        try {
+            const accessToken = await this.getValidAccessToken(userId);
+            await fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: current.watch_channel_id,
+                    resourceId: current.watch_resource_id,
+                }),
+            });
+        }
+        catch (error) {
+            this.logger.warn(`Error deteniendo canal watch: ${String(error)}`);
+        }
+        const admin = this.supabase.getAdmin();
+        await admin
+            .from('user_google_calendar')
+            .update({
+            watch_channel_id: null,
+            watch_resource_id: null,
+            watch_expiration_ms: null,
+            updated_at: new Date().toISOString(),
+        })
+            .eq('user_id', userId);
+    }
+    async findUserIdByWatchChannel(channelId, resourceId) {
+        const admin = this.supabase.getAdmin();
+        const { data, error } = await admin
+            .from('user_google_calendar')
+            .select('user_id, watch_resource_id')
+            .eq('watch_channel_id', channelId)
+            .maybeSingle();
+        if (error || !data)
+            return null;
+        if (resourceId && data.watch_resource_id !== resourceId)
+            return null;
+        return data.user_id;
+    }
+    getWebhookUrl() {
+        const explicit = this.config.get('GOOGLE_CALENDAR_WEBHOOK_URL')?.trim();
+        const publicBase = this.config
+            .get('BACKEND_PUBLIC_URL')
+            ?.trim()
+            .replace(/\/+$/, '');
+        const url = explicit || (publicBase ? `${publicBase}/calendar/webhook` : null);
+        if (!url)
+            return null;
+        if (!url.startsWith('https://'))
+            return null;
+        if (/localhost|127\.0\.0\.1/i.test(url))
+            return null;
+        return url;
+    }
+    readHeader(headers, name) {
+        const value = headers[name];
+        if (Array.isArray(value))
+            return value[0] ?? '';
+        return value ?? '';
+    }
+    notifyCalendarChanged(userId) {
+        this.calendarSync.notifyUser(userId);
+    }
+    async updateEvent(userId, eventId, dto) {
+        const summary = dto.summary?.trim();
+        if (!summary) {
+            throw new common_1.BadRequestException({
+                message: 'El título del evento es obligatorio',
+                code: 'CALENDAR_EVENT_TITLE_REQUIRED',
+            });
+        }
+        if (!eventId?.trim()) {
+            throw new common_1.BadRequestException({
+                message: 'Identificador de evento no válido',
+                code: 'CALENDAR_EVENT_ID_REQUIRED',
+            });
+        }
+        try {
+            (0, google_calendar_event_util_1.validateEventDateTimes)(dto.start, dto.end, dto.allDay);
+        }
+        catch (error) {
+            const code = error instanceof Error
+                ? error.message
+                : 'CALENDAR_EVENT_DATETIME_INVALID';
+            throw new common_1.BadRequestException({
+                message: this.eventDateTimeErrorMessage(code),
+                code,
+            });
+        }
+        const row = await this.findByUserId(userId);
+        if (!row) {
+            throw new common_1.BadRequestException({
+                message: 'Google Calendar no está conectado',
+                code: 'CALENDAR_NOT_CONNECTED',
+            });
+        }
+        const accessToken = await this.getValidAccessToken(userId);
+        const calendarId = row.calendar_id || 'primary';
+        const calendarColorId = await this.fetchCalendarListColorId(accessToken, calendarId);
+        const body = (0, google_calendar_event_util_1.buildGoogleEventBody)({
+            summary,
+            description: dto.description?.trim() ?? '',
+            location: dto.location?.trim() ?? '',
+            start: dto.start,
+            end: dto.end,
+            timeZone: dto.timeZone,
+            colorId: dto.colorId,
+            allDay: dto.allDay,
+        });
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = (await res.json().catch(() => ({})));
+        if (!res.ok) {
+            const errorMessage = data.error?.message ?? '';
+            this.logger.warn(`Google event update failed: ${errorMessage || res.status}`);
+            if (this.isInsufficientScopeError(errorMessage)) {
+                throw new common_1.BadRequestException({
+                    message: 'Tu conexión con Google Calendar no tiene permiso para editar eventos. Ve a Ajustes, desconecta Google Calendar y vuelve a conectar.',
+                    code: 'CALENDAR_SCOPE_INSUFFICIENT',
+                });
+            }
+            throw new common_1.BadRequestException({
+                message: errorMessage || 'No se pudo actualizar el evento en Google Calendar',
+                code: 'CALENDAR_EVENT_UPDATE_FAILED',
+            });
+        }
+        this.notifyCalendarChanged(userId);
+        return (0, google_calendar_event_util_1.mapGoogleEventToCalendarItem)(data, calendarColorId);
+    }
+    eventDateTimeErrorMessage(code) {
+        switch (code) {
+            case 'CALENDAR_EVENT_DATETIME_REQUIRED':
+                return 'La fecha y hora de inicio y fin son obligatorias';
+            case 'CALENDAR_EVENT_END_BEFORE_START':
+                return 'La hora de fin debe ser posterior a la de inicio';
+            default:
+                return 'Fecha u hora no válida';
+        }
     }
     async findByUserId(userId) {
         const admin = this.supabase.getAdmin();
@@ -386,6 +637,7 @@ exports.CalendarService = CalendarService;
 exports.CalendarService = CalendarService = CalendarService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [config_1.ConfigService,
-        supabase_service_1.SupabaseService])
+        supabase_service_1.SupabaseService,
+        calendar_sync_service_1.CalendarSyncService])
 ], CalendarService);
 //# sourceMappingURL=calendar.service.js.map
