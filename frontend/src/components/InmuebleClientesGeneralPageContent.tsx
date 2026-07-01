@@ -25,6 +25,7 @@ import { InmuebleAssignSearchSelect } from '@/components/InmuebleAssignSearchSel
 import { ClienteVentaRangeFiltersBar } from '@/components/ClienteVentaRangeFiltersBar';
 import { ClienteTipoClienteSelect } from '@/components/ClienteTipoClienteSelect';
 import { ClienteVentaTableFieldCell } from '@/components/ClienteVentaTableFieldCell';
+import { ClienteZonasMultiField } from '@/components/ClienteZonasMultiField';
 import { ClienteFechaContactoCell } from '@/components/ClienteFechaContactoCell';
 import { ClienteFechaEntradaInmuebleCell } from '@/components/ClienteFechaEntradaInmuebleCell';
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
@@ -35,6 +36,7 @@ import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import { TablePagination } from '@/components/TablePagination';
 import {
   useClientesByTipoQuery,
+  useClientesByTipoAllQuery,
   useInvalidateDashboardQueries,
   useInmueblesQuery,
   useWorkersQuery,
@@ -73,7 +75,10 @@ import {
   Cliente,
 } from '@/types/cliente';
 import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
-import { ClientesByTipoListParams } from '@/types/clientes-by-tipo-page';
+import {
+  ClientesByTipoListParams,
+  ClientesByTipoPageResult,
+} from '@/types/clientes-by-tipo-page';
 import { TIPO_OPERACION_LABELS, TipoOperacion } from '@/types/inmueble';
 import { ClienteRefValue, clienteDenseTextClass } from '@/components/ClienteRefValue';
 import { getWorkerRolLabel } from '@/types/worker';
@@ -204,33 +209,96 @@ export function InmuebleClientesGeneralPageContent({
     }));
   const effectiveLimit = pageSize;
 
+  const sortListParams = useMemo((): Pick<
+    ClientesByTipoListParams,
+    'sort' | 'dir'
+  > => {
+    if (tableSort?.column === 'fecha_peticion') {
+      return { sort: 'fecha_entrada', dir: tableSort.direction };
+    }
+    return {};
+  }, [tableSort]);
+
   const listParams = useMemo((): ClientesByTipoListParams => {
-    const params: ClientesByTipoListParams = {
+    return {
       page,
       limit: effectiveLimit,
+      ...sortListParams,
     };
-    if (tableSort?.column === 'fecha_peticion') {
-      params.sort = 'fecha_entrada';
-      params.dir = tableSort.direction;
-    }
-    return params;
-  }, [page, effectiveLimit, tableSort]);
+  }, [page, effectiveLimit, sortListParams]);
+
+  const ventaRangeFiltersActive = hasActiveVentaRangeFilters(ventaRangeFilters);
+  const textFiltersActive = hasActiveClienteGlobalTextFilters(textFilters);
+  const columnFiltersActive = ventaRangeFiltersActive || textFiltersActive;
+
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
+  const [wantFullSelectionDataset, setWantFullSelectionDataset] = useState(false);
+  const [pendingSelectAll, setPendingSelectAll] = useState(false);
 
   const rowsQuery = useClientesByTipoQuery(expectedTipo, listParams, {
     enabled: isListStateHydrated,
   });
+  const allRowsQuery = useClientesByTipoAllQuery(expectedTipo, sortListParams, {
+    enabled:
+      isListStateHydrated &&
+      (columnFiltersActive || wantFullSelectionDataset),
+  });
   useClientesByTipoRealtime(expectedTipo);
   const workersQuery = useWorkersQuery(true);
   const inmueblesQuery = useInmueblesQuery({ tipo_operacion: expectedTipo });
-  const {
-    showInitialLoading,
-    isRefreshing,
-    showError,
-  } = useQueryUiState(rowsQuery);
   const pageData = rowsQuery.data;
-  const rows = pageData?.rows ?? [];
-  const totalItems = pageData?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalItems / effectiveLimit));
+  const allRowsData = allRowsQuery.data;
+  const catalogTotal = allRowsData?.total ?? pageData?.total ?? 0;
+  const isLoadingFullDataset =
+    columnFiltersActive && !allRowsData && allRowsQuery.isFetching;
+
+  const sourceRows =
+    columnFiltersActive && allRowsData?.rows
+      ? allRowsData.rows
+      : (pageData?.rows ?? []);
+
+  const {
+    showInitialLoading: showPageInitialLoading,
+    isRefreshing: isPageRefreshing,
+    showError: showPageError,
+  } = useQueryUiState(rowsQuery);
+  const showInitialLoading = showPageInitialLoading && !pageData;
+  const isRefreshing =
+    isPageRefreshing || (columnFiltersActive && allRowsQuery.isFetching);
+  const showError = showPageError;
+
+  const rowsAfterRangeFilters = useMemo(() => {
+    return filterRowsByVentaRange(sourceRows, ventaRangeFilters);
+  }, [sourceRows, ventaRangeFilters]);
+
+  const filteredRows = useMemo(() => {
+    return filterClienteLinkRowsByText(rowsAfterRangeFilters, textFilters);
+  }, [rowsAfterRangeFilters, textFilters]);
+
+  const totalItems =
+    columnFiltersActive && allRowsData
+      ? filteredRows.length
+      : columnFiltersActive
+        ? filteredRows.length
+        : catalogTotal;
+  const totalPages =
+    columnFiltersActive && !allRowsData
+      ? 1
+      : Math.max(1, Math.ceil(totalItems / effectiveLimit));
+
+  const displayRows = useMemo(() => {
+    if (!columnFiltersActive || !allRowsData) return filteredRows;
+    const start = (page - 1) * effectiveLimit;
+    return filteredRows.slice(start, start + effectiveLimit);
+  }, [columnFiltersActive, filteredRows, allRowsData, page, effectiveLimit]);
+
+  const rowsForSelection = useMemo(() => {
+    const base = allRowsData?.rows ?? sourceRows;
+    return filterClienteLinkRowsByText(
+      filterRowsByVentaRange(base, ventaRangeFilters),
+      textFilters,
+    );
+  }, [allRowsData, sourceRows, ventaRangeFilters, textFilters]);
   const workers = workersQuery.data ?? [];
   const inmuebles = inmueblesQuery.data ?? [];
   const assignableInmuebles = useMemo(
@@ -238,7 +306,6 @@ export function InmuebleClientesGeneralPageContent({
     [inmuebles],
   );
 
-  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
   const [assignInmuebleId, setAssignInmuebleId] = useState('');
   const [assigningWorker, setAssigningWorker] = useState(false);
   const [assigningInmueble, setAssigningInmueble] = useState(false);
@@ -254,31 +321,23 @@ export function InmuebleClientesGeneralPageContent({
   const tableBodyScrollRef = useRef<HTMLDivElement>(null);
   const syncingTableScrollRef = useRef(false);
   const skipScrollOnPageRef = useRef(true);
-  const isPageFetching = rowsQuery.isFetching && !rowsQuery.isLoading;
-
-  const rowsAfterRangeFilters = useMemo(() => {
-    return filterRowsByVentaRange(rows, ventaRangeFilters);
-  }, [rows, ventaRangeFilters]);
-
-  const rowsAfterTextFilters = useMemo(() => {
-    return filterClienteLinkRowsByText(rowsAfterRangeFilters, textFilters);
-  }, [rowsAfterRangeFilters, textFilters]);
-
-  const ventaRangeFiltersActive = hasActiveVentaRangeFilters(ventaRangeFilters);
-  const textFiltersActive = hasActiveClienteGlobalTextFilters(textFilters);
-  const columnFiltersActive = ventaRangeFiltersActive || textFiltersActive;
+  const isPageFetching =
+    rowsQuery.isFetching && !rowsQuery.isLoading && !columnFiltersActive;
+  const isFilterDatasetLoading = isLoadingFullDataset;
+  const needsFullDatasetForSelection =
+    !allRowsData?.rows && catalogTotal > rowsForSelection.length;
 
   const selectedClientes = useMemo(() => {
     const seen = new Set<string>();
     const clientes: Cliente[] = [];
-    for (const row of rows) {
+    for (const row of rowsForSelection) {
       if (!selectedRowKeys.has(row.row_key)) continue;
       if (seen.has(row.cliente.id)) continue;
       seen.add(row.cliente.id);
       clientes.push(row.cliente);
     }
     return clientes;
-  }, [rows, selectedRowKeys]);
+  }, [rowsForSelection, selectedRowKeys]);
 
   const tableColumns = useMemo(
     () => buildVentaGlobalClienteTableColumns(expectedTipo),
@@ -299,23 +358,23 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   function updateClienteById(clienteId: string, patch: Partial<Cliente>) {
-    queryClient.setQueryData(
-      queryKeys.clientes.byTipo(expectedTipo, listParams),
-      (prev: typeof pageData) =>
-        prev
-          ? {
-              ...prev,
-              rows: prev.rows.map((row) =>
-                row.cliente.id === clienteId
-                  ? { ...row, cliente: { ...row.cliente, ...patch } }
-                  : row,
-              ),
-            }
-          : prev,
+    const patchRows = (prev: ClientesByTipoPageResult | undefined) =>
+      prev
+        ? {
+            ...prev,
+            rows: prev.rows.map((row) =>
+              row.cliente.id === clienteId
+                ? { ...row, cliente: { ...row.cliente, ...patch } }
+                : row,
+            ),
+          }
+        : prev;
+
+    queryClient.setQueriesData<ClientesByTipoPageResult>(
+      { queryKey: ['clientes-by-tipo', expectedTipo] },
+      patchRows,
     );
   }
-
-  const displayRows = rowsAfterTextFilters;
 
   function clearSort() {
     setTableSort(null);
@@ -341,6 +400,27 @@ export function InmuebleClientesGeneralPageContent({
   useResetPageOnFilterChange([ventaRangeFilters, textFilters], setPage);
 
   useEffect(() => {
+    if (!pendingSelectAll || !allRowsData?.rows) return;
+    setPendingSelectAll(false);
+    const rows = filterClienteLinkRowsByText(
+      filterRowsByVentaRange(allRowsData.rows, ventaRangeFilters),
+      textFilters,
+    );
+    setSelectedRowKeys((prev) => {
+      const next = new Set(prev);
+      for (const row of rows) next.add(row.row_key);
+      return next;
+    });
+  }, [pendingSelectAll, allRowsData, ventaRangeFilters, textFilters]);
+
+  useEffect(() => {
+    if (selectedRowKeys.size === 0) {
+      setWantFullSelectionDataset(false);
+      setPendingSelectAll(false);
+    }
+  }, [selectedRowKeys.size]);
+
+  useEffect(() => {
     if (page > totalPages) {
       setPage(totalPages);
     }
@@ -348,7 +428,9 @@ export function InmuebleClientesGeneralPageContent({
 
   useEffect(() => {
     setSelectedRowKeys(new Set());
-  }, [listParams]);
+    setWantFullSelectionDataset(false);
+    setPendingSelectAll(false);
+  }, [columnFiltersActive, sortListParams]);
 
   useEffect(() => {
     if (skipScrollOnPageRef.current) {
@@ -401,17 +483,29 @@ export function InmuebleClientesGeneralPageContent({
     });
   }
 
-  function toggleSelectAllFiltered(filteredRows: InmuebleClienteLinkRow[]) {
+  function handleSelectAllToggle() {
+    const rows = rowsForSelection;
+    const allSelected =
+      rows.length > 0 && rows.every((row) => selectedRowKeys.has(row.row_key));
+
+    if (allSelected) {
+      setSelectedRowKeys((prev) => {
+        const next = new Set(prev);
+        for (const row of rows) next.delete(row.row_key);
+        return next;
+      });
+      return;
+    }
+
+    if (needsFullDatasetForSelection) {
+      setWantFullSelectionDataset(true);
+      setPendingSelectAll(true);
+      return;
+    }
+
     setSelectedRowKeys((prev) => {
-      const allSelected =
-        filteredRows.length > 0 &&
-        filteredRows.every((row) => prev.has(row.row_key));
       const next = new Set(prev);
-      if (allSelected) {
-        for (const row of filteredRows) next.delete(row.row_key);
-      } else {
-        for (const row of filteredRows) next.add(row.row_key);
-      }
+      for (const row of rows) next.add(row.row_key);
       return next;
     });
   }
@@ -428,7 +522,9 @@ export function InmuebleClientesGeneralPageContent({
       return;
     }
 
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
+    const selectedRows = rowsForSelection.filter((row) =>
+      selectedRowKeys.has(row.row_key),
+    );
     const uniqueClienteIds = [
       ...new Set(selectedRows.map((row) => row.cliente.id)),
     ];
@@ -508,7 +604,9 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   async function executeDeleteClientes() {
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
+    const selectedRows = rowsForSelection.filter((row) =>
+      selectedRowKeys.has(row.row_key),
+    );
     const clienteIds = [...new Set(selectedRows.map((row) => row.cliente.id))];
 
     setDeletingClientes(true);
@@ -533,7 +631,9 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   async function executeAssignInmueble() {
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
+    const selectedRows = rowsForSelection.filter((row) =>
+      selectedRowKeys.has(row.row_key),
+    );
     const clienteIds = [...new Set(selectedRows.map((row) => row.cliente.id))];
     const count = clienteIds.length;
 
@@ -583,7 +683,9 @@ export function InmuebleClientesGeneralPageContent({
   const filterAccent = expectedTipo === 'alquiler' ? 'emerald' : 'blue';
 
   const inmuebleAssignConfirmCopy = useMemo(() => {
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
+    const selectedRows = rowsForSelection.filter((row) =>
+      selectedRowKeys.has(row.row_key),
+    );
     const clienteIds = [...new Set(selectedRows.map((row) => row.cliente.id))];
     const inmueble = assignableInmuebles.find((item) => item.id === assignInmuebleId);
     const label = inmueble ? getInmuebleAssignLabel(inmueble) : 'el piso seleccionado';
@@ -592,10 +694,12 @@ export function InmuebleClientesGeneralPageContent({
       title: 'Asignar a piso',
       description: `¿Asignar ${clienteIds.length} cliente${clienteIds.length !== 1 ? 's' : ''} al piso ${label}? La referencia del cliente se actualizará.`,
     };
-  }, [rows, selectedRowKeys, assignInmuebleId, assignableInmuebles]);
+  }, [rowsForSelection, selectedRowKeys, assignInmuebleId, assignableInmuebles]);
 
   const deleteConfirmCopy = useMemo(() => {
-    const selectedRows = rows.filter((row) => selectedRowKeys.has(row.row_key));
+    const selectedRows = rowsForSelection.filter((row) =>
+      selectedRowKeys.has(row.row_key),
+    );
     const clienteIds = [...new Set(selectedRows.map((row) => row.cliente.id))];
     const count = clienteIds.length;
 
@@ -603,13 +707,13 @@ export function InmuebleClientesGeneralPageContent({
       title: 'Eliminar clientes',
       description: `¿Eliminar ${count} cliente${count !== 1 ? 's' : ''} seleccionado${count !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`,
     };
-  }, [rows, selectedRowKeys]);
+  }, [rowsForSelection, selectedRowKeys]);
 
   const allRowsSelected =
-    displayRows.length > 0 &&
-    displayRows.every((row) => selectedRowKeys.has(row.row_key));
+    rowsForSelection.length > 0 &&
+    rowsForSelection.every((row) => selectedRowKeys.has(row.row_key));
   const someRowsSelected =
-    displayRows.some((row) => selectedRowKeys.has(row.row_key)) &&
+    rowsForSelection.some((row) => selectedRowKeys.has(row.row_key)) &&
     !allRowsSelected;
 
   const clientesDenseColgroup = (
@@ -636,8 +740,8 @@ export function InmuebleClientesGeneralPageContent({
                 el.indeterminate = someRowsSelected;
               }
             }}
-            onChange={() => toggleSelectAllFiltered(displayRows)}
-            disabled={assigningBusy}
+            onChange={() => handleSelectAllToggle()}
+            disabled={assigningBusy || pendingSelectAll}
             className={`h-4 w-4 rounded border-slate-300 ${pageTheme.accentCheckbox}`}
             aria-label="Seleccionar todos los clientes (todas las páginas)"
           />
@@ -814,12 +918,18 @@ export function InmuebleClientesGeneralPageContent({
         <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:px-6">
           <div>
             <h2 className="font-semibold text-slate-900">
-              Clientes ({totalItems})
+              Clientes (
+              {columnFiltersActive && allRowsData
+                ? filteredRows.length
+                : isLoadingFullDataset
+                  ? '…'
+                  : catalogTotal}
+              )
             </h2>
           </div>
         </div>
 
-        {totalItems > 0 && (
+        {catalogTotal > 0 && (
           <ClienteVentaRangeFiltersBar
             filters={ventaRangeFilters}
             onChange={setVentaRangeFilters}
@@ -830,7 +940,7 @@ export function InmuebleClientesGeneralPageContent({
           />
         )}
 
-        {totalItems > 0 && (
+        {catalogTotal > 0 && (
           <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:px-6">
             <span className="text-sm text-slate-600">
               {selectedRowKeys.size > 0
@@ -905,12 +1015,12 @@ export function InmuebleClientesGeneralPageContent({
 
         {showInitialLoading ? (
           <p className="py-10 text-center text-slate-500">Cargando clientes…</p>
-        ) : totalItems === 0 ? (
+        ) : catalogTotal === 0 ? (
           <p className="py-10 text-center text-slate-500">
             No hay clientes vinculados a inmuebles de{' '}
             {expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}.
           </p>
-        ) : displayRows.length === 0 ? (
+        ) : displayRows.length === 0 && !isLoadingFullDataset ? (
           <TableFilterEmptyState
             onClear={columnFiltersActive ? clearAllFilters : clearSort}
           />
@@ -918,13 +1028,20 @@ export function InmuebleClientesGeneralPageContent({
           <>
             {columnFiltersActive && (
               <TableFilterBar
-                filteredCount={displayRows.length}
-                totalCount={rows.length}
+                filteredCount={
+                  allRowsData ? filteredRows.length : displayRows.length
+                }
+                totalCount={catalogTotal}
                 entityLabel="clientes"
                 hasSort={!!tableSort}
                 onClear={clearAllFilters}
               />
             )}
+            {isLoadingFullDataset ? (
+              <p className="border-b border-slate-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 sm:px-6">
+                Cargando todos los clientes para filtrar en toda la lista…
+              </p>
+            ) : null}
             <div className={CLIENTES_TABLE_HEAD_STICKY_CLASS}>
               <div
                 ref={tableHeadScrollRef}
@@ -938,7 +1055,7 @@ export function InmuebleClientesGeneralPageContent({
               </div>
             </div>
             <div className={CLIENTES_TABLE_BODY_WRAPPER_CLASS}>
-              {isPageFetching ? (
+              {isPageFetching || isFilterDatasetLoading ? (
                 <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center bg-white/50 pt-8">
                   <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
                 </div>
@@ -1125,11 +1242,11 @@ export function InmuebleClientesGeneralPageContent({
                           />
                         </td>
                         <td className={denseCellClass('barrio', 'text-slate-600')}>
-                          <ClienteVentaTableFieldCell
+                          <ClienteZonasMultiField
                             clienteId={cliente.id}
                             kind="barrio"
-                            refCliente={cliente.ref_cliente}
-                            barrio={cliente.barrio}
+                            barrios={cliente.barrio}
+                            distritos={cliente.distrito}
                             disabled={assigningBusy}
                             compact
                             onUpdated={(patch) =>
@@ -1138,11 +1255,11 @@ export function InmuebleClientesGeneralPageContent({
                           />
                         </td>
                         <td className={denseCellClass('distrito', 'text-slate-600')}>
-                          <ClienteVentaTableFieldCell
+                          <ClienteZonasMultiField
                             clienteId={cliente.id}
                             kind="distrito"
-                            refCliente={cliente.ref_cliente}
-                            distrito={cliente.distrito}
+                            barrios={cliente.barrio}
+                            distritos={cliente.distrito}
                             disabled={assigningBusy}
                             compact
                             onUpdated={(patch) =>

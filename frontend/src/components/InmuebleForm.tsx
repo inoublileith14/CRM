@@ -182,6 +182,8 @@ export function InmuebleForm({
       captador_alquilado_por: null,
       status: (form.get('status') as 'I' | 'P' | 'I-M') || null,
       activo: defaults.activo ?? true,
+      alquilado_codigo: defaults.alquilado_codigo ?? null,
+      vendido_codigo: defaults.vendido_codigo ?? null,
       row_color: defaults.row_color ?? null,
       tipo_operacion: tipoOperacion,
     });

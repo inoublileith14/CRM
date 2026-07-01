@@ -5,8 +5,11 @@ export default function CasasVentaPage() {
     <InmueblesPageContent
       tipoOperacion="venta"
       title="EXCEL PROPIETARIOS VENTA"
-      description="Listado tipo Excel de propietarios e inmuebles en venta."
+      description="Listado tipo Excel de propietarios e inmuebles en venta activos (ON)."
       basePath="/dashboard/casas-venta"
+      activoFilter={true}
+      storageScope="venta-activos"
+      emptyListMessage="No hay inmuebles activos en venta."
     />
   );
 }

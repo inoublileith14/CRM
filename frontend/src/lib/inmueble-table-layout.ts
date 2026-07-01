@@ -129,12 +129,12 @@ const IMAGE_COL_CLASS = 'w-[clamp(5rem,12vw,8.5rem)]';
 /** Fixed widths when extra columns are visible (no vw — avoids squash on horizontal scroll). */
 const IMAGE_COL_EXTRA = 'w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem]';
 const PROPI_COL_EXTRA = 'w-[5rem] min-w-[5rem] max-w-[5rem]';
-const BARRIO_COL_EXTRA = 'w-[3.5rem] min-w-[3.5rem] max-w-[3.5rem]';
+const BARRIO_COL_EXTRA = 'w-[7.5rem] min-w-[7.5rem] max-w-[7.5rem]';
 const OBS_COL_EXTRA = 'w-[7rem] min-w-[7rem] max-w-[7rem]';
 
-/** Narrow text column for barrio names. */
-const BARRIO_COL = 'w-[clamp(3rem,5.5vw,4rem)] min-w-[3rem] max-w-[4.25rem]';
-const BARRIO_CELL = 'truncate px-0.5 text-center align-middle text-[9px] leading-tight sm:text-[10px]';
+/** Barrio / distrito — same width and wrap as clientes global. */
+const BARRIO_COL = 'w-[7.5rem] min-w-[7.5rem] max-w-[7.5rem]';
+const BARRIO_CELL = `${WRAP} px-1 text-[10px] sm:text-xs`;
 /** Slightly smaller header so "DIST./CIUD." fits on one line. */
 const DISTRITO_CIUDAD_HEAD_TEXT =
   'px-0.5 whitespace-nowrap text-[8px] font-semibold leading-none sm:text-[9px]';
@@ -501,8 +501,8 @@ const EXTRA_MODE_COLUMN_WIDTHS: Partial<
   hab: '2rem',
   banos: '2rem',
   metros: '2rem',
-  barrio_distrito: '3.5rem',
-  distrito_ciudad: '3.5rem',
+  barrio_distrito: '7.5rem',
+  distrito_ciudad: '7.5rem',
   larga_estancia_temporada: '2.5rem',
   ficha_del_piso_real: '3.75rem',
   link_idealista_espejo: '3.75rem',

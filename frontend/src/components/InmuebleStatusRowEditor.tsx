@@ -8,10 +8,12 @@ import { toast } from 'sonner';
 import {
   getInmuebleStatusOption,
   getInmuebleDefaultRowColor,
+  getInmuebleBcnStatusTextClass,
   INMUEBLE_ROW_COLOR_PRESETS,
   INMUEBLE_STATUS_OPTIONS,
   normalizeRowColor,
   resolveInmuebleRowColor,
+  usesInmuebleBcnLightText,
   type InmuebleStatus,
 } from '@/lib/inmueble-status';
 import { updateInmueble } from '@/lib/inmuebles-api';
@@ -27,7 +29,8 @@ interface InmuebleStatusRowEditorProps {
   fillCell?: boolean;
   /** Rendered centered below the status label; receives its own pointer events. */
   stackedBottom?: ReactNode;
-  onAccentBackground?: boolean;
+  /** BCN cell background — drives label color (black; white only on morado). */
+  statusCellBackground?: string | null;
   disabled?: boolean;
   onUpdated: (patch: { status: Inmueble['status']; row_color: string | null }) => void;
 }
@@ -41,7 +44,7 @@ export function InmuebleStatusRowEditor({
   compact,
   fillCell = false,
   stackedBottom,
-  onAccentBackground = false,
+  statusCellBackground,
   disabled,
   onUpdated,
 }: InmuebleStatusRowEditorProps) {
@@ -154,13 +157,14 @@ export function InmuebleStatusRowEditor({
     await persist({ row_color: normalized });
   }
 
+  const statusTextClass = getInmuebleBcnStatusTextClass(statusCellBackground);
+  const statusLightText = usesInmuebleBcnLightText(statusCellBackground);
+
   const labelClass = fillCell
-    ? `text-sm font-extrabold leading-none sm:text-base${
-        onAccentBackground ? ' text-white' : ' text-slate-900'
-      }`
+    ? `text-sm font-extrabold leading-none sm:text-base ${statusTextClass}`
     : compact
-      ? 'text-sm font-bold'
-      : 'text-sm font-bold';
+      ? `text-sm font-bold ${statusTextClass}`
+      : `text-sm font-bold ${statusTextClass}`;
 
   const panel = open && mounted ? (
     <div
@@ -245,7 +249,7 @@ export function InmuebleStatusRowEditor({
     </div>
   ) : null;
 
-  const fillCellHoverClass = onAccentBackground
+  const fillCellHoverClass = statusLightText
     ? 'hover:bg-white/10'
     : 'hover:bg-black/5';
 

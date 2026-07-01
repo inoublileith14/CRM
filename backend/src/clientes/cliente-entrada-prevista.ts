@@ -6,6 +6,7 @@ export const CLIENTE_ENTRADA_PREVISTA_VALUES = [
   '15_dias',
   'mes',
   'mas_mes',
+  'sin_info',
 ] as const;
 
 export type ClienteEntradaPrevista =
@@ -28,6 +29,12 @@ const LABEL_ALIASES: Record<string, ClienteEntradaPrevista> = {
   '2_mas': 'mas_mes',
   mas: 'mas_mes',
   'más_mes': 'mas_mes',
+  sin_info: 'sin_info',
+  sin_informacion: 'sin_info',
+  vacio: 'sin_info',
+  vasio: 'sin_info',
+  '-': 'sin_info',
+  '—': 'sin_info',
 };
 
 export function isClienteEntradaPrevista(
@@ -70,7 +77,7 @@ export function parseClienteEntradaPrevistaInput(
 
   throw new BadRequestException({
     message:
-      'Entrada prevista no válida. Usa: YA, 1 SEMANA, 15 DIA, 1 MES o 2 MAS',
+      'Entrada prevista no válida. Usa: YA, 1 SEMANA, 15 DIA, 1 MES, 2 MAS o — (sin información)',
     code: 'CLIENTE_ENTRADA_PREVISTA_INVALID',
   });
 }

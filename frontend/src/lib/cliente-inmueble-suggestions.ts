@@ -1,3 +1,4 @@
+import { formatClienteZonasLabel } from '@/lib/cliente-zonas';
 import { parseBudgetAmount } from '@/lib/cliente-venta-range-filters';
 import type { ClienteTipoCliente } from '@/lib/cliente-tipo';
 import {
@@ -396,10 +397,14 @@ export class ClienteInmuebleSuggestionService {
       parseBudgetAmount(cliente.presupuesto_maximo) ??
       parseBudgetAmount(parsedRef.presupuesto);
     const presupuestoPeticion = parseBudgetAmount(parsedRef.presupuesto);
-    const barrio = cliente.barrio ?? parsedRef.zona;
+    const barrioLabel =
+      formatClienteZonasLabel(cliente.barrio, '') || parsedRef.zona || null;
+    const distritoLabel = formatClienteZonasLabel(cliente.distrito, '') || null;
     const locationTokens = extractLocationTokens(
-      barrio,
-      cliente.distrito,
+      barrioLabel,
+      distritoLabel,
+      ...cliente.barrio,
+      ...cliente.distrito,
       cliente.ciudad,
       parsedRef.zona,
       cliente.descripcion,
@@ -414,8 +419,8 @@ export class ClienteInmuebleSuggestionService {
       habitacionesMin: parsedRef.habitaciones,
       banosMin: cliente.banos ?? parsedRef.banos,
       metrosMin: parsedRef.metros,
-      barrio,
-      distrito: cliente.distrito,
+      barrio: barrioLabel,
+      distrito: distritoLabel,
       ciudad: cliente.ciudad,
       refCliente: cliente.ref_cliente,
       locationTokens,

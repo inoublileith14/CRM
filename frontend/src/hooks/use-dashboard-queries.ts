@@ -8,6 +8,7 @@ import {
 import { getMe } from '@/lib/api';
 import { getClientes, getCliente } from '@/lib/clientes-api';
 import {
+  fetchAllInmuebleClientesByTipo,
   getInmueble,
   getInmuebleClientesByTipo,
   getInmuebles,
@@ -103,6 +104,24 @@ export function useClientesByTipoQuery(
     queryFn: () => getInmuebleClientesByTipo(tipo, params),
     staleTime: QUERY_STALE_TIME.list,
     placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
+    ...defaultQueryOptions,
+  });
+}
+
+export function useClientesByTipoAllQuery(
+  tipo: TipoOperacion,
+  sortParams?: Pick<ClientesByTipoListParams, 'sort' | 'dir'>,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.clientes.byTipoAll(
+      tipo,
+      sortParams?.sort,
+      sortParams?.dir,
+    ),
+    queryFn: () => fetchAllInmuebleClientesByTipo(tipo, sortParams),
+    staleTime: QUERY_STALE_TIME.list,
     enabled: options?.enabled ?? true,
     ...defaultQueryOptions,
   });

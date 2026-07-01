@@ -18,6 +18,12 @@ export const queryKeys = {
         params?.sort ?? '',
         params?.dir ?? '',
       ] as const,
+    byTipoAll: (
+      tipo: TipoOperacion,
+      sort?: ClientesByTipoListParams['sort'],
+      dir?: ClientesByTipoListParams['dir'],
+    ) =>
+      ['clientes-by-tipo', tipo, 'all', sort ?? '', dir ?? ''] as const,
   },
   inmuebles: {
     all: (filters?: InmueblesFilters) =>

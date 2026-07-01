@@ -1,11 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { getInmuebleDenseHeaderColor } from '@/lib/inmueble-table-layout';
-import { InmueblePropietarioContacto } from '@/lib/inmueble-propietarios';
+import {
+  InmueblePropietarioContacto,
+  padPropietarioFormSlots,
+  parsePropietariosFromForm,
+} from '@/lib/inmueble-propietarios';
+import { updateInmueble } from '@/lib/inmuebles-api';
 import { TipoOperacion } from '@/types/inmueble';
 
 interface InmueblePropiCellProps {
@@ -13,6 +19,14 @@ interface InmueblePropiCellProps {
   tipoOperacion: TipoOperacion;
   entradaDate?: string;
   centered?: boolean;
+  editable?: boolean;
+  inmuebleId?: string;
+  disabled?: boolean;
+  onUpdated?: (patch: {
+    propietarios_contactos: InmueblePropietarioContacto[];
+    nombre_propi: string | null;
+    telf: string | null;
+  }) => void;
 }
 
 type PillVariant = 'primary' | 'secondary' | 'fecha' | 'empty';
@@ -287,6 +301,335 @@ function PropiValueLine({
   );
 }
 
+function contactosEqual(
+  a: InmueblePropietarioContacto[],
+  b: InmueblePropietarioContacto[],
+): boolean {
+  if (a.length !== b.length) return false;
+  return a.every(
+    (item, index) =>
+      item.nombre === b[index]?.nombre &&
+      (item.telf ?? null) === (b[index]?.telf ?? null),
+  );
+}
+
+interface EditablePropiValueLineProps {
+  emptyLabel: string;
+  slots: { nombre: string; telf: string }[];
+  field: 'nombre' | 'telf';
+  variant: 'primary' | 'secondary';
+  showFirstOnlyWhenMultiple?: boolean;
+  theme: PillTheme;
+  pillBackgroundStyle: { backgroundColor: string };
+  centered?: boolean;
+  disabled?: boolean;
+  saving?: boolean;
+  inputMode?: 'text' | 'tel';
+  onCommit: (index: number, value: string) => void | Promise<void>;
+}
+
+function EditablePropiValueLine({
+  emptyLabel,
+  slots,
+  field,
+  variant,
+  showFirstOnlyWhenMultiple = false,
+  theme,
+  pillBackgroundStyle,
+  centered = false,
+  disabled,
+  saving,
+  inputMode = 'text',
+  onCommit,
+}: EditablePropiValueLineProps) {
+  const [open, setOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
+  const [dropdownDrafts, setDropdownDrafts] = useState<Record<number, string>>({});
+  const [mounted, setMounted] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const styles = theme[variant];
+  const wrapperClass = centered ? 'mx-auto w-full max-w-full' : 'w-full max-w-full';
+
+  const entries = useMemo(
+    () =>
+      slots
+        .map((slot, index) => ({
+          index,
+          value: (field === 'nombre' ? slot.nombre : slot.telf).trim(),
+        }))
+        .filter((entry) => entry.value),
+    [slots, field],
+  );
+
+  const position = useFloatingPanelPosition({
+    open,
+    triggerRef,
+    panelRef,
+    minPanelWidth: 200,
+    estimatedHeight: Math.min(entries.length * 44 + 16, 240),
+    deps: [entries.length, field, open],
+  });
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (editingIndex === null) return;
+    const current =
+      field === 'nombre'
+        ? slots[editingIndex]?.nombre ?? ''
+        : slots[editingIndex]?.telf ?? '';
+    setDraft(current);
+  }, [editingIndex, field, slots]);
+
+  useEffect(() => {
+    if (editingIndex === null) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editingIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  function toggleDropdown() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const next: Record<number, string> = {};
+    for (const entry of entries) {
+      next[entry.index] = entry.value;
+    }
+    setDropdownDrafts(next);
+    setOpen(true);
+  }
+
+  function startEdit(index: number) {
+    setOpen(false);
+    setEditingIndex(index);
+  }
+
+  function cancelEdit() {
+    if (saving) return;
+    setEditingIndex(null);
+  }
+
+  async function saveEdit() {
+    if (editingIndex === null || saving || disabled) return;
+    const current =
+      field === 'nombre'
+        ? slots[editingIndex]?.nombre ?? ''
+        : slots[editingIndex]?.telf ?? '';
+    if (draft === current) {
+      setEditingIndex(null);
+      return;
+    }
+    await onCommit(editingIndex, draft);
+    setEditingIndex(null);
+  }
+
+  async function saveDropdownEntry(index: number) {
+    if (saving || disabled) return;
+    const nextValue = dropdownDrafts[index] ?? '';
+    const current =
+      field === 'nombre'
+        ? slots[index]?.nombre ?? ''
+        : slots[index]?.telf ?? '';
+    if (nextValue === current) return;
+    await onCommit(index, nextValue);
+  }
+
+  const isMulti = entries.length > 1;
+
+  if (editingIndex !== null && !isMulti) {
+    return (
+      <div className={wrapperClass}>
+        <div
+          style={pillBackgroundStyle}
+          className={`inline-flex h-6 w-full max-w-full items-center overflow-hidden rounded-full ${styles.pill}`}
+        >
+          <input
+            ref={inputRef}
+            type={inputMode === 'tel' ? 'tel' : 'text'}
+            inputMode={inputMode === 'tel' ? 'tel' : 'text'}
+            value={draft}
+            disabled={disabled || saving}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => void saveEdit()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void saveEdit();
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelEdit();
+              }
+            }}
+            onClick={(event) => event.stopPropagation()}
+            placeholder={emptyLabel}
+            className="min-w-0 flex-1 border-0 bg-transparent px-2 py-1 text-center text-xs font-bold leading-none text-white outline-none placeholder:text-white/50 disabled:opacity-60"
+          />
+          {saving ? (
+            <Loader2 className="mr-1 h-3 w-3 shrink-0 animate-spin text-white/80" />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className={wrapperClass}>
+        <button
+          type="button"
+          disabled={disabled || saving}
+          onClick={(event) => {
+            event.stopPropagation();
+            startEdit(0);
+          }}
+          title={`Clic para añadir ${emptyLabel.toLowerCase()}`}
+          style={pillBackgroundStyle}
+          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${theme.empty} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold uppercase tracking-wide leading-none">
+            {emptyLabel}
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  const summary =
+    entries.length > 1 && showFirstOnlyWhenMultiple
+      ? entries[0].value
+      : entries.length > 1
+        ? entries.map((entry) => entry.value).join(' / ')
+        : entries[0].value;
+
+  const dropdown =
+    open && mounted && isMulti ? (
+      <div
+        ref={panelRef}
+        className="fixed z-[200] overflow-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg"
+        style={{
+          top: position.top,
+          left: position.left,
+          width: position.width,
+          maxHeight: 'min(240px, calc(100vh - 1rem))',
+        }}
+      >
+        <ul className="flex flex-col gap-2">
+          {entries.map((entry) => (
+            <li key={`${field}-${entry.index}`}>
+              <input
+                type={inputMode === 'tel' ? 'tel' : 'text'}
+                inputMode={inputMode === 'tel' ? 'tel' : 'text'}
+                value={dropdownDrafts[entry.index] ?? entry.value}
+                disabled={disabled || saving}
+                onChange={(event) =>
+                  setDropdownDrafts((prev) => ({
+                    ...prev,
+                    [entry.index]: event.target.value,
+                  }))
+                }
+                onBlur={() => void saveDropdownEntry(entry.index)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void saveDropdownEntry(entry.index);
+                  }
+                }}
+                onClick={(event) => event.stopPropagation()}
+                placeholder={`${emptyLabel} ${entry.index + 1}`}
+                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-60"
+              />
+            </li>
+          ))}
+        </ul>
+        {saving ? (
+          <div className="mt-2 flex justify-center">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+          </div>
+        ) : null}
+      </div>
+    ) : null;
+
+  if (isMulti) {
+    return (
+      <div className={wrapperClass}>
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled || saving}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleDropdown();
+          }}
+          title={`${summary} — clic para editar en el desplegable`}
+          style={pillBackgroundStyle}
+          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold leading-none normal-case tracking-normal">
+            {summary}
+          </span>
+          <span
+            className={`flex h-full w-6 shrink-0 items-center justify-center ${styles.circle} ${styles.circleBorder}`}
+          >
+            <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={2.5} />
+          </span>
+        </button>
+        {dropdown ? createPortal(dropdown, document.body) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className={wrapperClass}>
+      <button
+        type="button"
+        disabled={disabled || saving}
+        onClick={(event) => {
+          event.stopPropagation();
+          startEdit(entries[0].index);
+        }}
+        title={`${summary} — clic para editar`}
+        style={pillBackgroundStyle}
+        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold leading-none normal-case tracking-normal">
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : summary}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 function toWhatsAppHref(phone: string): string | null {
   let digits = phone.replace(/\D/g, '');
   if (digits.length === 9 && /^[67]/.test(digits)) {
@@ -326,7 +669,17 @@ export function InmueblePropiCell({
   tipoOperacion,
   entradaDate,
   centered = false,
+  editable,
+  inmuebleId,
+  disabled,
+  onUpdated,
 }: InmueblePropiCellProps) {
+  const slotCount = Math.max(propietarios.length, 1);
+  const [slots, setSlots] = useState(() =>
+    padPropietarioFormSlots(propietarios).slice(0, slotCount),
+  );
+  const [saving, setSaving] = useState(false);
+
   const names = propietarios.map((item) => item.nombre.trim()).filter(Boolean);
   const phones = propietarios
     .map((item) => item.telf?.trim() ?? '')
@@ -336,6 +689,62 @@ export function InmueblePropiCell({
 
   const theme = getPillTheme(tipoOperacion);
   const pillBackgroundStyle = getPropiPillBackgroundStyle(tipoOperacion);
+
+  useEffect(() => {
+    if (!saving) {
+      const count = Math.max(propietarios.length, 1);
+      setSlots(padPropietarioFormSlots(propietarios).slice(0, count));
+    }
+  }, [propietarios, saving]);
+
+  async function commitSlots(nextSlots: { nombre: string; telf: string }[]) {
+    if (!editable || !inmuebleId || !onUpdated) return;
+
+    const parsed = parsePropietariosFromForm(nextSlots);
+    if (contactosEqual(parsed, propietarios)) return;
+
+    setSaving(true);
+    try {
+      const updated = await updateInmueble(inmuebleId, {
+        propietarios_contactos: parsed,
+        nombre_propi: parsed[0]?.nombre ?? null,
+        telf: parsed[0]?.telf ?? null,
+      });
+      onUpdated({
+        propietarios_contactos: updated.propietarios_contactos ?? parsed,
+        nombre_propi: updated.nombre_propi ?? null,
+        telf: updated.telf ?? null,
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudieron guardar los datos del propietario',
+      );
+      const count = Math.max(propietarios.length, 1);
+      setSlots(padPropietarioFormSlots(propietarios).slice(0, count));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateSlot(
+    index: number,
+    field: 'nombre' | 'telf',
+    value: string,
+  ) {
+    const next = slots.map((slot, slotIndex) =>
+      slotIndex === index ? { ...slot, [field]: value } : slot,
+    );
+    setSlots(next);
+    await commitSlots(next);
+  }
+
+  const isEditable = Boolean(editable && inmuebleId && onUpdated);
+  const fieldDisabled = disabled || saving;
+  const whatsappPhone = isEditable
+    ? slots.map((slot) => slot.telf.trim()).find(Boolean)
+    : phones[0];
 
   return (
     <div
@@ -349,25 +758,58 @@ export function InmueblePropiCell({
         pillBackgroundStyle={pillBackgroundStyle}
         centered={centered}
       />
-      <PropiValueLine
-        emptyLabel="PROPI"
-        values={names}
-        variant="primary"
-        theme={theme}
-        pillBackgroundStyle={pillBackgroundStyle}
-        centered={centered}
-      />
-      <PropiValueLine
-        emptyLabel="TLF"
-        values={phones}
-        variant="secondary"
-        showFirstOnlyWhenMultiple
-        theme={theme}
-        pillBackgroundStyle={pillBackgroundStyle}
-        centered={centered}
-      />
-      {phones[0] ? (
-        <PropiWhatsAppButton phone={phones[0]} />
+      {isEditable ? (
+        <>
+          <EditablePropiValueLine
+            emptyLabel="PROPI"
+            slots={slots}
+            field="nombre"
+            variant="primary"
+            theme={theme}
+            pillBackgroundStyle={pillBackgroundStyle}
+            centered={centered}
+            disabled={fieldDisabled}
+            saving={saving}
+            onCommit={(index, value) => updateSlot(index, 'nombre', value)}
+          />
+          <EditablePropiValueLine
+            emptyLabel="TLF"
+            slots={slots}
+            field="telf"
+            variant="secondary"
+            showFirstOnlyWhenMultiple
+            theme={theme}
+            pillBackgroundStyle={pillBackgroundStyle}
+            centered={centered}
+            disabled={fieldDisabled}
+            saving={saving}
+            inputMode="tel"
+            onCommit={(index, value) => updateSlot(index, 'telf', value)}
+          />
+        </>
+      ) : (
+        <>
+          <PropiValueLine
+            emptyLabel="PROPI"
+            values={names}
+            variant="primary"
+            theme={theme}
+            pillBackgroundStyle={pillBackgroundStyle}
+            centered={centered}
+          />
+          <PropiValueLine
+            emptyLabel="TLF"
+            values={phones}
+            variant="secondary"
+            showFirstOnlyWhenMultiple
+            theme={theme}
+            pillBackgroundStyle={pillBackgroundStyle}
+            centered={centered}
+          />
+        </>
+      )}
+      {whatsappPhone ? (
+        <PropiWhatsAppButton phone={whatsappPhone} />
       ) : null}
     </div>
   );

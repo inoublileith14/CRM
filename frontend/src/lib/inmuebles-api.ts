@@ -72,6 +72,41 @@ export function getInmuebleClientesByTipo(
   );
 }
 
+const CLIENTES_BY_TIPO_FETCH_ALL_LIMIT = 10_000;
+
+/** Loads every page so client-side filters can run on the full dataset. */
+export async function fetchAllInmuebleClientesByTipo(
+  tipo_operacion: 'alquiler' | 'venta',
+  sortParams?: Pick<ClientesByTipoListParams, 'sort' | 'dir'>,
+): Promise<ClientesByTipoPageResult> {
+  const baseParams: ClientesByTipoListParams = {
+    page: 1,
+    limit: CLIENTES_BY_TIPO_FETCH_ALL_LIMIT,
+    ...sortParams,
+  };
+  const first = await getInmuebleClientesByTipo(tipo_operacion, baseParams);
+  if (first.total <= first.rows.length) {
+    return first;
+  }
+
+  const rows = [...first.rows];
+  const totalPages = Math.ceil(first.total / CLIENTES_BY_TIPO_FETCH_ALL_LIMIT);
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await getInmuebleClientesByTipo(tipo_operacion, {
+      ...baseParams,
+      page,
+    });
+    rows.push(...next.rows);
+  }
+
+  return {
+    rows,
+    total: first.total,
+    page: 1,
+    limit: rows.length,
+  };
+}
+
 /** @deprecated Use getInmuebleClientesByTipo with pagination params */
 export function getInmuebleClientesByTipoAll(
   tipo_operacion: 'alquiler' | 'venta',

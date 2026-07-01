@@ -3,6 +3,10 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { MultiSelectField } from '@/components/MultiSelectField';
+import {
+  formatClienteZonasLabel,
+  normalizeClienteZonas,
+} from '@/lib/cliente-zonas';
 import { useFormOptionsQuery } from '@/hooks/use-dashboard-queries';
 import {
   CLIENTE_ESTADO_LABELS,
@@ -24,6 +28,19 @@ interface ClienteFormProps {
 
 function toValue(value: string | null | undefined): string {
   return value ?? '';
+}
+
+function zonasToInputValue(value: string[] | null | undefined): string {
+  return formatClienteZonasLabel(value, '');
+}
+
+function parseZonasInput(value: string): string[] {
+  return normalizeClienteZonas(
+    value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
 }
 
 function toDateInput(value: string | null | undefined): string {
@@ -93,8 +110,8 @@ export function ClienteForm({
       email: (form.get('email') as string) || null,
       telefono: (form.get('telefono') as string) || null,
       ciudad: (form.get('ciudad') as string) || null,
-      barrio: (form.get('barrio') as string) || null,
-      distrito: (form.get('distrito') as string) || null,
+      barrio: parseZonasInput((form.get('barrio') as string) || ''),
+      distrito: parseZonasInput((form.get('distrito') as string) || ''),
       tipo_nomina: initial?.tipo_nomina ?? null,
       tipo_cliente: initial?.tipo_cliente ?? null,
       estado: (form.get('estado') as ClienteEstado) || 'pendiente',
@@ -341,7 +358,7 @@ export function ClienteForm({
               id="barrio"
               name="barrio"
               type="text"
-              defaultValue={toValue(initial?.barrio)}
+              defaultValue={zonasToInputValue(initial?.barrio)}
               disabled={loading}
               className={inputClass}
             />
@@ -357,7 +374,7 @@ export function ClienteForm({
               id="distrito"
               name="distrito"
               type="text"
-              defaultValue={toValue(initial?.distrito)}
+              defaultValue={zonasToInputValue(initial?.distrito)}
               disabled={loading}
               className={inputClass}
             />

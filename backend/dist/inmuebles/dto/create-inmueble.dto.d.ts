@@ -34,6 +34,8 @@ export declare class CreateInmuebleDto {
     captador_alquilado_por?: string;
     status?: 'I' | 'P' | 'I-M';
     activo?: boolean;
+    alquilado_codigo?: 'C' | 'O' | 'R' | null;
+    vendido_codigo?: 'C' | 'O' | 'R' | null;
     row_color?: string;
     tipo_operacion?: 'alquiler' | 'venta';
 }

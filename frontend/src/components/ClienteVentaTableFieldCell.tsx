@@ -13,8 +13,6 @@ export type ClienteVentaTableFieldKind =
   | 'habitaciones'
   | 'banos'
   | 'metros'
-  | 'barrio'
-  | 'distrito'
   | 'tipo_nomina';
 
 interface ClienteVentaTableFieldCellProps {
@@ -23,8 +21,6 @@ interface ClienteVentaTableFieldCellProps {
   refCliente: string | null;
   presupuestoMaximo?: string | null;
   banos?: number | null;
-  barrio?: string | null;
-  distrito?: string | null;
   tipoNomina?: string | null;
   disabled?: boolean;
   compact?: boolean;
@@ -32,8 +28,6 @@ interface ClienteVentaTableFieldCellProps {
     presupuesto_maximo?: string | null;
     banos?: number | null;
     ref_cliente?: string | null;
-    barrio?: string | null;
-    distrito?: string | null;
     tipo_nomina?: string | null;
   }) => void;
 }
@@ -43,8 +37,6 @@ function getFieldValue(
   refCliente: string | null,
   presupuestoMaximo: string | null | undefined,
   banos: number | null | undefined,
-  barrio: string | null | undefined,
-  distrito: string | null | undefined,
   tipoNomina: string | null | undefined,
 ): string {
   const parsed = parseRefCliente(refCliente);
@@ -60,10 +52,6 @@ function getFieldValue(
       return banos != null ? String(banos) : '';
     case 'metros':
       return parsed.metros != null ? String(parsed.metros) : '';
-    case 'barrio':
-      return barrio ?? parsed.zona ?? '';
-    case 'distrito':
-      return distrito ?? '';
     case 'tipo_nomina':
       return tipoNomina ?? '';
   }
@@ -74,8 +62,6 @@ function formatDisplayValue(
   refCliente: string | null,
   presupuestoMaximo: string | null | undefined,
   banos: number | null | undefined,
-  barrio: string | null | undefined,
-  distrito: string | null | undefined,
   tipoNomina: string | null | undefined,
 ): string {
   const value = getFieldValue(
@@ -83,8 +69,6 @@ function formatDisplayValue(
     refCliente,
     presupuestoMaximo,
     banos,
-    barrio,
-    distrito,
     tipoNomina,
   );
   return value.trim() ? value : '—';
@@ -103,8 +87,6 @@ export function ClienteVentaTableFieldCell({
   refCliente,
   presupuestoMaximo,
   banos,
-  barrio,
-  distrito,
   tipoNomina,
   disabled,
   compact,
@@ -120,15 +102,12 @@ export function ClienteVentaTableFieldCell({
     refCliente,
     presupuestoMaximo,
     banos,
-    barrio,
-    distrito,
     tipoNomina,
   );
   const isEmpty = displayValue === '—';
   const isNumberField =
     kind === 'habitaciones' || kind === 'banos' || kind === 'metros';
-  const isWrapTextField =
-    kind === 'barrio' || kind === 'distrito' || kind === 'tipo_nomina';
+  const isWrapTextField = kind === 'tipo_nomina';
 
   useEffect(() => {
     if (!editing) {
@@ -138,13 +117,11 @@ export function ClienteVentaTableFieldCell({
           refCliente,
           presupuestoMaximo,
           banos,
-          barrio,
-          distrito,
           tipoNomina,
         ),
       );
     }
-  }, [kind, refCliente, presupuestoMaximo, banos, barrio, distrito, tipoNomina, editing]);
+  }, [kind, refCliente, presupuestoMaximo, banos, tipoNomina, editing]);
 
   useEffect(() => {
     if (editing) {
@@ -159,8 +136,6 @@ export function ClienteVentaTableFieldCell({
       refCliente,
       presupuestoMaximo,
       banos,
-      barrio,
-      distrito,
       tipoNomina,
     );
     setEditing(false);
@@ -169,20 +144,6 @@ export function ClienteVentaTableFieldCell({
 
     setSaving(true);
     try {
-      if (kind === 'barrio') {
-        const next = draft.trim() || null;
-        await updateCliente(clienteId, { barrio: next });
-        onUpdated({ barrio: next });
-        return;
-      }
-
-      if (kind === 'distrito') {
-        const next = draft.trim() || null;
-        await updateCliente(clienteId, { distrito: next });
-        onUpdated({ distrito: next });
-        return;
-      }
-
       if (kind === 'tipo_nomina') {
         const next = draft.trim() || null;
         await updateCliente(clienteId, { tipo_nomina: next });
@@ -260,8 +221,6 @@ export function ClienteVentaTableFieldCell({
           refCliente,
           presupuestoMaximo,
           banos,
-          barrio,
-          distrito,
           tipoNomina,
         ),
       );

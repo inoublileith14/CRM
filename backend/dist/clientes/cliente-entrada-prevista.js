@@ -11,6 +11,7 @@ exports.CLIENTE_ENTRADA_PREVISTA_VALUES = [
     '15_dias',
     'mes',
     'mas_mes',
+    'sin_info',
 ];
 const VALUE_SET = new Set(exports.CLIENTE_ENTRADA_PREVISTA_VALUES);
 const LABEL_ALIASES = {
@@ -28,6 +29,12 @@ const LABEL_ALIASES = {
     '2_mas': 'mas_mes',
     mas: 'mas_mes',
     'más_mes': 'mas_mes',
+    sin_info: 'sin_info',
+    sin_informacion: 'sin_info',
+    vacio: 'sin_info',
+    vasio: 'sin_info',
+    '-': 'sin_info',
+    '—': 'sin_info',
 };
 function isClienteEntradaPrevista(value) {
     return Boolean(value && VALUE_SET.has(value));
@@ -57,7 +64,7 @@ function parseClienteEntradaPrevistaInput(value) {
         return normalized;
     }
     throw new common_1.BadRequestException({
-        message: 'Entrada prevista no válida. Usa: YA, 1 SEMANA, 15 DIA, 1 MES o 2 MAS',
+        message: 'Entrada prevista no válida. Usa: YA, 1 SEMANA, 15 DIA, 1 MES, 2 MAS o — (sin información)',
         code: 'CLIENTE_ENTRADA_PREVISTA_INVALID',
     });
 }

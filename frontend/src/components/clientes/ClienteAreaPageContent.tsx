@@ -22,7 +22,11 @@ import { createClientePerfil, updateCliente } from '@/lib/clientes-api';
 import { getClienteTipoNominaLabel } from '@/lib/cliente-tipo-nomina';
 import { ClientePerfilEditor } from '@/components/clientes/ClientePerfilEditor';
 import { ClienteFechaEntradaInmuebleCell } from '@/components/ClienteFechaEntradaInmuebleCell';
-import { parseRefCliente, refsMatchForInmueble } from '@/lib/parse-ref-cliente';
+import { formatClienteZonasLabel } from '@/lib/cliente-zonas';
+import {
+  parseRefCliente,
+  refsMatchForInmueble,
+} from '@/lib/parse-ref-cliente';
 import {
   formatInmueblePrecio,
   resolveInmuebleImageSrc,
@@ -212,8 +216,9 @@ function formatBarrioDistrito(
   cliente: Cliente,
   zonaFromRef: string | null,
 ): string {
-  const barrio = cliente.barrio?.trim() || zonaFromRef?.trim() || null;
-  const distrito = cliente.distrito?.trim() || null;
+  const barrioLabel = formatClienteZonasLabel(cliente.barrio, '');
+  const barrio = barrioLabel || zonaFromRef?.trim() || null;
+  const distrito = formatClienteZonasLabel(cliente.distrito, '');
 
   if (barrio && distrito) return `${barrio} / ${distrito}`;
   return barrio || distrito || '—';

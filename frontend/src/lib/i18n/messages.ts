@@ -15,6 +15,11 @@ export type MessageKey =
   | 'nav.asesores'
   | 'nav.rentals'
   | 'nav.rentalsShort'
+  | 'nav.rentedFlats'
+  | 'nav.soldFlats'
+  | 'nav.deactivatedGroup'
+  | 'nav.deactivatedRentFlats'
+  | 'nav.deactivatedSaleFlats'
   | 'nav.rentalGroup'
   | 'nav.rentalClients'
   | 'nav.rentalClientsShort'
@@ -24,8 +29,12 @@ export type MessageKey =
   | 'nav.saleClients'
   | 'nav.saleClientsShort'
   | 'nav.whatsapp'
+  | 'nav.logs'
   | 'nav.calendar'
   | 'nav.logout'
+  | 'logs.title'
+  | 'logs.subtitle'
+  | 'logs.empty'
   | 'calendar.title'
   | 'calendar.subtitle'
   | 'calendar.connectTitle'
@@ -109,6 +118,11 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.asesores': 'Asesores',
     'nav.rentals': 'Propi alquiler',
     'nav.rentalsShort': 'Pisos',
+    'nav.rentedFlats': 'Pisos alquilados',
+    'nav.soldFlats': 'Pisos vendidos',
+    'nav.deactivatedGroup': 'P.Desactivados',
+    'nav.deactivatedRentFlats': 'Pisos desactivados alquiler',
+    'nav.deactivatedSaleFlats': 'Pisos desactivados venta',
     'nav.rentalGroup': 'Alquiler',
     'nav.rentalClients': 'Clientes alquiler',
     'nav.rentalClientsShort': 'Clientes',
@@ -118,8 +132,12 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.saleClients': 'Clientes venta',
     'nav.saleClientsShort': 'Clientes',
     'nav.whatsapp': 'WhatsApp',
+    'nav.logs': 'Registros',
     'nav.calendar': 'Calendario',
     'nav.logout': 'Cerrar sesión',
+    'logs.title': 'Registros de actividad',
+    'logs.subtitle': 'Historial de acciones de los usuarios en la aplicación',
+    'logs.empty': 'Aún no hay registros. Las acciones de los usuarios aparecerán aquí.',
     'calendar.title': 'Calendario',
     'calendar.subtitle': 'Próximas visitas y eventos del calendario de la agencia',
     'calendar.connectTitle': 'Conecta el Google Calendar de la agencia',
@@ -209,6 +227,11 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.asesores': 'Advisors',
     'nav.rentals': 'Propi rent',
     'nav.rentalsShort': 'Flats',
+    'nav.rentedFlats': 'Rented flats',
+    'nav.soldFlats': 'Sold flats',
+    'nav.deactivatedGroup': 'P.Deactivated',
+    'nav.deactivatedRentFlats': 'Deactivated rent flats',
+    'nav.deactivatedSaleFlats': 'Deactivated sale flats',
     'nav.rentalGroup': 'Rent',
     'nav.rentalClients': 'Rental clients',
     'nav.rentalClientsShort': 'Clients',
@@ -218,8 +241,12 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.saleClients': 'Sale clients',
     'nav.saleClientsShort': 'Clients',
     'nav.whatsapp': 'WhatsApp',
+    'nav.logs': 'Logs',
     'nav.calendar': 'Calendar',
     'nav.logout': 'Log out',
+    'logs.title': 'Activity logs',
+    'logs.subtitle': 'History of user actions in the application',
+    'logs.empty': 'No logs yet. User actions will appear here.',
     'calendar.title': 'Calendar',
     'calendar.subtitle': 'Upcoming visits and events from the agency calendar',
     'calendar.connectTitle': 'Connect the agency Google Calendar',

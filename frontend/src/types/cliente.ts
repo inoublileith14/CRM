@@ -33,8 +33,8 @@ export interface Cliente {
   email: string | null;
   telefono: string | null;
   ciudad: string | null;
-  barrio: string | null;
-  distrito: string | null;
+  barrio: string[];
+  distrito: string[];
   tipo_nomina: string | null;
   tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
@@ -72,8 +72,8 @@ export type ClienteFormData = {
   email: string | null;
   telefono: string | null;
   ciudad: string | null;
-  barrio: string | null;
-  distrito: string | null;
+  barrio: string[];
+  distrito: string[];
   tipo_nomina: string | null;
   tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
@@ -129,8 +129,8 @@ export const emptyClienteForm = (): ClienteFormData => ({
   email: null,
   telefono: null,
   ciudad: null,
-  barrio: null,
-  distrito: null,
+  barrio: [],
+  distrito: [],
   tipo_nomina: null,
   tipo_cliente: null,
   estado: 'pendiente',

@@ -1,6 +1,7 @@
 'use client';
 
 import { VentaRangeFilters } from '@/lib/cliente-venta-range-filters';
+import { BarcelonaZonaCombobox } from '@/components/BarcelonaZonaCombobox';
 
 interface ClienteVentaRangeFiltersBarProps {
   filters: VentaRangeFilters;
@@ -172,25 +173,24 @@ export function ClienteVentaRangeFiltersBar({
         />
         <div className="min-w-[9rem] flex-1">
           <p className="mb-1 text-xs font-medium text-slate-600">Barrio</p>
-          <input
-            type="text"
+          <BarcelonaZonaCombobox
+            kind="barrio"
             value={filters.barrio}
-            onChange={(e) => patch({ barrio: e.target.value })}
-            placeholder="Buscar barrio…"
+            onChange={(barrio) => patch({ barrio })}
+            onBarrioPick={(barrio, distrito) => patch({ barrio, distrito })}
             disabled={disabled}
-            className={`w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${focusRingClass} disabled:opacity-60`}
+            placeholder="Buscar o elegir barrio…"
             aria-label="Filtrar por barrio"
           />
         </div>
         <div className="min-w-[9rem] flex-1">
           <p className="mb-1 text-xs font-medium text-slate-600">Distrito</p>
-          <input
-            type="text"
+          <BarcelonaZonaCombobox
+            kind="distrito"
             value={filters.distrito}
-            onChange={(e) => patch({ distrito: e.target.value })}
-            placeholder="Buscar distrito…"
+            onChange={(distrito) => patch({ distrito })}
             disabled={disabled}
-            className={`w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${focusRingClass} disabled:opacity-60`}
+            placeholder="Buscar o elegir distrito…"
             aria-label="Filtrar por distrito"
           />
         </div>

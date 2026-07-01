@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { normalizeClienteZonas } from '@/lib/cliente-zonas';
 import { ClienteFormData, ClienteOrigen } from '@/types/cliente';
 
 const HEADER_MAP: Record<string, keyof ClienteFormData> = {
@@ -132,8 +133,8 @@ export function parseClienteExcel(buffer: ArrayBuffer): ClienteFormData[] {
       email,
       telefono,
       ciudad: cellStr(get('ciudad')),
-      barrio: cellStr(get('barrio')),
-      distrito: cellStr(get('distrito')),
+      barrio: normalizeClienteZonas(cellStr(get('barrio'))),
+      distrito: normalizeClienteZonas(cellStr(get('distrito'))),
       tipo_nomina: null,
       tipo_cliente: null,
       estado: 'pendiente',

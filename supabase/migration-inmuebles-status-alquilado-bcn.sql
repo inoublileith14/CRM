@@ -1,0 +1,2 @@
+-- Superseded by migration-inmuebles-alquilado-codigo.sql
+-- C/O are stored in alquilado_codigo, not in status.

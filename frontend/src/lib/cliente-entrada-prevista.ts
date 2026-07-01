@@ -4,6 +4,8 @@ export const CLIENTE_ENTRADA_PREVISTA_OPTIONS = [
   { value: '15_dias', label: '15 DIA' },
   { value: 'mes', label: '1 MES' },
   { value: 'mas_mes', label: '2 MAS' },
+  /** Sin información de entrada prevista */
+  { value: 'sin_info', label: '—' },
 ] as const;
 
 export type ClienteEntradaPrevista =
@@ -26,6 +28,12 @@ const LABEL_ALIASES: Record<string, ClienteEntradaPrevista> = {
   masmes: 'mas_mes',
   '2_mas': 'mas_mes',
   mas: 'mas_mes',
+  sin_info: 'sin_info',
+  sin_informacion: 'sin_info',
+  vacio: 'sin_info',
+  vasio: 'sin_info',
+  '-': 'sin_info',
+  '—': 'sin_info',
 };
 
 export function isClienteEntradaPrevista(

@@ -123,6 +123,11 @@ export function ClienteFechaEntradaInmuebleCell({
             <button
               type="button"
               onClick={() => void handleSelect(option.value)}
+              title={
+                option.value === 'sin_info'
+                  ? 'Sin información de entrada prevista'
+                  : undefined
+              }
               className={`block w-full px-3 py-2 text-left text-xs font-bold uppercase transition hover:bg-slate-50 ${
                 current.value === option.value
                   ? 'bg-slate-100 text-slate-900'
@@ -151,9 +156,11 @@ export function ClienteFechaEntradaInmuebleCell({
         aria-haspopup="listbox"
         aria-expanded={open}
         title={
-          isClienteEntradaPrevista(value)
-            ? current.label
-            : 'Seleccionar entrada prevista'
+          normalizeClienteEntradaPrevista(value) === 'sin_info'
+            ? 'Sin información de entrada prevista'
+            : isClienteEntradaPrevista(value)
+              ? current.label
+              : 'Seleccionar entrada prevista'
         }
       >
         {saving ? (

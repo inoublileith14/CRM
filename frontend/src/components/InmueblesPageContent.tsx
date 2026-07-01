@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Eye, Minus, Pencil, Plus, Trash2, X, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { Eye, Minus, Pencil, Plus, X, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { ExcelImportButton } from '@/components/ExcelImportButton';
 import { ImagePreviewModal } from '@/components/ImagePreviewModal';
@@ -15,6 +15,12 @@ import { InmuebleForm } from '@/components/InmuebleForm';
 import { InmuebleObservacionesLineCell } from '@/components/InmuebleObservacionesLineCell';
 import { InmuebleObservacionesColumnHead } from '@/components/InmuebleObservacionesColumnHead';
 import { InmuebleRefInlineCell } from '@/components/InmuebleRefInlineCell';
+import {
+  InmuebleNumericInlineCell,
+  isInmuebleEditableNumericField,
+} from '@/components/InmuebleNumericInlineCell';
+import { InmuebleZonaInlineCell } from '@/components/InmuebleZonaInlineCell';
+import { InmueblePisosInactivosBcnEditor } from '@/components/InmueblePisosInactivosBcnEditor';
 import { InmuebleStatusRowEditor } from '@/components/InmuebleStatusRowEditor';
 import { InmuebleActivoToggle } from '@/components/InmuebleActivoToggle';
 import { InmuebleBcnStatusFilterHead } from '@/components/InmuebleBcnStatusFilterHead';
@@ -41,6 +47,7 @@ import { buildInmuebleTableColumns } from '@/lib/inmueble-column-filters';
 import { getColumnFilterFieldType } from '@/lib/inmueble-column-filters';
 import {
   applyTableColumnFilters,
+  BLANK_FILTER_VALUE,
   isColumnFilterActive,
 } from '@/lib/table-column-filters';
 import { formatTableHeaderLabel } from '@/lib/table-header-label';
@@ -83,18 +90,17 @@ import { useCurrentUser } from '@/contexts/CurrentUserContext';
 import { isAdminUser } from '@/lib/auth-roles';
 import {
   createInmueble,
-  deleteInmueble,
 } from '@/lib/inmuebles-api';
 import {
-  applyInmuebleDeleteFromCache,
   applyInmuebleInsertToCache,
+  applyInmuebleUpdateToCache,
 } from '@/lib/inmueble-query-cache';
 import {
   DEFAULT_ALQUILER_ROW_COLOR,
   DEFAULT_VENTA_DENSE_ROW_COLOR,
   getInmuebleDenseBodyCellBackground,
-  getInmuebleDefaultRowColor,
   getInmuebleRowStyle,
+  isInmueblePisoCodigo,
   resolveInmuebleRowColor,
 } from '@/lib/inmueble-status';
 import { InmueblePropiCell } from '@/components/InmueblePropiCell';
@@ -160,11 +166,19 @@ const DENSE_PAGE_COPY: Record<
   },
 };
 
+const DENSE_ACC_BUTTON_CLASS =
+  'inline-flex w-[4rem] self-center items-center justify-center gap-0.5 rounded bg-slate-500 px-2 py-1 text-center text-[8px] font-bold leading-tight text-yellow-300 transition hover:bg-slate-600 sm:text-[9px] whitespace-nowrap';
+
 interface InmueblesPageContentProps {
   tipoOperacion: TipoOperacion;
   title: string;
   description: string;
   basePath: string;
+  /** When set, only rows whose `activo` matches are shown (ON = true, OFF = false). */
+  activoFilter?: boolean;
+  /** Separate localStorage scope for filters/sort/pagination on this view. */
+  storageScope?: string;
+  emptyListMessage?: string;
 }
 
 export function InmueblesPageContent({
@@ -172,9 +186,12 @@ export function InmueblesPageContent({
   title,
   description,
   basePath,
+  activoFilter,
+  storageScope,
+  emptyListMessage,
 }: InmueblesPageContentProps) {
   const pathname = usePathname();
-  const tableStorageScope = tipoOperacion;
+  const tableStorageScope = storageScope ?? tipoOperacion;
   const { invalidateInmuebles } = useInvalidateDashboardQueries();
   const queryClient = useQueryClient();
   const inmueblesQueryKey = queryKeys.inmuebles.all({
@@ -185,13 +202,47 @@ export function InmueblesPageContent({
   const { user } = useCurrentUser();
   const canManageInmuebles = isAdminUser(user?.rol);
   const {
-    data: inmuebles = [],
+    data: allInmuebles = [],
     showInitialLoading,
     isRefreshing,
   } = useQueryUiState(inmueblesQuery);
+  const inmuebles = useMemo(() => {
+    if (activoFilter === undefined) return allInmuebles;
+    return allInmuebles.filter(
+      (row) => (row.activo ?? true) === activoFilter,
+    );
+  }, [allInmuebles, activoFilter]);
+  const isPisosAlquilados =
+    tipoOperacion === 'alquiler' && activoFilter === false;
+  const isPisosVendidos =
+    tipoOperacion === 'venta' && activoFilter === false;
+  const isPisosInactivos = isPisosAlquilados || isPisosVendidos;
+
+  function getPisoCodigoForView(
+    inmueble: Pick<Inmueble, 'alquilado_codigo' | 'vendido_codigo'>,
+  ) {
+    if (isPisosAlquilados) return inmueble.alquilado_codigo ?? null;
+    if (isPisosVendidos) return inmueble.vendido_codigo ?? null;
+    return null;
+  }
+
+  function densePisosInactivosOptions(
+    inmueble: Pick<Inmueble, 'alquilado_codigo' | 'vendido_codigo'>,
+  ) {
+    return {
+      pisosInactivosView: isPisosInactivos,
+      pisoCodigo: getPisoCodigoForView(inmueble),
+    };
+  }
+  const resolvedEmptyListMessage =
+    emptyListMessage ??
+    (activoFilter === false
+      ? 'No hay pisos alquilados.'
+      : activoFilter === true
+        ? 'No hay inmuebles activos en alquiler.'
+        : 'No hay inmuebles registrados');
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
@@ -280,9 +331,15 @@ export function InmueblesPageContent({
     ? 'text-white hover:brightness-90'
     : 'bg-emerald-600 text-white hover:bg-emerald-500';
   const pageTheme = isDenseTable ? PAGE_THEMES[tipoOperacion] : null;
-  const pageTitle = isDenseTable ? DENSE_PAGE_COPY[tipoOperacion].title : title;
+  const pageTitle = isDenseTable
+    ? isPisosInactivos
+      ? title
+      : DENSE_PAGE_COPY[tipoOperacion].title
+    : title;
   const pageDescription = isDenseTable
-    ? DENSE_PAGE_COPY[tipoOperacion].description
+    ? isPisosInactivos
+      ? description
+      : DENSE_PAGE_COPY[tipoOperacion].description
     : description;
 
   function isMaskedTextVisible(
@@ -430,27 +487,50 @@ export function InmueblesPageContent({
       .join(' ');
   }
 
-  /** BCN: manual row color; other cells: yellow for 3 days after fecha entrada CRM, then default. */
+  /** Pisos alquilados / vendidos: full row from C/O only. Active lists: BCN + entrada yellow. */
   function denseBodyCellStyle(
     fieldKey: keyof InmuebleFormData | 'actions',
-    rowColor: string | null | undefined,
-    fechaEntradaInmueble: string | null | undefined,
+    inmueble: Pick<
+      Inmueble,
+      | 'row_color'
+      | 'fecha_entrada_inmueble'
+      | 'status'
+      | 'alquilado_codigo'
+      | 'vendido_codigo'
+    >,
   ) {
     if (!isDenseTable) return undefined;
     return {
       backgroundColor: getInmuebleDenseBodyCellBackground(
         fieldKey,
-        rowColor,
+        inmueble.row_color,
         tipoOperacion,
-        fechaEntradaInmueble,
+        inmueble.fecha_entrada_inmueble,
+        densePisosInactivosOptions(inmueble),
       ),
     };
   }
 
-  const tableColumns = useMemo(
-    () => buildInmuebleTableColumns(tableFields),
-    [tableFields],
-  );
+  const tableColumns = useMemo(() => {
+    const columns = buildInmuebleTableColumns(tableFields);
+    if (!isPisosInactivos) return columns;
+
+    return columns.map((column) =>
+      column.key === 'status'
+        ? {
+            ...column,
+            getDisplayValue: (row: Inmueble) => {
+              const codigo = isPisosAlquilados
+                ? row.alquilado_codigo
+                : row.vendido_codigo;
+              return isInmueblePisoCodigo(codigo)
+                ? codigo
+                : BLANK_FILTER_VALUE;
+            },
+          }
+        : column,
+    );
+  }, [tableFields, isPisosInactivos, isPisosAlquilados]);
 
   const {
     columnFilters,
@@ -601,7 +681,22 @@ export function InmueblesPageContent({
   function patchInmuebleInCache(
     inmuebleId: string,
     patch: Partial<
-      Pick<Inmueble, 'status' | 'activo' | 'row_color' | 'observaciones' | 'requisitos_propietario' | 'ref'>
+      Pick<
+        Inmueble,
+        | 'status'
+        | 'activo'
+        | 'alquilado_codigo'
+        | 'vendido_codigo'
+        | 'row_color'
+        | 'observaciones'
+        | 'requisitos_propietario'
+        | 'ref'
+        | 'propietarios_contactos'
+        | 'nombre_propi'
+        | 'telf'
+        | 'barrio_distrito'
+        | 'distrito_ciudad'
+      >
     >,
   ) {
     queryClient.setQueryData<Inmueble[]>(inmueblesQueryKey, (prev) =>
@@ -634,25 +729,6 @@ export function InmueblesPageContent({
       );
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este inmueble? Esta acción no se puede deshacer.')) {
-      return;
-    }
-
-    setDeletingId(id);
-    try {
-      await deleteInmueble(id);
-      applyInmuebleDeleteFromCache(queryClient, id, tipoOperacion);
-      toast.success('Inmueble eliminado');
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Error al eliminar inmueble',
-      );
-    } finally {
-      setDeletingId(null);
     }
   }
 
@@ -949,6 +1025,20 @@ export function InmueblesPageContent({
                 >
                   {pageTitle}
                 </h1>
+                {isPisosInactivos ? (
+                  <Link
+                    href={basePath}
+                    className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+                      isVentaTable
+                        ? 'text-yellow-300 hover:brightness-90 ring-2 ring-inset ring-white/35 brightness-90'
+                        : 'border-emerald-700 bg-emerald-700 text-yellow-300 hover:bg-emerald-800'
+                    }`}
+                    style={ventaToolbarButtonStyle}
+                    title="Volver al listado de pisos activos"
+                  >
+                    Volver a pisos activos
+                  </Link>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setFiltersVisible((prev) => !prev)}
@@ -958,28 +1048,30 @@ export function InmueblesPageContent({
                 >
                   Filter
                 </button>
-                <button
-                  type="button"
-                  onClick={toggleRecienteSort}
-                  className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${denseToolbarButtonClass(recienteSortActive)}`}
-                  style={ventaToolbarButtonStyle}
-                  title={
-                    recienteSortActive
-                      ? tableSort?.direction === 'desc'
-                        ? 'Más reciente primero — clic para más antigua'
-                        : 'Más antigua primero — clic para más reciente'
-                      : 'Ordenar por fecha de entrada (más reciente primero)'
-                  }
-                >
-                  Reciente
-                  {recienteSortActive ? (
-                    tableSort?.direction === 'desc' ? (
-                      <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
-                    ) : (
-                      <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
-                    )
-                  ) : null}
-                </button>
+                {!isPisosInactivos ? (
+                  <button
+                    type="button"
+                    onClick={toggleRecienteSort}
+                    className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${denseToolbarButtonClass(recienteSortActive)}`}
+                    style={ventaToolbarButtonStyle}
+                    title={
+                      recienteSortActive
+                        ? tableSort?.direction === 'desc'
+                          ? 'Más reciente primero — clic para más antigua'
+                          : 'Más antigua primero — clic para más reciente'
+                        : 'Ordenar por fecha de entrada (más reciente primero)'
+                    }
+                  >
+                    Reciente
+                    {recienteSortActive ? (
+                      tableSort?.direction === 'desc' ? (
+                        <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />
+                      ) : (
+                        <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
+                      )
+                    ) : null}
+                  </button>
+                ) : null}
                 {isRefreshing ? <QueryRefreshingBadge /> : null}
               </div>
               <p className="mt-2 text-sm" style={{ color: pageTheme?.muted }}>
@@ -999,7 +1091,7 @@ export function InmueblesPageContent({
           )}
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-          {canManageInmuebles ? (
+          {canManageInmuebles && activoFilter !== false ? (
             <>
               <ExcelImportButton
                 onComplete={() =>
@@ -1055,8 +1147,8 @@ export function InmueblesPageContent({
         </div>
       ) : inmuebles.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <p className="text-slate-600">No hay inmuebles registrados</p>
-          {canManageInmuebles ? (
+          <p className="text-slate-600">{resolvedEmptyListMessage}</p>
+          {canManageInmuebles && activoFilter !== false ? (
             <button
               type="button"
               onClick={() => setModalOpen(true)}
@@ -1142,24 +1234,25 @@ export function InmueblesPageContent({
                     inmueble.row_color,
                     tipoOperacion,
                     inmueble.fecha_entrada_inmueble,
+                    densePisosInactivosOptions(inmueble),
                   );
-                  const defaultRowBg = getInmuebleDefaultRowColor(tipoOperacion);
                   const statusCellBg = getInmuebleDenseBodyCellBackground(
                     'status',
                     inmueble.row_color,
                     tipoOperacion,
                     inmueble.fecha_entrada_inmueble,
+                    densePisosInactivosOptions(inmueble),
                   );
-                  const statusOnAccentBackground =
-                    statusCellBg !== defaultRowBg;
                   const rowData = hydrateInmuebleSplitFields(inmueble);
-                  const hasRowBackground = Boolean(
-                    resolveInmuebleRowColor(
-                      inmueble.row_color,
-                      tipoOperacion,
-                      inmueble.fecha_entrada_inmueble,
-                    ),
-                  );
+                  const hasRowBackground = isPisosInactivos
+                    ? Boolean(getPisoCodigoForView(inmueble))
+                    : Boolean(
+                        resolveInmuebleRowColor(
+                          inmueble.row_color,
+                          tipoOperacion,
+                          inmueble.fecha_entrada_inmueble,
+                        ),
+                      );
 
                   return (
                   <tr
@@ -1187,15 +1280,14 @@ export function InmueblesPageContent({
                           <td
                             key={field.key}
                             className={inmuebleCellClass(field)}
-                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
                           >
                             <InmuebleRefInlineCell
                               inmuebleId={inmueble.id}
                               value={inmueble.ref}
                               disabled={
                                 !canManageInmuebles ||
-                                saving ||
-                                deletingId === inmueble.id
+                                saving
                               }
                               onUpdated={(ref) =>
                                 patchInmuebleInCache(inmueble.id, { ref })
@@ -1210,22 +1302,43 @@ export function InmueblesPageContent({
                           <td
                             key={field.key}
                             className={`${inmuebleCellClass(field)} relative p-0`}
-                            style={denseBodyCellStyle('status', inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle('status', inmueble)}
                           >
-                            <InmuebleStatusRowEditor
-                              inmuebleId={inmueble.id}
-                              status={inmueble.status}
-                              rowColor={inmueble.row_color}
-                              fechaEntradaInmueble={inmueble.fecha_entrada_inmueble}
-                              tipoOperacion={tipoOperacion}
-                              compact
-                              fillCell
-                              onAccentBackground={statusOnAccentBackground}
-                              disabled={!canManageInmuebles}
-                              onUpdated={(patch) =>
-                                patchInmuebleInCache(inmueble.id, patch)
-                              }
-                            />
+                            {isPisosInactivos ? (
+                              <InmueblePisosInactivosBcnEditor
+                                inmuebleId={inmueble.id}
+                                codigo={getPisoCodigoForView(inmueble)}
+                                codigoField={
+                                  isPisosVendidos
+                                    ? 'vendido_codigo'
+                                    : 'alquilado_codigo'
+                                }
+                                codigoSectionLabel={
+                                  isPisosVendidos
+                                    ? 'Venta status'
+                                    : 'Alquiler status'
+                                }
+                                disabled={!canManageInmuebles}
+                                onUpdated={(patch) =>
+                                  patchInmuebleInCache(inmueble.id, patch)
+                                }
+                              />
+                            ) : (
+                              <InmuebleStatusRowEditor
+                                inmuebleId={inmueble.id}
+                                status={inmueble.status}
+                                rowColor={inmueble.row_color}
+                                fechaEntradaInmueble={inmueble.fecha_entrada_inmueble}
+                                tipoOperacion={tipoOperacion}
+                                compact
+                                fillCell
+                                statusCellBackground={statusCellBg}
+                                disabled={!canManageInmuebles}
+                                onUpdated={(patch) =>
+                                  patchInmuebleInCache(inmueble.id, patch)
+                                }
+                              />
+                            )}
                           </td>
                         );
                       }
@@ -1237,7 +1350,7 @@ export function InmueblesPageContent({
                           <td
                             key={field.key}
                             className={inmuebleCellClass(field)}
-                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
                           >
                             <span className="block min-w-0 text-center leading-snug">
                               <InmueblePropiCell
@@ -1247,6 +1360,14 @@ export function InmueblesPageContent({
                                   inmueble.fecha_entrada_inmueble,
                                 )}
                                 centered
+                                editable={canManageInmuebles}
+                                inmuebleId={inmueble.id}
+                                disabled={
+                                  saving
+                                }
+                                onUpdated={(patch) =>
+                                  patchInmuebleInCache(inmueble.id, patch)
+                                }
                               />
                             </span>
                           </td>
@@ -1259,7 +1380,7 @@ export function InmueblesPageContent({
                           <td
                             key={maskedKey}
                             className={`${inmuebleCellClass(field)} relative`}
-                            style={denseBodyCellStyle(maskedKey, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle(maskedKey, inmueble)}
                           >
                             <InmuebleObservacionesLineCell
                               inmuebleId={inmueble.id}
@@ -1267,8 +1388,7 @@ export function InmueblesPageContent({
                               value={inmueble[maskedKey]}
                               disabled={
                                 !canManageInmuebles ||
-                                saving ||
-                                deletingId === inmueble.id
+                                saving
                               }
                               fillCell
                               expanded={isMaskedTextVisible(maskedKey, inmueble.id)}
@@ -1297,7 +1417,7 @@ export function InmueblesPageContent({
                             className={`${inmuebleCellClass(field)} ${
                               extraColumnsVisible ? 'align-top' : ''
                             }`}
-                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
                           >
                             <div
                               className={
@@ -1346,7 +1466,7 @@ export function InmueblesPageContent({
                             className={`${inmuebleCellClass(field)} ${
                               extraColumnsVisible ? 'align-top' : ''
                             }`}
-                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
                           >
                             <div
                               className={
@@ -1463,7 +1583,7 @@ export function InmueblesPageContent({
                           <td
                             key={field.key}
                             className={inmuebleCellClass(field)}
-                            style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
                           >
                             {url ? (
                               <InmuebleDenseLinkButtons
@@ -1520,11 +1640,75 @@ export function InmueblesPageContent({
 
                       const isNumericCell = isInmuebleDenseNumericCellKey(field.key);
 
+                      if (
+                        isDenseTable &&
+                        isInmuebleEditableNumericField(field.key)
+                      ) {
+                        const numericValue = inmueble[field.key];
+
+                        return (
+                          <td
+                            key={field.key}
+                            className={inmuebleCellClass(field)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
+                          >
+                            <InmuebleNumericInlineCell
+                              inmuebleId={inmueble.id}
+                              field={field.key}
+                              value={numericValue}
+                              editable={canManageInmuebles}
+                              disabled={saving}
+                              accent={isVentaTable ? 'blue' : 'emerald'}
+                              onUpdated={(next) =>
+                                patchInmuebleInCache(inmueble.id, {
+                                  [field.key]: next,
+                                })
+                              }
+                            />
+                          </td>
+                        );
+                      }
+
+                      if (
+                        isDenseTable &&
+                        (field.key === 'barrio_distrito' ||
+                          field.key === 'distrito_ciudad')
+                      ) {
+                        const zonaKind =
+                          field.key === 'barrio_distrito' ? 'barrio' : 'distrito';
+                        const zonaValue =
+                          field.key === 'barrio_distrito'
+                            ? inmueble.barrio_distrito
+                            : inmueble.distrito_ciudad;
+
+                        return (
+                          <td
+                            key={field.key}
+                            className={`${inmuebleCellClass(field)} relative`}
+                            style={denseBodyCellStyle(field.key, inmueble)}
+                          >
+                            <InmuebleZonaInlineCell
+                              inmuebleId={inmueble.id}
+                              kind={zonaKind}
+                              value={zonaValue}
+                              editable={canManageInmuebles}
+                              disabled={
+                                saving
+                              }
+                              accent={isVentaTable ? 'blue' : 'emerald'}
+                              onUpdated={(patch) =>
+                                patchInmuebleInCache(inmueble.id, patch)
+                              }
+                            />
+                          </td>
+                        );
+                      }
+
                       return (
                         <td
                           key={field.key}
                           className={inmuebleCellClass(field)}
-                          style={denseBodyCellStyle(field.key, inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                          style={denseBodyCellStyle(field.key, inmueble)}
                         >
                           <span
                             className={
@@ -1543,24 +1727,28 @@ export function InmueblesPageContent({
                         isDenseTable
                           ? `${INMUEBLE_DENSE_ACTIONS_COL_CLASS} shrink-0 text-center align-middle font-bold px-0.5 py-1 ${EXCEL_CELL_BORDER}${
                               extraColumnsVisible
-                                ? ' sticky right-0 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)]'
+                                ? ' sticky right-0 z-20 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)]'
                                 : ''
                             }`
                           : 'sticky right-0 z-10 px-3 py-2'
                       } ${!isDenseTable && !hasRowBackground ? 'bg-white' : ''}`}
-                      style={denseBodyCellStyle('actions', inmueble.row_color, inmueble.fecha_entrada_inmueble)}
+                      style={denseBodyCellStyle('actions', inmueble)}
                     >
-                      <div className="flex flex-col items-stretch gap-0.5">
+                      <div className="relative z-10 flex flex-col items-stretch gap-0.5">
                         {isDenseTable ? (
                           <Link
                             href={`${basePath}/${inmueble.id}`}
-                            className="inline-flex w-[4rem] self-center items-center justify-center rounded bg-slate-500 px-2 py-1 text-center text-[8px] font-bold leading-tight text-yellow-300 transition hover:bg-slate-600 sm:text-[9px] whitespace-nowrap"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={DENSE_ACC_BUTTON_CLASS}
                           >
                             Clientes
                           </Link>
                         ) : (
                           <Link
                             href={`${basePath}/${inmueble.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className={`rounded p-0.5 text-slate-500 transition hover:bg-slate-100 ${
                               isVentaTable
                                 ? 'hover:text-sky-600'
@@ -1571,53 +1759,54 @@ export function InmueblesPageContent({
                             <Eye className="h-3.5 w-3.5" />
                           </Link>
                         )}
-                        <div className="flex items-center justify-center gap-0.5">
-                          {canManageInmuebles ? (
-                            <>
-                              <Link
-                                href={`${basePath}/${inmueble.id}/edit`}
-                                className={`rounded p-0.5 text-slate-500 transition hover:bg-slate-100 ${
-                                  isVentaTable
-                                    ? 'hover:text-sky-600'
-                                    : 'hover:text-emerald-600'
-                                }`}
-                                title="Editar"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Link>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(inmueble.id)}
-                                disabled={deletingId === inmueble.id}
-                                className="rounded p-0.5 text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                                title="Eliminar"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          ) : null}
-                        </div>
+                        {canManageInmuebles ? (
+                          isDenseTable ? (
+                            <Link
+                              href={`${basePath}/${inmueble.id}/edit`}
+                              className={DENSE_ACC_BUTTON_CLASS}
+                              title="Editar inmueble"
+                            >
+                              <Pencil className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                              Editar
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`${basePath}/${inmueble.id}/edit`}
+                              className={`rounded p-0.5 text-slate-500 transition hover:bg-slate-100 ${
+                                isVentaTable
+                                  ? 'hover:text-sky-600'
+                                  : 'hover:text-emerald-600'
+                              }`}
+                              title="Editar"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Link>
+                          )
+                        ) : null}
                         {isDenseTable ? (
                           <>
                             <Link
                               href={`${basePath}/${inmueble.id}#videos`}
-                              className="inline-flex w-[4rem] self-center items-center justify-center rounded bg-slate-500 px-2 py-1 text-center text-[8px] font-bold leading-tight text-yellow-300 transition hover:bg-slate-600 sm:text-[9px] whitespace-nowrap"
+                              className={DENSE_ACC_BUTTON_CLASS}
                             >
                               Videos
                             </Link>
                             <Link
                               href={`${basePath}/${inmueble.id}#plan`}
-                              className="inline-flex w-[4rem] self-center items-center justify-center rounded bg-slate-500 px-2 py-1 text-center text-[8px] font-bold leading-tight text-yellow-300 transition hover:bg-slate-600 sm:text-[9px] whitespace-nowrap"
+                              className={DENSE_ACC_BUTTON_CLASS}
                             >
                               Plan
                             </Link>
                             <InmuebleActivoToggle
                               inmuebleId={inmueble.id}
                               activo={inmueble.activo ?? true}
-                              disabled={!canManageInmuebles}
-                              onUpdated={(activo) =>
-                                patchInmuebleInCache(inmueble.id, { activo })
-                              }
+                              inmuebleLabel={inmueble.ref ?? undefined}
+                              onUpdated={(activo) => {
+                                applyInmuebleUpdateToCache(queryClient, {
+                                  ...inmueble,
+                                  activo,
+                                });
+                              }}
                             />
                           </>
                         ) : null}

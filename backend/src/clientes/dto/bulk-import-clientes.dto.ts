@@ -3,8 +3,8 @@ export class BulkImportClienteItemDto {
   email?: string | null;
   telefono?: string | null;
   ciudad?: string | null;
-  barrio?: string | null;
-  distrito?: string | null;
+  barrio?: string[] | null;
+  distrito?: string[] | null;
   tipo_nomina?: string | null;
   tipo_cliente?: 'estudiante' | 'parejas' | 'familia_con_hijos' | 'compartir' | null;
   estado?: 'activo' | 'inactivo' | 'pendiente';

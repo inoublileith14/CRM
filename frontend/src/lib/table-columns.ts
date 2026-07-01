@@ -11,6 +11,7 @@ import {
   CLIENTE_ENTRADA_PREVISTA_OPTIONS,
 } from '@/lib/cliente-entrada-prevista';
 import { getClienteTipoClienteLabel } from '@/lib/cliente-tipo';
+import { formatClienteZonasLabel } from '@/lib/cliente-zonas';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import {
   CLIENTE_ESTADO_LABELS,
@@ -415,10 +416,11 @@ export function buildVentaDenseClienteTableColumns(
       shortLabel: 'BARR.',
       headClassName: 'w-[7.5rem] text-center',
       cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
-      getDisplayValue: (cliente) =>
-        toFilterDisplay(
-          cliente.barrio ?? parseRefCliente(cliente.ref_cliente).zona,
-        ),
+      getDisplayValue: (cliente) => {
+        const label = formatClienteZonasLabel(cliente.barrio, '');
+        if (label) return toFilterDisplay(label);
+        return toFilterDisplay(parseRefCliente(cliente.ref_cliente).zona);
+      },
     },
     {
       key: 'distrito',
@@ -426,7 +428,8 @@ export function buildVentaDenseClienteTableColumns(
       shortLabel: 'DIST.',
       headClassName: 'w-[7.5rem] text-center',
       cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
-      getDisplayValue: (cliente) => toFilterDisplay(cliente.distrito),
+      getDisplayValue: (cliente) =>
+        toFilterDisplay(formatClienteZonasLabel(cliente.distrito)),
     },
     {
       key: 'tipo_nomina',

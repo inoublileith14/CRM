@@ -18,6 +18,7 @@ const cliente_gestion_estado_1 = require("./cliente-gestion-estado");
 const cliente_entrada_prevista_1 = require("./cliente-entrada-prevista");
 const enrich_import_cliente_util_1 = require("./enrich-import-cliente.util");
 const match_inmueble_ref_util_1 = require("./match-inmueble-ref.util");
+const cliente_zonas_util_1 = require("./cliente-zonas.util");
 const SELECT_FIELDS = `
   id,
   nombre,
@@ -838,8 +839,8 @@ let ClientesService = ClientesService_1 = class ClientesService {
             email: raw.email ?? null,
             telefono: raw.telefono ?? null,
             ciudad: raw.ciudad ?? null,
-            barrio: raw.barrio ?? null,
-            distrito: raw.distrito ?? null,
+            barrio: (0, cliente_zonas_util_1.normalizeClienteZonas)(raw.barrio),
+            distrito: (0, cliente_zonas_util_1.normalizeClienteZonas)(raw.distrito),
             tipo_nomina: raw.tipo_nomina ?? null,
             tipo_cliente: raw.tipo_cliente ?? null,
             estado: raw.estado ?? 'pendiente',
@@ -872,6 +873,8 @@ let ClientesService = ClientesService_1 = class ClientesService {
         const { cliente_inmuebles: _ci, cliente_workers: _cw, cliente_perfiles: _cp, ...rest } = row;
         return {
             ...rest,
+            barrio: (0, cliente_zonas_util_1.normalizeClienteZonas)(rest.barrio),
+            distrito: (0, cliente_zonas_util_1.normalizeClienteZonas)(rest.distrito),
             fecha_entrada_inmueble: (0, cliente_entrada_prevista_1.normalizeClienteEntradaPrevista)(rest.fecha_entrada_inmueble ?? null),
             inmueble_ids: clienteInmuebles.map((r) => r.inmueble_id),
             worker_ids: clienteWorkers.map((r) => r.worker_id),

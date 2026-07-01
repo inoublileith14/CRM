@@ -7,14 +7,18 @@ import {
 } from '@/lib/persisted-table-state';
 
 export function usePersistedState<T>(storageKey: string, defaultValue: T) {
+  const defaultValueRef = useRef(defaultValue);
+  defaultValueRef.current = defaultValue;
+
   const [state, setState] = useState<T>(defaultValue);
   const [isHydrated, setIsHydrated] = useState(false);
   const skipSaveRef = useRef(true);
 
   useEffect(() => {
-    setState(loadPersistedTableState(storageKey, defaultValue));
+    setState(loadPersistedTableState(storageKey, defaultValueRef.current));
     setIsHydrated(true);
-  }, [storageKey, defaultValue]);
+    skipSaveRef.current = true;
+  }, [storageKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -26,9 +30,9 @@ export function usePersistedState<T>(storageKey: string, defaultValue: T) {
   }, [storageKey, state, isHydrated]);
 
   const reset = useCallback(() => {
-    setState(defaultValue);
-    savePersistedTableState(storageKey, defaultValue);
-  }, [defaultValue, storageKey]);
+    setState(defaultValueRef.current);
+    savePersistedTableState(storageKey, defaultValueRef.current);
+  }, [storageKey]);
 
   return [state, setState, reset, isHydrated] as const;
 }

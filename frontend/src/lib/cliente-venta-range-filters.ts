@@ -1,3 +1,4 @@
+import { clienteZonasMatchQuery } from '@/lib/cliente-zonas';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import { Cliente } from '@/types/cliente';
 import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
@@ -160,24 +161,15 @@ export function filterRowsByVentaRange(
       return false;
     }
 
-    const barrioQuery = (filters.barrio ?? '').trim().toLowerCase();
-    if (barrioQuery) {
-      const barrioValue = (
-        cliente.barrio ??
-        parsed.zona ??
-        ''
-      ).toLowerCase();
-      if (!barrioValue.includes(barrioQuery)) {
+    if (!clienteZonasMatchQuery(cliente.barrio, filters.barrio)) {
+      const fallback = parsed.zona ?? '';
+      if (!fallback.toLowerCase().includes((filters.barrio ?? '').trim().toLowerCase())) {
         return false;
       }
     }
 
-    const distritoQuery = (filters.distrito ?? '').trim().toLowerCase();
-    if (distritoQuery) {
-      const distritoValue = (cliente.distrito ?? '').toLowerCase();
-      if (!distritoValue.includes(distritoQuery)) {
-        return false;
-      }
+    if (!clienteZonasMatchQuery(cliente.distrito, filters.distrito)) {
+      return false;
     }
 
     return true;
@@ -238,24 +230,15 @@ export function filterClientesByVentaRange(
       return false;
     }
 
-    const barrioQuery = (filters.barrio ?? '').trim().toLowerCase();
-    if (barrioQuery) {
-      const barrioValue = (
-        cliente.barrio ??
-        parsed.zona ??
-        ''
-      ).toLowerCase();
-      if (!barrioValue.includes(barrioQuery)) {
+    if (!clienteZonasMatchQuery(cliente.barrio, filters.barrio)) {
+      const fallback = parsed.zona ?? '';
+      if (!fallback.toLowerCase().includes((filters.barrio ?? '').trim().toLowerCase())) {
         return false;
       }
     }
 
-    const distritoQuery = (filters.distrito ?? '').trim().toLowerCase();
-    if (distritoQuery) {
-      const distritoValue = (cliente.distrito ?? '').toLowerCase();
-      if (!distritoValue.includes(distritoQuery)) {
-        return false;
-      }
+    if (!clienteZonasMatchQuery(cliente.distrito, filters.distrito)) {
+      return false;
     }
 
     return true;

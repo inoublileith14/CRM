@@ -1,4 +1,7 @@
 import {
+  formatClienteZonasLabel,
+} from '@/lib/cliente-zonas';
+import {
   CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER,
   CLIENTE_GESTION_ESTADO_OPTIONS_VENTA,
   getClienteGestionEstadoOption,
@@ -460,7 +463,8 @@ export function buildWorkerAnalytics(clientes: Cliente[]): WorkerAnalytics {
 
   const ciudadCounts = new Map<string, number>();
   for (const cliente of clientes) {
-    const label = cliente.barrio?.trim() || cliente.ciudad?.trim();
+    const label =
+      formatClienteZonasLabel(cliente.barrio, '') || cliente.ciudad?.trim();
     if (!label) continue;
     ciudadCounts.set(label, (ciudadCounts.get(label) ?? 0) + 1);
   }

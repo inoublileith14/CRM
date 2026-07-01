@@ -1,6 +1,80 @@
 import type { Inmueble, InmuebleFormData, TipoOperacion } from '@/types/inmueble';
 
 export type InmuebleStatus = NonNullable<Inmueble['status']>;
+export type InmueblePisoCodigo = 'C' | 'O' | 'R';
+export type InmuebleAlquiladoCodigo = InmueblePisoCodigo;
+export type InmuebleVendidoCodigo = InmueblePisoCodigo;
+
+/** Electric green full row when alquilado_codigo = C */
+export const ALQUILADO_CODIGO_C_ROW_COLOR = '#39ff14';
+
+/** Grey full row when alquilado_codigo = O */
+export const ALQUILADO_CODIGO_O_ROW_COLOR = '#c0c0c0';
+
+/** Pink full row when alquilado_codigo = R */
+export const ALQUILADO_CODIGO_R_ROW_COLOR = '#ff69b4';
+
+export const INMUEBLE_PISO_CODIGO_VALUES: InmueblePisoCodigo[] = ['C', 'O', 'R'];
+
+export function isInmueblePisoCodigo(
+  value: unknown,
+): value is InmueblePisoCodigo {
+  return value === 'C' || value === 'O' || value === 'R';
+}
+
+export const INMUEBLE_PISO_CODIGO_OPTIONS: Array<{
+  value: InmueblePisoCodigo | null;
+  label: string;
+  rowColor: string | null;
+}> = [
+  { value: 'C', label: 'C', rowColor: ALQUILADO_CODIGO_C_ROW_COLOR },
+  { value: 'O', label: 'O', rowColor: ALQUILADO_CODIGO_O_ROW_COLOR },
+  { value: 'R', label: 'R', rowColor: ALQUILADO_CODIGO_R_ROW_COLOR },
+  { value: null, label: '—', rowColor: null },
+];
+
+export const INMUEBLE_ALQUILADO_CODIGO_OPTIONS = INMUEBLE_PISO_CODIGO_OPTIONS;
+export const INMUEBLE_VENDIDO_CODIGO_OPTIONS = INMUEBLE_PISO_CODIGO_OPTIONS;
+
+export function getPisoCodigoRowColor(
+  codigo: InmueblePisoCodigo | null | undefined,
+): string | null {
+  if (codigo === 'C') return ALQUILADO_CODIGO_C_ROW_COLOR;
+  if (codigo === 'O') return ALQUILADO_CODIGO_O_ROW_COLOR;
+  if (codigo === 'R') return ALQUILADO_CODIGO_R_ROW_COLOR;
+  return null;
+}
+
+export function getAlquiladoCodigoRowColor(
+  codigo: Inmueble['alquilado_codigo'],
+): string | null {
+  return getPisoCodigoRowColor(codigo);
+}
+
+export function getVendidoCodigoRowColor(
+  codigo: Inmueble['vendido_codigo'],
+): string | null {
+  return getPisoCodigoRowColor(codigo);
+}
+
+export function getPisoCodigoLabel(
+  codigo: InmueblePisoCodigo | null | undefined,
+): string {
+  if (isInmueblePisoCodigo(codigo)) return codigo;
+  return '—';
+}
+
+export function getAlquiladoCodigoLabel(
+  codigo: Inmueble['alquilado_codigo'],
+): string {
+  return getPisoCodigoLabel(codigo);
+}
+
+export function getVendidoCodigoLabel(
+  codigo: Inmueble['vendido_codigo'],
+): string {
+  return getPisoCodigoLabel(codigo);
+}
 
 export type InmuebleStatusOption = {
   value: InmuebleStatus | null;
@@ -24,7 +98,7 @@ export function formatInmuebleStatusDisplay(
   value: Inmueble['status'],
 ): string {
   if (!value) return '—';
-  return INMUEBLE_STATUS_DISPLAY_LABELS[value] ?? '—';
+  return INMUEBLE_STATUS_DISPLAY_LABELS[value] ?? value;
 }
 
 /** Default row background for dense alquiler tables when no custom color is set. */
@@ -50,6 +124,9 @@ export const INMUEBLE_ROW_COLOR_PRESETS: Array<{
   { value: '#ffa500', label: 'Naranja' },
 ];
 
+/** Morado preset — BCN label uses white text only on this background. */
+export const INMUEBLE_BCN_PURPLE_ROW_COLOR = '#8b00ff';
+
 /** Auto-highlight new CRM entries (matches preset amarillo). */
 export const INMUEBLE_ENTRADA_HIGHLIGHT_COLOR = '#ffff00';
 
@@ -74,6 +151,20 @@ export function normalizeRowColor(value: string | null | undefined): string | nu
     return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
   }
   return null;
+}
+
+export function usesInmuebleBcnLightText(
+  backgroundColor: string | null | undefined,
+): boolean {
+  return normalizeRowColor(backgroundColor) === INMUEBLE_BCN_PURPLE_ROW_COLOR;
+}
+
+export function getInmuebleBcnStatusTextClass(
+  backgroundColor: string | null | undefined,
+): string {
+  return usesInmuebleBcnLightText(backgroundColor)
+    ? 'text-white'
+    : 'text-slate-900';
 }
 
 function startOfLocalDay(date: Date): Date {
@@ -132,14 +223,41 @@ export function getInmuebleDefaultRowColor(
   return DEFAULT_DENSE_ROW_COLOR;
 }
 
-/** BCN uses manual/auto row color; all other dense cells use entrada CRM 3-day yellow window. */
+export type InmuebleDenseCellBackgroundOptions = {
+  /** Pisos alquilados / vendidos: full row color from C/O only */
+  pisosInactivosView?: boolean;
+  pisoCodigo?: InmueblePisoCodigo | null;
+  /** @deprecated Use pisosInactivosView + pisoCodigo */
+  pisosAlquiladosView?: boolean;
+  /** @deprecated Use pisoCodigo */
+  alquiladoCodigo?: Inmueble['alquilado_codigo'] | null;
+};
+
+function resolvePisosInactivosRowColor(
+  options?: InmuebleDenseCellBackgroundOptions,
+): string | null {
+  if (options?.pisosInactivosView) {
+    return getPisoCodigoRowColor(options.pisoCodigo ?? null);
+  }
+  if (options?.pisosAlquiladosView) {
+    return getPisoCodigoRowColor(options.alquiladoCodigo ?? null);
+  }
+  return null;
+}
+
+/** Pisos alquilados: full row from C/O only. Active lists: BCN row color + entrada yellow window. */
 export function getInmuebleDenseBodyCellBackground(
   fieldKey: keyof InmuebleFormData | 'actions',
   rowColor: string | null | undefined,
   tipoOperacion: TipoOperacion | undefined,
   fechaEntradaInmueble: string | null | undefined,
+  options?: InmuebleDenseCellBackgroundOptions,
 ): string {
   const defaultBg = getInmuebleDefaultRowColor(tipoOperacion);
+
+  if (options?.pisosInactivosView || options?.pisosAlquiladosView) {
+    return resolvePisosInactivosRowColor(options) ?? defaultBg;
+  }
 
   if (fieldKey === 'status') {
     return (
@@ -179,7 +297,15 @@ export function getInmuebleRowStyle(
   rowColor: string | null | undefined,
   tipoOperacion?: TipoOperacion,
   fechaEntradaInmueble?: string | null,
+  options?: InmuebleDenseCellBackgroundOptions,
 ): { backgroundColor?: string } {
+  if (options?.pisosInactivosView || options?.pisosAlquiladosView) {
+    const resolved =
+      resolvePisosInactivosRowColor(options) ??
+      getInmuebleDefaultRowColor(tipoOperacion);
+    return { backgroundColor: resolved };
+  }
+
   const resolved = resolveInmuebleRowColor(
     rowColor,
     tipoOperacion,
@@ -187,3 +313,10 @@ export function getInmuebleRowStyle(
   );
   return resolved ? { backgroundColor: resolved } : {};
 }
+
+// Back-compat aliases (deprecated)
+export const ALQUILADO_BCN_C_ROW_COLOR = ALQUILADO_CODIGO_C_ROW_COLOR;
+export const ALQUILADO_BCN_O_ROW_COLOR = ALQUILADO_CODIGO_O_ROW_COLOR;
+export const ALQUILADO_BCN_R_ROW_COLOR = ALQUILADO_CODIGO_R_ROW_COLOR;
+export const INMUEBLE_ALQUILADO_BCN_OPTIONS = INMUEBLE_ALQUILADO_CODIGO_OPTIONS;
+export const getAlquiladoBcnRowColor = getAlquiladoCodigoRowColor;

@@ -64,7 +64,18 @@ let InmueblesController = class InmueblesController {
         return this.inmueblesService.create(dto);
     }
     update(req, id, dto) {
-        this.assertAdmin(req);
+        const patchKeys = Object.entries(dto).filter(([, value]) => value !== undefined);
+        const allowedNonAdminKeys = new Set([
+            'activo',
+            'alquilado_codigo',
+            'vendido_codigo',
+            'status',
+        ]);
+        const nonAdminAllowed = patchKeys.length > 0 &&
+            patchKeys.every(([key]) => allowedNonAdminKeys.has(key));
+        if (!nonAdminAllowed) {
+            this.assertAdmin(req);
+        }
         return this.inmueblesService.update(id, dto);
     }
     remove(req, id) {

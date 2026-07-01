@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { normalizeClienteEntradaPrevista } from '@/lib/cliente-entrada-prevista';
+import { normalizeClienteZonas } from '@/lib/cliente-zonas';
 import { ClienteGestionEstado } from '@/lib/cliente-gestion-estado';
 import { queryKeys } from '@/lib/query-keys';
 import { isClienteTipoCliente } from '@/lib/cliente-tipo';
@@ -48,8 +49,8 @@ export function mapRealtimeRowToCliente(
     email: toStringOrNull(row.email),
     telefono: toStringOrNull(row.telefono),
     ciudad: toStringOrNull(row.ciudad),
-    barrio: toStringOrNull(row.barrio),
-    distrito: toStringOrNull(row.distrito),
+    barrio: normalizeClienteZonas(row.barrio),
+    distrito: normalizeClienteZonas(row.distrito),
     tipo_nomina: toStringOrNull(row.tipo_nomina),
     tipo_cliente: isClienteTipoCliente(toStringOrNull(row.tipo_cliente))
       ? (toStringOrNull(row.tipo_cliente) as Cliente['tipo_cliente'])

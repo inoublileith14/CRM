@@ -11,8 +11,8 @@ export interface Cliente {
     email: string | null;
     telefono: string | null;
     ciudad: string | null;
-    barrio: string | null;
-    distrito: string | null;
+    barrio: string[];
+    distrito: string[];
     tipo_nomina: string | null;
     tipo_cliente: ClienteTipoCliente | null;
     estado: ClienteEstado;

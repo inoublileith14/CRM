@@ -1,10 +1,12 @@
 import {
+  ArchiveX,
   Building2,
   CalendarDays,
   Home,
   KeyRound,
   LayoutDashboard,
   MessageSquare,
+  ScrollText,
   Shield,
   UserRound,
   Users,
@@ -104,6 +106,34 @@ export const dashboardNavEntries: DashboardNavEntry[] = [
     href: '/dashboard/whatsapp',
     labelKey: 'nav.whatsapp',
     icon: MessageSquare,
+  },
+  {
+    type: 'link',
+    href: '/dashboard/logs',
+    labelKey: 'nav.logs',
+    icon: ScrollText,
+    adminOnly: true,
+  },
+  {
+    type: 'group',
+    labelKey: 'nav.deactivatedGroup',
+    icon: ArchiveX,
+    activePathPrefixes: [
+      '/dashboard/pisos-alquilados/',
+      '/dashboard/pisos-vendidos/',
+    ],
+    items: [
+      {
+        href: '/dashboard/pisos-alquilados',
+        labelKey: 'nav.deactivatedRentFlats',
+        icon: KeyRound,
+      },
+      {
+        href: '/dashboard/pisos-vendidos',
+        labelKey: 'nav.deactivatedSaleFlats',
+        icon: Home,
+      },
+    ],
   },
   {
     type: 'link',

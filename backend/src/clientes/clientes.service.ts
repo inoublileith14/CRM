@@ -28,6 +28,7 @@ import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { UpdateClientePerfilDto } from './dto/update-cliente-perfil.dto';
 import { Cliente } from './interfaces/cliente.interface';
 import { ClientePerfil } from './interfaces/cliente-perfil.interface';
+import { normalizeClienteZonas } from './cliente-zonas.util';
 
 const SELECT_FIELDS = `
   id,
@@ -1318,8 +1319,8 @@ export class ClientesService {
       email: raw.email ?? null,
       telefono: raw.telefono ?? null,
       ciudad: raw.ciudad ?? null,
-      barrio: raw.barrio ?? null,
-      distrito: raw.distrito ?? null,
+      barrio: normalizeClienteZonas(raw.barrio),
+      distrito: normalizeClienteZonas(raw.distrito),
       tipo_nomina: raw.tipo_nomina ?? null,
       tipo_cliente: raw.tipo_cliente ?? null,
       estado: raw.estado ?? 'pendiente',
@@ -1372,6 +1373,8 @@ export class ClientesService {
 
     return {
       ...(rest as unknown as Cliente),
+      barrio: normalizeClienteZonas(rest.barrio),
+      distrito: normalizeClienteZonas(rest.distrito),
       fecha_entrada_inmueble: normalizeClienteEntradaPrevista(
         (rest.fecha_entrada_inmueble as string | null) ?? null,
       ),

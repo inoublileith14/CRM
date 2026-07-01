@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-keys';
+import { isInmueblePisoCodigo } from '@/lib/inmueble-status';
 import { Inmueble } from '@/types/inmueble';
 
 function compareInmuebleListOrder(a: Inmueble, b: Inmueble): number {
@@ -84,6 +85,12 @@ export function mapRealtimeRowToInmueble(
         ? row.status
         : null,
     activo: row.activo !== false,
+    alquilado_codigo: isInmueblePisoCodigo(row.alquilado_codigo)
+      ? row.alquilado_codigo
+      : null,
+    vendido_codigo: isInmueblePisoCodigo(row.vendido_codigo)
+      ? row.vendido_codigo
+      : null,
     row_color: toStringOrNull(row.row_color),
     tipo_operacion,
     created_at: String(row.created_at ?? new Date().toISOString()),

@@ -34,6 +34,8 @@ class CreateInmuebleDto {
     captador_alquilado_por;
     status;
     activo;
+    alquilado_codigo;
+    vendido_codigo;
     row_color;
     tipo_operacion;
 }
