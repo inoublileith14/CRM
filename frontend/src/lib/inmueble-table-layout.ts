@@ -215,14 +215,14 @@ const ALQUILER_TABLE_LAYOUT: LayoutConfig[] = [
     shortLabel: 'OBSERVACIONES',
     label: 'OBSERVACIONES',
     headClassName: MASKED_TEXT_WIDTH_COL,
-    cellClassName: `p-0 h-full align-middle ${MASKED_TEXT_COL}`,
+    cellClassName: `p-0 align-middle ${MASKED_TEXT_COL}`,
   },
   {
     key: 'requisitos_propietario',
     shortLabel: 'REQ. PROPI.',
     label: 'REQUISITOS DEL PROPIETARIO',
     headClassName: MASKED_TEXT_WIDTH_COL,
-    cellClassName: `p-0 h-full align-middle ${MASKED_TEXT_COL}`,
+    cellClassName: `p-0 align-middle ${MASKED_TEXT_COL}`,
   },
 ];
 
@@ -284,7 +284,7 @@ const VENTA_TABLE_LAYOUT: LayoutConfig[] = [
     shortLabel: 'OBSERVACIONES',
     label: 'OBSERVACIONES',
     headClassName: MASKED_TEXT_WIDTH_COL,
-    cellClassName: `p-0 h-full align-middle ${MASKED_TEXT_COL}`,
+    cellClassName: `p-0 align-middle ${MASKED_TEXT_COL}`,
   },
 ];
 
@@ -390,7 +390,7 @@ export function getInmuebleDisplayedTableFields(
       return {
         ...field,
         headClassName: OBS_COL_EXTRA,
-        cellClassName: `p-0 h-full align-middle ${OBS_COL_EXTRA} ${MASKED_TEXT_CELL_TEXT}`,
+        cellClassName: `p-0 align-middle ${OBS_COL_EXTRA} ${MASKED_TEXT_CELL_TEXT}`,
       };
     }
     return field;

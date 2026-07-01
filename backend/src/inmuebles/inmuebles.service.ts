@@ -15,11 +15,15 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { CreateInmuebleDto } from './dto/create-inmueble.dto';
 import { UpdateInmuebleDto } from './dto/update-inmueble.dto';
 import { normalizePropietariosContactos } from './inmueble-propietarios.util';
-import { InmuebleClienteLinkRow } from './interfaces/inmueble-cliente-link.interface';
 import {
   ClientesByTipoPageQuery,
   ClientesByTipoPageResult,
 } from './interfaces/clientes-by-tipo-page.interface';
+import { InmuebleClienteLinkRow } from './interfaces/inmueble-cliente-link.interface';
+import {
+  CLIENTE_ENTRADA_PREVISTA_VALUES,
+  normalizeClienteEntradaPrevista,
+} from '../clientes/cliente-entrada-prevista';
 import { getClienteEntradaSortKey } from './cliente-entrada-sort.util';
 import { Inmueble } from './interfaces/inmueble.interface';
 
@@ -28,13 +32,14 @@ const SELECT_FIELDS =
   'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, distrito_ciudad, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista, link_espejo, link_idealista_espejo, fecha_visitas, fecha_visitas_entrada, observaciones, requisitos_propietario, amueblado, captador, alquilado_por, captador_alquilado_por, status, activo, alquilado_codigo, vendido_codigo, row_color, tipo_operacion, created_at, updated_at';
 
 const SELECT_DETAIL =
-  `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))` as const;
+  `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, telefonos_extra, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))` as const;
 
 const CLIENTE_GLOBAL_FIELDS = `
   id,
   nombre,
   email,
   telefono,
+  telefonos_extra,
   ciudad,
   barrio,
   distrito,
@@ -72,13 +77,23 @@ const CLIENTE_UNLINKED_SELECT = `
 const LINK_INDEX_SELECT = `
   cliente_id,
   inmueble_id,
-  clientes!inner(fecha_contacto),
+  clientes!inner(
+    fecha_contacto,
+    nombre,
+    telefono,
+    ref_cliente,
+    fecha_entrada_inmueble
+  ),
   inmuebles!inner(tipo_operacion)
 `;
 
 const UNLINKED_INDEX_SELECT = `
   id,
   fecha_contacto,
+  nombre,
+  telefono,
+  ref_cliente,
+  fecha_entrada_inmueble,
   cliente_inmuebles(inmueble_id)
 `;
 
@@ -89,6 +104,90 @@ interface ClientesByTipoIndexItem {
   cliente_id: string;
   inmueble_id: string | null;
   sort_key: number;
+  nombre: string;
+  telefono: string;
+  ref_cliente: string;
+  fecha_entrada_inmueble: string | null;
+}
+
+type IndexClienteFields = {
+  nombre?: string | null;
+  telefono?: string | null;
+  ref_cliente?: string | null;
+  fecha_entrada_inmueble?: string | null;
+};
+
+function readIndexClienteFields(
+  raw: IndexClienteFields | null | undefined,
+): Pick<
+  ClientesByTipoIndexItem,
+  'nombre' | 'telefono' | 'ref_cliente' | 'fecha_entrada_inmueble'
+> {
+  return {
+    nombre: String(raw?.nombre ?? ''),
+    telefono: String(raw?.telefono ?? ''),
+    ref_cliente: String(raw?.ref_cliente ?? ''),
+    fecha_entrada_inmueble: raw?.fecha_entrada_inmueble ?? null,
+  };
+}
+
+function normalizePhoneDigits(value: string | null | undefined): string {
+  return (value ?? '').replace(/\D/g, '');
+}
+
+function applyClientesByTipoIndexFilters(
+  items: ClientesByTipoIndexItem[],
+  query: ClientesByTipoPageQuery,
+): ClientesByTipoIndexItem[] {
+  let result = items;
+
+  const nombre = query.nombre?.trim().toLowerCase();
+  if (nombre) {
+    result = result.filter((item) =>
+      item.nombre.toLowerCase().includes(nombre),
+    );
+  }
+
+  const telefono = normalizePhoneDigits(query.telefono);
+  if (telefono) {
+    result = result.filter((item) =>
+      normalizePhoneDigits(item.telefono).includes(telefono),
+    );
+  }
+
+  const refCliente = query.ref_cliente?.trim().toLowerCase();
+  if (refCliente) {
+    result = result.filter((item) =>
+      item.ref_cliente.toLowerCase().includes(refCliente),
+    );
+  }
+
+  const entradaParam = query.entrada_prevista;
+  if (entradaParam !== undefined) {
+    const trimmed = entradaParam.trim();
+    if (!trimmed) {
+      return [];
+    }
+    const allowed = new Set(
+      trimmed
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    );
+    if (allowed.size === 0) {
+      return [];
+    }
+    if (allowed.size < CLIENTE_ENTRADA_PREVISTA_VALUES.length) {
+      result = result.filter((item) => {
+        const value =
+          normalizeClienteEntradaPrevista(item.fecha_entrada_inmueble) ??
+          'sin_info';
+        return allowed.has(value);
+      });
+    }
+  }
+
+  return result;
 }
 
 const CLIENTE_SELECT = `
@@ -289,7 +388,8 @@ export class InmueblesService {
       query.sort === 'fecha_entrada' && query.dir === 'asc' ? 'asc' : 'desc';
 
     const index = await this.buildClientesByTipoIndex(tipoOperacion);
-    const sorted = [...index].sort((a, b) => {
+    const filtered = applyClientesByTipoIndexFilters(index, query);
+    const sorted = [...filtered].sort((a, b) => {
       if (a.sort_key !== b.sort_key) {
         return sortDir === 'asc'
           ? a.sort_key - b.sort_key
@@ -309,6 +409,27 @@ export class InmueblesService {
     );
 
     return { rows, total, page, limit };
+  }
+
+  async findClientesByTipoRefs(
+    tipoOperacion: 'alquiler' | 'venta',
+    search?: string,
+  ): Promise<{ refs: string[] }> {
+    const index = await this.buildClientesByTipoIndex(tipoOperacion);
+    const refs = new Set<string>();
+
+    for (const item of index) {
+      const ref = item.ref_cliente.trim();
+      if (ref) refs.add(ref);
+    }
+
+    let list = [...refs].sort((a, b) => a.localeCompare(b, 'es'));
+    const query = search?.trim().toLowerCase();
+    if (query) {
+      list = list.filter((ref) => ref.toLowerCase().includes(query));
+    }
+
+    return { refs: list.slice(0, 2000) };
   }
 
   private async buildClientesByTipoIndex(
@@ -350,7 +471,7 @@ export class InmueblesService {
       const inmuebleId = linkRow.inmueble_id as string | undefined;
       const clienteId = linkRow.cliente_id as string | undefined;
       const clienteRaw = linkRow.clientes as
-        | { fecha_contacto?: string | null }
+        | (IndexClienteFields & { fecha_contacto?: string | null })
         | null;
       if (!inmuebleId || !clienteId) continue;
 
@@ -360,6 +481,7 @@ export class InmueblesService {
         cliente_id: clienteId,
         inmueble_id: inmuebleId,
         sort_key: getClienteEntradaSortKey(clienteRaw?.fecha_contacto ?? null),
+        ...readIndexClienteFields(clienteRaw),
       });
     }
 
@@ -397,6 +519,7 @@ export class InmueblesService {
         sort_key: getClienteEntradaSortKey(
           row.fecha_contacto as string | null | undefined,
         ),
+        ...readIndexClienteFields(row as IndexClienteFields),
       });
     }
 

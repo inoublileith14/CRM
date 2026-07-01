@@ -43,6 +43,20 @@ export class InmueblesController {
     });
   }
 
+  @Get('clientes/by-tipo/refs')
+  findClientesByTipoRefs(
+    @Query('tipo_operacion') tipo_operacion?: string,
+    @Query('q') q?: string,
+  ) {
+    if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
+      throw new BadRequestException(
+        'tipo_operacion debe ser alquiler o venta',
+      );
+    }
+
+    return this.inmueblesService.findClientesByTipoRefs(tipo_operacion, q);
+  }
+
   @Get('clientes/by-tipo')
   findClientesByTipo(
     @Query('tipo_operacion') tipo_operacion?: string,
@@ -50,6 +64,10 @@ export class InmueblesController {
     @Query('limit') limit?: string,
     @Query('sort') sort?: string,
     @Query('dir') dir?: string,
+    @Query('nombre') nombre?: string,
+    @Query('telefono') telefono?: string,
+    @Query('ref_cliente') ref_cliente?: string,
+    @Query('entrada_prevista') entrada_prevista?: string,
   ) {
     if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
       throw new BadRequestException(
@@ -71,6 +89,10 @@ export class InmueblesController {
         limit: limitNum,
         sort: sort === 'fecha_entrada' ? 'fecha_entrada' : undefined,
         dir: dir === 'asc' || dir === 'desc' ? dir : undefined,
+        nombre: nombre?.trim() || undefined,
+        telefono: telefono?.trim() || undefined,
+        ref_cliente: ref_cliente?.trim() || undefined,
+        entrada_prevista: entrada_prevista?.trim() || undefined,
       },
     );
   }

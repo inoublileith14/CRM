@@ -1,8 +1,15 @@
 'use client';
 
 import { ChangeEvent, useRef, useState } from 'react';
-import { FileUp, Loader2, X } from 'lucide-react';
+import { FileUp, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  CoconutBrandedDialog,
+  CoconutBrandedDialogActions,
+  CoconutBrandedDialogCancelButton,
+  CoconutBrandedDialogPrimaryButton,
+  COCONUT_DIALOG_BODY_TEXT_CLASS,
+} from '@/components/CoconutBrandedDialog';
 import { createInmueble } from '@/lib/inmuebles-api';
 import {
   ExcelParseProgress,
@@ -238,7 +245,7 @@ export function ExcelImportButton({
         type="button"
         onClick={openTipoModal}
         disabled={disabled || busy}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
       >
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -249,50 +256,44 @@ export function ExcelImportButton({
       </button>
 
       {(parsing || importing) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="flex min-w-[280px] flex-col items-center gap-3 rounded-xl bg-white px-6 py-4 shadow-xl">
-            <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-            <p className="text-sm font-medium text-slate-700">{parseStatus}</p>
-            {importing && (
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+        <CoconutBrandedDialog
+          open
+          onClose={() => undefined}
+          closable={false}
+          blockClose
+          title={importing ? 'Importando propietarios' : 'Leyendo Excel'}
+          subtitle="IMPORTACIÓN"
+          size="sm"
+        >
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-[#b8924b]" />
+            <p className={`m-0 text-sm font-medium ${COCONUT_DIALOG_BODY_TEXT_CLASS}`}>
+              {parseStatus}
+            </p>
+            {importing ? (
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[#eadfcd]">
                 <div
-                  className="h-full bg-emerald-600 transition-all"
+                  className="h-full bg-[#b8924b] transition-all"
                   style={{
                     width: `${(progress.current / progress.total) * 100}%`,
                   }}
                 />
               </div>
-            )}
+            ) : null}
           </div>
-        </div>
+        </CoconutBrandedDialog>
       )}
 
       {showTipoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={closeTipoModal}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Tipo de operación
-              </h2>
-              <button
-                type="button"
-                onClick={closeTipoModal}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="mb-4 text-sm text-slate-600">
-              Elige si los propietarios del Excel son para alquiler o venta.
-            </p>
-
+        <CoconutBrandedDialog
+          open={showTipoModal}
+          onClose={closeTipoModal}
+          title="Tipo de operación"
+          subtitle="IMPORTACIÓN"
+          size="sm"
+          align="left"
+          description="Elige si los propietarios del Excel son para alquiler o venta."
+        >
             <div className="grid grid-cols-2 gap-3">
               {(['alquiler', 'venta'] as TipoOperacion[]).map((tipo) => (
                 <button
@@ -301,93 +302,62 @@ export function ExcelImportButton({
                   onClick={() => setSelectedTipo(tipo)}
                   className={`rounded-xl border-2 px-4 py-4 text-sm font-semibold transition ${
                     selectedTipo === tipo
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      ? 'border-[#b8924b] bg-[#faf7f1] text-[#24211f]'
+                      : 'border-[#e6ddcf] bg-white text-[#5f574f] hover:border-[#b8924b]/40'
                   }`}
                 >
                   {TIPO_OPERACION_LABELS[tipo]}
-                  <span className="mt-1 block text-xs font-normal text-slate-500">
+                  <span className="mt-1 block text-xs font-normal text-[#a49a8f]">
                     {tipo === 'alquiler' ? 'Rent' : 'Sell'}
                   </span>
                 </button>
               ))}
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeTipoModal}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
+            <CoconutBrandedDialogActions align="end">
+              <CoconutBrandedDialogCancelButton onClick={closeTipoModal}>
                 Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmTipoAndPickFile}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-              >
+              </CoconutBrandedDialogCancelButton>
+              <CoconutBrandedDialogPrimaryButton onClick={confirmTipoAndPickFile}>
                 Continuar y elegir Excel
-              </button>
-            </div>
-          </div>
-        </div>
+              </CoconutBrandedDialogPrimaryButton>
+            </CoconutBrandedDialogActions>
+        </CoconutBrandedDialog>
       )}
 
       {pendingRows && summary && !importing && !parsing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={closeConfirm}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Importar propietarios
-              </h2>
-              <button
-                type="button"
-                onClick={closeConfirm}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <ul className="space-y-2 text-sm text-slate-600">
+        <CoconutBrandedDialog
+          open
+          onClose={closeConfirm}
+          title="Importar propietarios"
+          subtitle="IMPORTACIÓN"
+          size="sm"
+          align="left"
+        >
+            <ul className={`m-0 list-none space-y-2 p-0 ${COCONUT_DIALOG_BODY_TEXT_CLASS}`}>
               <li>
-                <strong>{summary.rows}</strong> propietarios encontrados
+                <strong className="text-[#24211f]">{summary.rows}</strong> propietarios encontrados
               </li>
               <li>
-                <strong>{summary.totalImages}</strong> imágenes en el Excel
+                <strong className="text-[#24211f]">{summary.totalImages}</strong> imágenes en el Excel
               </li>
               <li>
-                Tipo: <strong>{tipoLabel}</strong>
+                Tipo: <strong className="text-[#24211f]">{tipoLabel}</strong>
               </li>
             </ul>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-[#a49a8f]">
               Cada propietario se guardará con sus imágenes (Imagen real y Foto
               espejo) subidas en el momento de crear el registro.
             </p>
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeConfirm}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
+            <CoconutBrandedDialogActions align="end">
+              <CoconutBrandedDialogCancelButton onClick={closeConfirm}>
                 Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmImport}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-              >
+              </CoconutBrandedDialogCancelButton>
+              <CoconutBrandedDialogPrimaryButton onClick={confirmImport}>
                 Guardar {summary.rows} propietarios
-              </button>
-            </div>
-          </div>
-        </div>
+              </CoconutBrandedDialogPrimaryButton>
+            </CoconutBrandedDialogActions>
+        </CoconutBrandedDialog>
       )}
     </>
   );

@@ -21,6 +21,7 @@ import {
 import { ClienteTrabajadorCell } from '@/components/ClienteTrabajadorCell';
 import { ClienteNotasCell } from '@/components/ClienteNotasCell';
 import { ClienteNombreCell } from '@/components/ClienteNombreCell';
+import { ClienteTelefonosCell } from '@/components/ClienteTelefonosCell';
 import { InmuebleClienteFiltersBar } from '@/components/InmuebleClienteFiltersBar';
 import { ImagePreviewModal } from '@/components/ImagePreviewModal';
 import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
@@ -68,11 +69,18 @@ import {
 } from '@/types/cliente';
 import { Inmueble, TipoOperacion } from '@/types/inmueble';
 import { getWorkerRolLabel } from '@/types/worker';
-
-const INMUEBLE_CLIENTES_TABLE_CLASS =
-  'table-fixed min-w-[56rem] w-full border-collapse border border-black text-left text-sm';
-const INMUEBLE_CLIENTES_TABLE_X_SCROLL_CLASS = 'w-full overflow-x-auto';
-const INMUEBLE_CLIENTES_TABLE_HEAD_X_SCROLL_CLASS = `${INMUEBLE_CLIENTES_TABLE_X_SCROLL_CLASS} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`;
+import {
+  INMUEBLE_CLIENTES_TABLE_CLASS,
+  INMUEBLE_CLIENTES_TABLE_HEAD_X_SCROLL_CLASS,
+  INMUEBLE_CLIENTES_TABLE_X_SCROLL_CLASS,
+  INMUEBLE_CLIENTE_ACTIONS_TD_CLASS,
+  INMUEBLE_CLIENTE_ACTIONS_TH_CLASS,
+  INMUEBLE_CLIENTE_CHECKBOX_TD_CLASS,
+  INMUEBLE_CLIENTE_CHECKBOX_TH_CLASS,
+  InmuebleClienteTableColgroup,
+  inmuebleClienteBodyClass,
+  inmuebleClienteHeadClass,
+} from '@/lib/inmueble-cliente-table-layout';
 
 interface InmuebleDetailPageContentProps {
   listPath: string;
@@ -142,9 +150,14 @@ export function InmuebleDetailPageContent({
     {
       clienteFilters: EMPTY_INMUEBLE_CLIENTE_FILTERS,
       fechaContactoSort: null as InmuebleClienteFechaSort,
+      fechaUltimaGestionSort: null as InmuebleClienteFechaSort,
     },
   );
-  const { clienteFilters: rawClienteFilters, fechaContactoSort } = clienteListState;
+  const {
+    clienteFilters: rawClienteFilters,
+    fechaContactoSort,
+    fechaUltimaGestionSort,
+  } = clienteListState;
   const clienteFilters = useMemo(
     () => normalizeInmuebleClienteFilters(rawClienteFilters),
     [rawClienteFilters],
@@ -169,6 +182,19 @@ export function InmuebleDetailPageContent({
       fechaContactoSort:
         typeof value === 'function'
           ? value(prev.fechaContactoSort)
+          : value,
+    }));
+
+  const setFechaUltimaGestionSort = (
+    value:
+      | InmuebleClienteFechaSort
+      | ((prev: InmuebleClienteFechaSort) => InmuebleClienteFechaSort),
+  ) =>
+    setClienteListState((prev) => ({
+      ...prev,
+      fechaUltimaGestionSort:
+        typeof value === 'function'
+          ? value(prev.fechaUltimaGestionSort)
           : value,
     }));
 
@@ -250,13 +276,15 @@ export function InmuebleDetailPageContent({
         clienteFilters,
         expectedTipo,
         fechaContactoSort,
+        fechaUltimaGestionSort,
       ),
-    [clientes, clienteFilters, expectedTipo, fechaContactoSort],
+    [clientes, clienteFilters, expectedTipo, fechaContactoSort, fechaUltimaGestionSort],
   );
 
   const clienteFiltersActive = hasActiveInmuebleClienteFilters(
     clienteFilters,
     fechaContactoSort,
+    fechaUltimaGestionSort,
   );
 
   function toggleFechaContactoSort() {
@@ -266,9 +294,17 @@ export function InmuebleDetailPageContent({
     });
   }
 
+  function toggleFechaUltimaGestionSort() {
+    setFechaUltimaGestionSort((prev) => {
+      if (prev === null || prev === 'desc') return 'asc';
+      return 'desc';
+    });
+  }
+
   function clearAllFilters() {
     setClienteFilters(EMPTY_INMUEBLE_CLIENTE_FILTERS);
     setFechaContactoSort(null);
+    setFechaUltimaGestionSort(null);
   }
 
   function toggleClienteSelection(clienteId: string) {
@@ -643,11 +679,10 @@ export function InmuebleDetailPageContent({
               onScroll={() => syncTableHorizontalScroll('head')}
             >
               <table className={INMUEBLE_CLIENTES_TABLE_CLASS}>
+                <InmuebleClienteTableColgroup />
                 <thead className="border-b border-black">
                   <tr>
-                    <th
-                      className={`w-10 border border-black px-3 py-4 ${clienteTableHeadBg}`}
-                    >
+                    <th className={INMUEBLE_CLIENTE_CHECKBOX_TH_CLASS + ` ${clienteTableHeadBg}`}>
                       <input
                         type="checkbox"
                         checked={allClientesSelected}
@@ -668,7 +703,7 @@ export function InmuebleDetailPageContent({
                       col.key === 'fecha_contacto' ? (
                         <th
                           key={col.key}
-                          className={`w-[5.5rem] min-w-[5.5rem] border border-black px-2 py-4 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                          className={inmuebleClienteHeadClass(col.key, clienteTableHeadBg)}
                         >
                           <button
                             type="button"
@@ -679,18 +714,23 @@ export function InmuebleDetailPageContent({
                                 ? 'Más antigua primero — clic para más reciente'
                                 : fechaContactoSort === 'desc'
                                   ? 'Más reciente primero — clic para más antigua'
-                                  : 'Clic para ordenar por fecha de petición'
+                                  : 'Ordenar por fecha de petición'
                             }
+                            aria-label="Ordenar por fecha de petición"
                           >
                             <span className="whitespace-pre-line leading-tight">
-                              {formatTableHeaderLabel(
-                                col.shortLabel ?? col.label,
-                              )}
+                              {formatTableHeaderLabel(col.shortLabel ?? col.label)}
                             </span>
                             {fechaContactoSort === 'asc' ? (
-                              <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <ArrowUp
+                                className="h-3.5 w-3.5 shrink-0"
+                                aria-hidden
+                              />
                             ) : fechaContactoSort === 'desc' ? (
-                              <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <ArrowDown
+                                className="h-3.5 w-3.5 shrink-0"
+                                aria-hidden
+                              />
                             ) : (
                               <ArrowUpDown
                                 className="h-3.5 w-3.5 shrink-0 opacity-60"
@@ -702,7 +742,7 @@ export function InmuebleDetailPageContent({
                       ) : col.key === 'fecha_ultima_gestion' ? (
                         <th
                           key={col.key}
-                          className={`w-[5.5rem] min-w-[5.5rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                          className={inmuebleClienteHeadClass(col.key, clienteTableHeadBg)}
                         >
                           <ClienteFechaUltimaGestionFilterHead
                             label={col.shortLabel ?? col.label}
@@ -715,41 +755,44 @@ export function InmuebleDetailPageContent({
                             }
                             disabled={bulkBusy}
                             accent={expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}
+                            trailing={
+                              <button
+                                type="button"
+                                onClick={toggleFechaUltimaGestionSort}
+                                className="ml-0.5 inline-flex items-center justify-center rounded p-0.5 text-yellow-300 transition hover:bg-emerald-700 hover:text-yellow-200 disabled:opacity-60"
+                                title={
+                                  fechaUltimaGestionSort === 'asc'
+                                    ? 'Más antigua primero — clic para más reciente'
+                                    : fechaUltimaGestionSort === 'desc'
+                                      ? 'Más reciente primero — clic para más antigua'
+                                      : 'Ordenar por última gestión'
+                                }
+                                aria-label="Ordenar por última gestión"
+                              >
+                                {fechaUltimaGestionSort === 'asc' ? (
+                                  <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                ) : fechaUltimaGestionSort === 'desc' ? (
+                                  <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                ) : (
+                                  <ArrowUpDown
+                                    className="h-3.5 w-3.5 shrink-0 opacity-60"
+                                    aria-hidden
+                                  />
+                                )}
+                              </button>
+                            }
                           />
-                        </th>
-                      ) : col.key === 'nombre' ? (
-                        <th
-                          key={col.key}
-                          className={`w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
-                        >
-                          {formatTableHeaderLabel(col.label)}
-                        </th>
-                      ) : col.key === 'ref_cliente' ? (
-                        <th
-                          key={col.key}
-                          className={`w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
-                        >
-                          {formatTableHeaderLabel(col.label)}
-                        </th>
-                      ) : col.key === 'gestion_estado' ? (
-                        <th
-                          key={col.key}
-                          className={`w-[14rem] max-w-[14rem] border border-black px-3 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
-                        >
-                          {formatTableHeaderLabel(col.label)}
                         </th>
                       ) : (
                         <th
                           key={col.key}
-                          className={`border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                          className={inmuebleClienteHeadClass(col.key, clienteTableHeadBg)}
                         >
-                          {formatTableHeaderLabel(col.label)}
+                          {formatTableHeaderLabel(col.shortLabel ?? col.label)}
                         </th>
                       ),
                     )}
-                    <th
-                      className={`w-16 max-w-[4rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
-                    >
+                    <th className={INMUEBLE_CLIENTE_ACTIONS_TH_CLASS + ` ${clienteTableHeadBg}`}>
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
@@ -773,6 +816,7 @@ export function InmuebleDetailPageContent({
             onScroll={() => syncTableHorizontalScroll('body')}
           >
             <table className={INMUEBLE_CLIENTES_TABLE_CLASS}>
+              <InmuebleClienteTableColgroup />
               <tbody>
                 {filteredClientes.map((cliente) => {
                   const isSelected = selectedClienteIds.has(cliente.id);
@@ -782,7 +826,7 @@ export function InmuebleDetailPageContent({
                     key={cliente.id}
                     className={`${isSelected ? selectedRowClass : ''} hover:bg-slate-50`}
                   >
-                    <td className="w-10 border border-black px-3 py-3">
+                    <td className={INMUEBLE_CLIENTE_CHECKBOX_TD_CLASS}>
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -797,7 +841,7 @@ export function InmuebleDetailPageContent({
                         return (
                           <td
                             key={col.key}
-                            className="w-[5.5rem] min-w-[5.5rem] whitespace-nowrap border border-black px-2 py-3 text-center text-slate-700"
+                            className={inmuebleClienteBodyClass(col.key)}
                           >
                             {formatClienteEntradaDate(cliente.fecha_contacto)}
                           </td>
@@ -808,7 +852,7 @@ export function InmuebleDetailPageContent({
                         return (
                           <td
                             key={col.key}
-                            className="w-[14rem] max-w-[14rem] align-top border border-black px-2 py-3"
+                            className={inmuebleClienteBodyClass(col.key)}
                           >
                             <ClienteGestionEstadoSelect
                               inmuebleId={inmueble.id}
@@ -848,7 +892,7 @@ export function InmuebleDetailPageContent({
                         return (
                           <td
                             key={col.key}
-                            className="w-[5.5rem] min-w-[5.5rem] align-top border border-black px-1 py-3"
+                            className={inmuebleClienteBodyClass(col.key)}
                             style={{
                               backgroundColor: gestionStyle.backgroundColor,
                               color: gestionStyle.color,
@@ -871,11 +915,30 @@ export function InmuebleDetailPageContent({
                         );
                       }
 
+                      if (col.key === 'telefono') {
+                        return (
+                          <td
+                            key={col.key}
+                            className={inmuebleClienteBodyClass(col.key)}
+                          >
+                            <ClienteTelefonosCell
+                              clienteId={cliente.id}
+                              telefono={cliente.telefono}
+                              telefonosExtra={cliente.telefonos_extra}
+                              disabled={bulkBusy}
+                              onUpdated={(patch) =>
+                                handleClientePatch(cliente.id, patch)
+                              }
+                            />
+                          </td>
+                        );
+                      }
+
                       if (col.key === 'nombre') {
                         return (
                           <td
                             key={col.key}
-                            className="w-[11rem] max-w-[11rem] align-top border border-black px-4 py-3"
+                            className={inmuebleClienteBodyClass(col.key)}
                           >
                             <ClienteNombreCell
                               clienteId={cliente.id}
@@ -891,7 +954,7 @@ export function InmuebleDetailPageContent({
 
                       if (col.key === 'notas') {
                         return (
-                          <td key={col.key} className="border border-black px-4 py-3">
+                          <td key={col.key} className={inmuebleClienteBodyClass(col.key)}>
                             <ClienteNotasCell
                               clienteId={cliente.id}
                               value={cliente.notas}
@@ -909,7 +972,7 @@ export function InmuebleDetailPageContent({
                         return (
                           <td
                             key={col.key}
-                            className="w-[11rem] max-w-[11rem] align-top border border-black px-4 py-3 text-slate-700"
+                            className={inmuebleClienteBodyClass(col.key)}
                             title={refText !== '—' ? refText : undefined}
                           >
                             <span className="block line-clamp-3 break-words whitespace-normal leading-snug">
@@ -921,7 +984,7 @@ export function InmuebleDetailPageContent({
 
                       if (col.key === 'trabajador') {
                         return (
-                          <td key={col.key} className="border border-black px-4 py-3">
+                          <td key={col.key} className={inmuebleClienteBodyClass(col.key)}>
                             <ClienteTrabajadorCell
                               inmuebleId={inmueble.id}
                               clienteId={cliente.id}
@@ -945,14 +1008,14 @@ export function InmuebleDetailPageContent({
                       return (
                         <td
                           key={col.key}
-                          className="max-w-[200px] truncate border border-black px-4 py-3 text-slate-700"
+                          className={`${inmuebleClienteBodyClass(col.key)} truncate`}
                           title={display}
                         >
                           {display}
                         </td>
                       );
                     })}
-                    <td className="w-16 max-w-[4rem] border border-black px-1 py-3 text-center align-middle">
+                    <td className={INMUEBLE_CLIENTE_ACTIONS_TD_CLASS}>
                       <div className="flex items-center justify-center gap-0.5">
                         <Link
                           href={`/dashboard/clientes/${cliente.id}`}

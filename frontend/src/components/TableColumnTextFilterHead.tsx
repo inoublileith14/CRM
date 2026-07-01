@@ -22,6 +22,8 @@ interface TableColumnTextFilterHeadProps {
   isFilterActive: boolean;
   onOpenChange: (open: boolean) => void;
   onApply: (value: string) => void;
+  /** When true, applies filter on each keystroke (debounced). */
+  live?: boolean;
   accent?: TextFilterAccent;
   style?: CSSProperties;
   className?: string;
@@ -55,6 +57,7 @@ export function TableColumnTextFilterHead({
   isFilterActive,
   onOpenChange,
   onApply,
+  live = false,
   accent = 'emerald',
   style,
   className = '',
@@ -80,6 +83,14 @@ export function TableColumnTextFilterHead({
     if (!isOpen) return;
     setDraft(value);
   }, [isOpen, value]);
+
+  useEffect(() => {
+    if (!live || !isOpen) return;
+    const timer = window.setTimeout(() => {
+      onApply(draft.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [draft, isOpen, live, onApply]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -148,7 +159,7 @@ export function TableColumnTextFilterHead({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (!live && e.key === 'Enter') {
                 e.preventDefault();
                 handleApply();
               }
@@ -166,13 +177,23 @@ export function TableColumnTextFilterHead({
           >
             Borrar filtro
           </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold text-white transition ${accentStyles.button}`}
-          >
-            Aceptar
-          </button>
+          {live ? (
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className={`rounded-md px-3 py-1.5 text-sm font-semibold text-white transition ${accentStyles.button}`}
+            >
+              Cerrar
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleApply}
+              className={`rounded-md px-3 py-1.5 text-sm font-semibold text-white transition ${accentStyles.button}`}
+            >
+              Aceptar
+            </button>
+          )}
         </div>
       </div>
     ) : null;

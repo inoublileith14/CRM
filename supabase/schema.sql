@@ -87,7 +87,15 @@ CREATE TABLE IF NOT EXISTS public.inmuebles (
   fecha_visitas_entrada TEXT,
   observaciones TEXT,
   requisitos_propietario TEXT,
-  amueblado TEXT CHECK (amueblado IN ('si', 'no')),
+  amueblado TEXT CHECK (
+    amueblado IS NULL
+    OR amueblado IN (
+      'electro_amueblada',
+      'electro_sin_amueblar',
+      'cocina_vacia_sin_amueblar',
+      'no_lo_se'
+    )
+  ),
   captador TEXT,
   alquilado_por TEXT,
   captador_alquilado_por TEXT,

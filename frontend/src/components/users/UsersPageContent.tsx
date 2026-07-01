@@ -9,6 +9,7 @@ import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import { WorkerForm } from '@/components/WorkerForm';
+import { CoconutBrandedDialog } from '@/components/CoconutBrandedDialog';
 import { UserListToolbar } from '@/components/users/UserListToolbar';
 import { TablePagination } from '@/components/TablePagination';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -383,39 +384,26 @@ export function UsersPageContent({ rol }: UsersPageContentProps) {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={closeModal}
+        <CoconutBrandedDialog
+          open={modalOpen}
+          onClose={closeModal}
+          blockClose={saving}
+          title={meta.addLabel}
+          subtitle="EQUIPO"
+          size="xl"
+          align="left"
+          scrollable
+        >
+          <WorkerForm
+            initial={{ ...emptyWorkerFormForRol(rol) }}
+            onSubmit={handleSubmit}
+            onCancel={closeModal}
+            submitLabel={`Crear ${rol === 'admin' ? 'admin' : 'asesor'}`}
+            loading={saving}
+            wide
+            lockRol={rol}
           />
-          <div className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {meta.addLabel}
-              </h2>
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <WorkerForm
-              initial={{ ...emptyWorkerFormForRol(rol) }}
-              onSubmit={handleSubmit}
-              onCancel={closeModal}
-              submitLabel={`Crear ${rol === 'admin' ? 'admin' : 'asesor'}`}
-              loading={saving}
-              wide
-              lockRol={rol}
-            />
-          </div>
-        </div>
+        </CoconutBrandedDialog>
       )}
     </div>
   );

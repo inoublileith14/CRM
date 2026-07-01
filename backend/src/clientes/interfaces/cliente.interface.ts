@@ -26,6 +26,7 @@ export interface Cliente {
   nombre: string;
   email: string | null;
   telefono: string | null;
+  telefonos_extra?: string[];
   ciudad: string | null;
   barrio: string[];
   distrito: string[];

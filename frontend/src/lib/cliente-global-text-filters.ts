@@ -3,11 +3,13 @@ import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
 export interface ClienteGlobalTextFilters {
   nombre: string;
   telefono: string;
+  ref_cliente: string;
 }
 
 export const EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS: ClienteGlobalTextFilters = {
   nombre: '',
   telefono: '',
+  ref_cliente: '',
 };
 
 function normalizePhoneDigits(value: string | null | undefined): string {
@@ -19,7 +21,8 @@ export function hasActiveClienteGlobalTextFilters(
 ): boolean {
   return (
     (filters.nombre ?? '').trim() !== '' ||
-    (filters.telefono ?? '').trim() !== ''
+    (filters.telefono ?? '').trim() !== '' ||
+    (filters.ref_cliente ?? '').trim() !== ''
   );
 }
 
@@ -29,8 +32,9 @@ export function filterClienteLinkRowsByText(
 ): InmuebleClienteLinkRow[] {
   const nombreQuery = (filters.nombre ?? '').trim().toLowerCase();
   const phoneDigits = normalizePhoneDigits((filters.telefono ?? '').trim());
+  const refQuery = (filters.ref_cliente ?? '').trim().toLowerCase();
 
-  if (!nombreQuery && phoneDigits.length === 0) {
+  if (!nombreQuery && phoneDigits.length === 0 && !refQuery) {
     return rows;
   }
 
@@ -43,6 +47,11 @@ export function filterClienteLinkRowsByText(
     if (phoneDigits.length > 0) {
       const rowDigits = normalizePhoneDigits(row.cliente.telefono);
       if (!rowDigits.includes(phoneDigits)) return false;
+    }
+
+    if (refQuery) {
+      const ref = row.cliente.ref_cliente?.toLowerCase() ?? '';
+      if (!ref.includes(refQuery)) return false;
     }
 
     return true;

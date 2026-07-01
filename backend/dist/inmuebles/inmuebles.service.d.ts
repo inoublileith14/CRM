@@ -2,8 +2,8 @@ import { ClienteGestionEstado } from '../clientes/cliente-gestion-estado';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateInmuebleDto } from './dto/create-inmueble.dto';
 import { UpdateInmuebleDto } from './dto/update-inmueble.dto';
-import { InmuebleClienteLinkRow } from './interfaces/inmueble-cliente-link.interface';
 import { ClientesByTipoPageQuery, ClientesByTipoPageResult } from './interfaces/clientes-by-tipo-page.interface';
+import { InmuebleClienteLinkRow } from './interfaces/inmueble-cliente-link.interface';
 import { Inmueble } from './interfaces/inmueble.interface';
 export declare class InmueblesService {
     private supabase;
@@ -17,6 +17,9 @@ export declare class InmueblesService {
     }): Promise<Inmueble[]>;
     findClientesByTipoOperacion(tipoOperacion: 'alquiler' | 'venta'): Promise<InmuebleClienteLinkRow[]>;
     findClientesByTipoOperacionPaginated(tipoOperacion: 'alquiler' | 'venta', query: ClientesByTipoPageQuery): Promise<ClientesByTipoPageResult>;
+    findClientesByTipoRefs(tipoOperacion: 'alquiler' | 'venta', search?: string): Promise<{
+        refs: string[];
+    }>;
     private buildClientesByTipoIndex;
     private hydrateClientesByTipoPage;
     private fetchLinkedRowsForHydration;

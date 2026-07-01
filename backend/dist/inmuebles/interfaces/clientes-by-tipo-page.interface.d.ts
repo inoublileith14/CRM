@@ -10,4 +10,8 @@ export interface ClientesByTipoPageQuery {
     limit: number;
     sort?: 'fecha_entrada';
     dir?: 'asc' | 'desc';
+    nombre?: string;
+    telefono?: string;
+    ref_cliente?: string;
+    entrada_prevista?: string;
 }

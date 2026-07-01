@@ -17,7 +17,13 @@ export const queryKeys = {
         params?.limit ?? 50,
         params?.sort ?? '',
         params?.dir ?? '',
+        params?.nombre ?? '',
+        params?.telefono ?? '',
+        params?.ref_cliente ?? '',
+        params?.entrada_prevista ?? '',
       ] as const,
+    refsByTipo: (tipo: TipoOperacion, search?: string) =>
+      ['clientes-by-tipo', tipo, 'refs', search ?? ''] as const,
     byTipoAll: (
       tipo: TipoOperacion,
       sort?: ClientesByTipoListParams['sort'],

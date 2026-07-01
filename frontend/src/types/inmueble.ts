@@ -1,4 +1,6 @@
 import { Cliente } from '@/types/cliente';
+import type { InmuebleAmueblado } from '@/lib/inmueble-amueblado';
+import { INMUEBLE_AMUEBLADO_OPTIONS } from '@/lib/inmueble-amueblado';
 
 export interface InmueblePropietarioContacto {
   nombre: string;
@@ -33,7 +35,7 @@ export interface Inmueble {
   fecha_visitas_entrada: string | null;
   observaciones: string | null;
   requisitos_propietario: string | null;
-  amueblado: 'si' | 'no' | null;
+  amueblado: InmuebleAmueblado | null;
   captador: string | null;
   alquilado_por: string | null;
   captador_alquilado_por: string | null;
@@ -124,12 +126,12 @@ export const INMUEBLE_FIELDS: {
   },
   {
     key: 'amueblado',
-    label: 'Amueblado (si o no)',
+    label: 'Amueblado',
     type: 'select',
-    options: [
-      { value: 'si', label: 'Sí' },
-      { value: 'no', label: 'No' },
-    ],
+    options: INMUEBLE_AMUEBLADO_OPTIONS.map((option) => ({
+      value: option.value,
+      label: option.label,
+    })),
   },
   { key: 'captador', label: 'Captador', type: 'text' },
   { key: 'alquilado_por', label: 'Alquilado por', type: 'text' },

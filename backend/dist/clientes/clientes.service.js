@@ -19,11 +19,13 @@ const cliente_entrada_prevista_1 = require("./cliente-entrada-prevista");
 const enrich_import_cliente_util_1 = require("./enrich-import-cliente.util");
 const match_inmueble_ref_util_1 = require("./match-inmueble-ref.util");
 const cliente_zonas_util_1 = require("./cliente-zonas.util");
+const cliente_telefonos_util_1 = require("./cliente-telefonos.util");
 const SELECT_FIELDS = `
   id,
   nombre,
   email,
   telefono,
+  telefonos_extra,
   ciudad,
   barrio,
   distrito,
@@ -119,7 +121,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
     }
     async create(dto) {
         const { inmueble_ids, worker_ids, ...clienteData } = dto;
-        const payload = this.sanitizeClienteWriteData(clienteData);
+        const payload = this.buildClienteWritePayload(clienteData);
         const duplicate = await this.findDuplicateByPhoneDateAndInmuebles(payload.telefono, payload.fecha_contacto, inmueble_ids ?? []);
         if (duplicate) {
             throw new common_1.ConflictException({
@@ -146,7 +148,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
     async update(id, dto) {
         await this.findOne(id);
         const { inmueble_ids, worker_ids, ...clienteData } = dto;
-        const payload = this.sanitizeClienteWriteData(clienteData);
+        const payload = this.buildClienteWritePayload(clienteData);
         const { error } = await this.supabase
             .getAdmin()
             .from('clientes')
@@ -824,6 +826,16 @@ let ClientesService = ClientesService_1 = class ClientesService {
         }
         return null;
     }
+    buildClienteWritePayload(clienteData) {
+        return this.sanitizeClienteWriteData({
+            ...clienteData,
+            ...(clienteData.telefonos_extra !== undefined
+                ? {
+                    telefonos_extra: (0, cliente_telefonos_util_1.normalizeClienteTelefonosExtra)(clienteData.telefonos_extra),
+                }
+                : {}),
+        });
+    }
     sanitizeClienteWriteData(data) {
         if (data.fecha_entrada_inmueble === undefined) {
             return data;
@@ -875,6 +887,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
             ...rest,
             barrio: (0, cliente_zonas_util_1.normalizeClienteZonas)(rest.barrio),
             distrito: (0, cliente_zonas_util_1.normalizeClienteZonas)(rest.distrito),
+            telefonos_extra: (0, cliente_telefonos_util_1.normalizeClienteTelefonosExtra)(rest.telefonos_extra),
             fecha_entrada_inmueble: (0, cliente_entrada_prevista_1.normalizeClienteEntradaPrevista)(rest.fecha_entrada_inmueble ?? null),
             inmueble_ids: clienteInmuebles.map((r) => r.inmueble_id),
             worker_ids: clienteWorkers.map((r) => r.worker_id),

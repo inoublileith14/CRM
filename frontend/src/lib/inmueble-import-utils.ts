@@ -1,4 +1,5 @@
 import { InmuebleFormData } from '@/types/inmueble';
+import { normalizeInmuebleAmueblado } from '@/lib/inmueble-amueblado';
 
 export const HEADER_ALIASES: Record<string, keyof InmuebleFormData> = {
   ref: 'ref',
@@ -210,12 +211,8 @@ function parseLargaEstancia(value: string): 'larga' | 't' | null {
   return null;
 }
 
-function parseAmueblado(value: string): 'si' | 'no' | null {
-  const v = value.toLowerCase().trim();
-  if (!v) return null;
-  if (v === 'si' || v === 'sí' || v === 'yes') return 'si';
-  if (v === 'no') return 'no';
-  return null;
+function parseAmueblado(value: string): InmuebleFormData['amueblado'] {
+  return normalizeInmuebleAmueblado(value);
 }
 
 function parseStatus(value: string): 'I' | 'P' | 'I-M' | null {

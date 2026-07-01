@@ -3,6 +3,7 @@ import {
   ClienteGestionEstado,
   normalizeClienteGestionEstado,
 } from '@/lib/cliente-gestion-estado';
+import { clienteMatchesPhoneSearch } from '@/lib/cliente-telefonos';
 import { Cliente } from '@/types/cliente';
 import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
 import { TipoOperacion } from '@/types/inmueble';
@@ -15,6 +16,8 @@ export interface InmuebleClienteFilters {
   worker_id: string;
   /** `YYYY-MM-DD` — filter clients whose última gestión is on this day. */
   fecha_ultima_gestion: string;
+  /** `YYYY-MM-DD` — filter clients whose fecha de petición is on this day. */
+  fecha_contacto: string;
 }
 
 export const EMPTY_INMUEBLE_CLIENTE_FILTERS: InmuebleClienteFilters = {
@@ -22,6 +25,7 @@ export const EMPTY_INMUEBLE_CLIENTE_FILTERS: InmuebleClienteFilters = {
   gestion_estado: '',
   worker_id: '',
   fecha_ultima_gestion: '',
+  fecha_contacto: '',
 };
 
 /** Guard against partial objects from persisted table state (shallow merge). */
@@ -35,6 +39,7 @@ export function normalizeInmuebleClienteFilters(
     gestion_estado: filters?.gestion_estado ?? '',
     worker_id: filters?.worker_id ?? '',
     fecha_ultima_gestion: filters?.fecha_ultima_gestion ?? '',
+    fecha_contacto: filters?.fecha_contacto ?? '',
   };
 }
 
@@ -42,7 +47,8 @@ export type InmuebleClienteFechaSort = 'asc' | 'desc' | null;
 
 export function hasActiveInmuebleClienteFilters(
   filters: InmuebleClienteFilters,
-  fechaSort: InmuebleClienteFechaSort,
+  fechaContactoSort: InmuebleClienteFechaSort,
+  fechaUltimaGestionSort: InmuebleClienteFechaSort = null,
 ): boolean {
   const normalized = normalizeInmuebleClienteFilters(filters);
   return (
@@ -50,7 +56,9 @@ export function hasActiveInmuebleClienteFilters(
     normalized.gestion_estado !== '' ||
     normalized.worker_id !== '' ||
     normalized.fecha_ultima_gestion.trim() !== '' ||
-    fechaSort !== null
+    normalized.fecha_contacto.trim() !== '' ||
+    fechaContactoSort !== null ||
+    fechaUltimaGestionSort !== null
   );
 }
 
@@ -91,6 +99,12 @@ export function filterInmuebleClientes(
       if (clienteFecha !== fechaUltimaFilter) return false;
     }
 
+    const fechaContactoFilter = normalized.fecha_contacto.trim();
+    if (fechaContactoFilter) {
+      const clienteFecha = getClienteCalendarDateKey(cliente.fecha_contacto);
+      if (clienteFecha !== fechaContactoFilter) return false;
+    }
+
     if (!search) return true;
 
     const name = cliente.nombre?.toLowerCase() ?? '';
@@ -99,8 +113,7 @@ export function filterInmuebleClientes(
 
     if (searchDigits.length === 0) return false;
 
-    const phoneDigits = normalizePhoneDigits(cliente.telefono);
-    return phoneDigits.includes(searchDigits);
+    return clienteMatchesPhoneSearch(cliente, searchDigits);
   });
 }
 
@@ -115,6 +128,39 @@ export function sortInmuebleClientesByFechaContacto(
       cliente,
       index,
       key: getClienteEntradaSortKey(cliente.fecha_contacto),
+    }))
+    .sort((a, b) => {
+      if (a.key !== b.key) return (a.key - b.key) * mult;
+      return a.index - b.index;
+    })
+    .map(({ cliente }) => cliente);
+}
+
+function getClienteFechaUltimaGestionSortKey(
+  fechaUltimaGestion: string | null | undefined,
+): number {
+  const key = getClienteCalendarDateKey(fechaUltimaGestion);
+  if (!key) return 0;
+  const match = key.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return 0;
+  return (
+    Number(match[1]) * 10_000 +
+    Number(match[2]) * 100 +
+    Number(match[3])
+  );
+}
+
+export function sortInmuebleClientesByFechaUltimaGestion(
+  clientes: Cliente[],
+  direction: 'asc' | 'desc',
+): Cliente[] {
+  const mult = direction === 'asc' ? 1 : -1;
+
+  return clientes
+    .map((cliente, index) => ({
+      cliente,
+      index,
+      key: getClienteFechaUltimaGestionSortKey(cliente.fecha_ultima_gestion),
     }))
     .sort((a, b) => {
       if (a.key !== b.key) return (a.key - b.key) * mult;
@@ -146,9 +192,18 @@ export function applyInmuebleClienteListFilters(
   clientes: Cliente[],
   filters: InmuebleClienteFilters,
   tipoOperacion: TipoOperacion,
-  fechaSort: InmuebleClienteFechaSort,
+  fechaContactoSort: InmuebleClienteFechaSort,
+  fechaUltimaGestionSort: InmuebleClienteFechaSort = null,
 ): Cliente[] {
-  const filtered = filterInmuebleClientes(clientes, filters, tipoOperacion);
-  if (!fechaSort) return filtered;
-  return sortInmuebleClientesByFechaContacto(filtered, fechaSort);
+  let result = filterInmuebleClientes(clientes, filters, tipoOperacion);
+  if (fechaContactoSort) {
+    result = sortInmuebleClientesByFechaContacto(result, fechaContactoSort);
+  }
+  if (fechaUltimaGestionSort) {
+    result = sortInmuebleClientesByFechaUltimaGestion(
+      result,
+      fechaUltimaGestionSort,
+    );
+  }
+  return result;
 }

@@ -15,6 +15,10 @@ import {
 } from '@/lib/inmueble-split-fields';
 import { toInmuebleCellValue } from '@/lib/inmueble-table-utils';
 import {
+  INMUEBLE_AMUEBLADO_OPTIONS,
+  normalizeInmuebleAmueblado,
+} from '@/lib/inmueble-amueblado';
+import {
   INMUEBLE_FIELDS,
   InmuebleFormData,
   TIPO_OPERACION_LABELS,
@@ -176,7 +180,7 @@ export function InmuebleForm({
       observaciones: (form.get('observaciones') as string) || null,
       requisitos_propietario:
         (form.get('requisitos_propietario') as string) || null,
-      amueblado: (form.get('amueblado') as 'si' | 'no') || null,
+      amueblado: normalizeInmuebleAmueblado(form.get('amueblado') as string),
       captador: (form.get('captador') as string) || null,
       alquilado_por: (form.get('alquilado_por') as string) || null,
       captador_alquilado_por: null,
@@ -279,6 +283,41 @@ export function InmuebleForm({
     );
   }
 
+  const effectiveTipoOperacion =
+    fixedTipoOperacion ?? defaults.tipo_operacion ?? null;
+
+  function renderAmuebladoField(field: FieldDef) {
+    const selected = normalizeInmuebleAmueblado(defaults.amueblado);
+
+    return (
+      <div key={field.key} className="sm:col-span-2">
+        <fieldset>
+          <legend className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            {field.label}
+          </legend>
+          <div className="space-y-2">
+            {INMUEBLE_AMUEBLADO_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 transition hover:border-emerald-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50/40"
+              >
+                <input
+                  type="radio"
+                  name="amueblado"
+                  value={option.value}
+                  defaultChecked={selected === option.value}
+                  disabled={loading}
+                  className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+    );
+  }
+
   function renderStandardField(field: FieldDef) {
     if (field.key === 'tipo_operacion' && fixedTipoOperacion) {
       return (
@@ -376,7 +415,13 @@ export function InmuebleForm({
 
     const fields = section.keys
       .map((key) => fieldByKey.get(key))
-      .filter((field): field is FieldDef => field != null);
+      .filter((field): field is FieldDef => field != null)
+      .filter(
+        (field) =>
+          field.key !== 'amueblado' ||
+          effectiveTipoOperacion === 'alquiler' ||
+          effectiveTipoOperacion == null,
+      );
 
     if (section.imageGrid) {
       return (
@@ -388,11 +433,15 @@ export function InmuebleForm({
 
     return (
       <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map((field) =>
-          field.type === 'image'
-            ? renderImageField(field)
-            : renderStandardField(field),
-        )}
+        {fields.map((field) => {
+          if (field.key === 'amueblado') {
+            return renderAmuebladoField(field);
+          }
+          if (field.type === 'image') {
+            return renderImageField(field);
+          }
+          return renderStandardField(field);
+        })}
       </div>
     );
   }

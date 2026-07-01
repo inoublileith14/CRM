@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { ReactNode, useRef } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { formatTableHeaderLabel } from '@/lib/table-header-label';
 
@@ -10,6 +10,10 @@ interface ClienteFechaUltimaGestionFilterHeadProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   accent?: 'alquiler' | 'venta';
+  filterAriaLabel?: string;
+  filterActiveTitle?: (value: string) => string;
+  filterIdleTitle?: string;
+  trailing?: ReactNode;
 }
 
 export function ClienteFechaUltimaGestionFilterHead({
@@ -18,6 +22,11 @@ export function ClienteFechaUltimaGestionFilterHead({
   onChange,
   disabled,
   accent = 'alquiler',
+  filterAriaLabel = 'Filtrar por fecha de última gestión',
+  filterActiveTitle = (filterValue) =>
+    `Filtrando: ${filterValue} — clic para cambiar`,
+  filterIdleTitle = 'Filtrar por fecha de última gestión',
+  trailing,
 }: ClienteFechaUltimaGestionFilterHeadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const isActive = (value ?? '').trim().length > 0;
@@ -50,7 +59,7 @@ export function ClienteFechaUltimaGestionFilterHead({
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
           className="sr-only"
-          aria-label="Filtrar por fecha de última gestión"
+          aria-label={filterAriaLabel}
         />
         <button
           type="button"
@@ -59,12 +68,8 @@ export function ClienteFechaUltimaGestionFilterHead({
           className={`inline-flex items-center justify-center rounded p-0.5 transition disabled:opacity-60 ${
             isActive ? activeBtnClass : idleBtnClass
           }`}
-          title={
-            isActive
-              ? `Filtrando: ${value} — clic para cambiar`
-              : 'Filtrar por fecha de última gestión'
-          }
-          aria-label="Filtrar por fecha de última gestión"
+          title={isActive ? filterActiveTitle(value) : filterIdleTitle}
+          aria-label={filterAriaLabel}
         >
           <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
         </button>
@@ -80,6 +85,7 @@ export function ClienteFechaUltimaGestionFilterHead({
             <X className="h-3 w-3 shrink-0" aria-hidden />
           </button>
         ) : null}
+        {trailing}
       </div>
     </div>
   );

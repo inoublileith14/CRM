@@ -1,9 +1,17 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import {
+  CoconutBrandedDialog,
+  CoconutBrandedDialogCancelButton,
+  CoconutBrandedDialogFooter,
+  CoconutBrandedDialogPrimaryButton,
+  COCONUT_DIALOG_INPUT_CLASS,
+  COCONUT_DIALOG_LABEL_CLASS,
+} from '@/components/CoconutBrandedDialog';
 import {
   GestionCalendarEventDialog,
   GestionCalendarEventFormValues,
@@ -86,15 +94,8 @@ export function InmuebleClienteManualAddButton({
     [tipoOperacion],
   );
 
-  const focusRingClass =
-    tipoOperacion === 'alquiler'
-      ? 'focus:border-emerald-500 focus:ring-emerald-500/20'
-      : 'focus:border-blue-600 focus:ring-blue-600/20';
-  const accentButtonClass =
-    tipoOperacion === 'alquiler'
-      ? 'bg-emerald-600 hover:bg-emerald-500'
-      : 'bg-blue-700 hover:bg-blue-600';
-  const inputClass = `w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 disabled:opacity-60 ${focusRingClass}`;
+  const primaryTone = tipoOperacion === 'alquiler' ? 'success' : 'info';
+  const inputClass = COCONUT_DIALOG_INPUT_CLASS;
 
   function closeModal() {
     if (saving) return;
@@ -286,47 +287,55 @@ export function InmuebleClienteManualAddButton({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={closeModal}
-          />
-          <div className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Nuevo cliente
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Se vincula a este inmueble
-                  {inmuebleRef?.trim() ? (
-                    <>
-                      {' '}
-                      · ref.{' '}
-                      <span className="font-medium text-slate-700">
-                        {inmuebleRef.trim()}
-                      </span>
-                    </>
-                  ) : null}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
+        <CoconutBrandedDialog
+          open={open}
+          onClose={closeModal}
+          blockClose={saving}
+          title="Nuevo cliente"
+          subtitle="CLIENTES"
+          size="lg"
+          align="left"
+          scrollable
+          description={
+            <>
+              Se vincula a este inmueble
+              {inmuebleRef?.trim() ? (
+                <>
+                  {' '}
+                  · ref.{' '}
+                  <span className="font-medium text-[#24211f]">
+                    {inmuebleRef.trim()}
+                  </span>
+                </>
+              ) : null}
+            </>
+          }
+          footer={
+            <CoconutBrandedDialogFooter align="end">
+              <CoconutBrandedDialogCancelButton onClick={closeModal} disabled={saving}>
+                Cancelar
+              </CoconutBrandedDialogCancelButton>
+              <CoconutBrandedDialogPrimaryButton
+                type="submit"
+                form="manual-cliente-form"
                 disabled={saving}
-                className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
+                loading={saving}
+                tone={primaryTone}
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
+                {saving ? 'Guardando…' : 'Crear cliente'}
+              </CoconutBrandedDialogPrimaryButton>
+            </CoconutBrandedDialogFooter>
+          }
+        >
+            <form
+              id="manual-cliente-form"
+              onSubmit={(event) => void handleSubmit(event)}
+              className="space-y-4"
+            >
               <div>
                 <label
                   htmlFor="manual-cliente-nombre"
-                  className="mb-1 block text-xs font-medium text-slate-600"
+                  className={COCONUT_DIALOG_LABEL_CLASS}
                 >
                   Nombre *
                 </label>
@@ -346,7 +355,7 @@ export function InmuebleClienteManualAddButton({
                 <div>
                   <label
                     htmlFor="manual-cliente-telefono"
-                    className="mb-1 block text-xs font-medium text-slate-600"
+                    className={COCONUT_DIALOG_LABEL_CLASS}
                   >
                     Teléfono
                   </label>
@@ -362,7 +371,7 @@ export function InmuebleClienteManualAddButton({
                 <div>
                   <label
                     htmlFor="manual-cliente-fecha-entrada"
-                    className="mb-1 block text-xs font-medium text-slate-600"
+                    className={COCONUT_DIALOG_LABEL_CLASS}
                   >
                     Fecha entrada
                   </label>
@@ -381,7 +390,7 @@ export function InmuebleClienteManualAddButton({
                 <div>
                   <label
                     htmlFor="manual-cliente-gestion"
-                    className="mb-1 block text-xs font-medium text-slate-600"
+                    className={COCONUT_DIALOG_LABEL_CLASS}
                   >
                     Gestión
                   </label>
@@ -402,7 +411,7 @@ export function InmuebleClienteManualAddButton({
                 <div>
                   <label
                     htmlFor="manual-cliente-fecha-gestion"
-                    className="mb-1 block text-xs font-medium text-slate-600"
+                    className={COCONUT_DIALOG_LABEL_CLASS}
                   >
                     Última gestión
                   </label>
@@ -419,7 +428,7 @@ export function InmuebleClienteManualAddButton({
               <div>
                 <label
                   htmlFor="manual-cliente-trabajador"
-                  className="mb-1 block text-xs font-medium text-slate-600"
+                  className={COCONUT_DIALOG_LABEL_CLASS}
                 >
                   Trabajador
                 </label>
@@ -442,7 +451,7 @@ export function InmuebleClienteManualAddButton({
               <div>
                 <label
                   htmlFor="manual-cliente-notas"
-                  className="mb-1 block text-xs font-medium text-slate-600"
+                  className={COCONUT_DIALOG_LABEL_CLASS}
                 >
                   Notas
                 </label>
@@ -456,33 +465,8 @@ export function InmuebleClienteManualAddButton({
                 />
               </div>
 
-              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60 ${accentButtonClass}`}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Guardando…
-                    </>
-                  ) : (
-                    'Crear cliente'
-                  )}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </CoconutBrandedDialog>
       ) : null}
 
       {pendingCalendarCliente ? (

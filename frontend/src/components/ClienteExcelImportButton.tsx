@@ -1,9 +1,15 @@
 'use client';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { FileUp, X } from 'lucide-react';
+import { FileUp } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  CoconutBrandedDialog,
+  CoconutBrandedDialogActions,
+  CoconutBrandedDialogCancelButton,
+  CoconutBrandedDialogPrimaryButton,
+  COCONUT_DIALOG_BODY_TEXT_CLASS,
+} from '@/components/CoconutBrandedDialog';
 import {
   getClienteImportJob,
   uploadClienteImportJob,
@@ -228,12 +234,10 @@ export function ClienteExcelImportButton({
   }
 
   const tipoChoiceClass = (tipo: TipoOperacion) =>
-    `rounded-lg border px-4 py-3 text-left text-sm font-semibold transition ${
+    `rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition ${
       pendingTipo === tipo
-        ? tipo === 'alquiler'
-          ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-          : 'border-blue-600 bg-blue-50 text-blue-800'
-        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+        ? 'border-[#b8924b] bg-[#faf7f1] text-[#24211f]'
+        : 'border-[#e6ddcf] bg-white text-[#5f574f] hover:border-[#b8924b]/40'
     }`;
 
   const progressPercent =
@@ -243,50 +247,45 @@ export function ClienteExcelImportButton({
         ? Math.round((importProgress.current / importProgress.total) * 100)
         : 0;
 
-  const importOverlay =
-    importing && typeof document !== 'undefined'
-      ? createPortal(
-          <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/70 p-6 backdrop-blur-sm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-busy="true"
-            aria-labelledby="cliente-import-title"
-            aria-describedby="cliente-import-desc"
-          >
-            <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white px-8 py-10 text-center shadow-2xl">
-              <div className="mx-auto mb-6 flex justify-center">
-                {importPhase === 'uploading' ||
-                (importPhase === 'processing' && importProgress.total === 0) ? (
-                  <div className="h-[88px] w-[88px] animate-spin rounded-full border-[6px] border-slate-200 border-t-emerald-600" />
-                ) : (
-                  <CircularProgress percent={progressPercent} />
-                )}
-              </div>
-              <h2
-                id="cliente-import-title"
-                className="text-lg font-semibold text-slate-900"
-              >
-                {importPhase === 'uploading'
-                  ? 'Subiendo Excel…'
-                  : importProgress.total > 0
-                    ? 'Guardando clientes…'
-                    : 'Procesando Excel…'}
-              </h2>
-              <p id="cliente-import-desc" className="mt-2 text-sm text-slate-600">
-                No cierres esta ventana ni navegues a otra página hasta que
-                termine la importación.
-              </p>
-              {importPhase === 'processing' && importProgress.total > 0 && (
-                <p className="mt-3 text-xs font-medium text-slate-500">
-                  {importProgress.current} de {importProgress.total} filas
-                </p>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )
-      : null;
+  const importOverlay = (
+    <CoconutBrandedDialog
+      open={importing}
+      onClose={() => undefined}
+      closable={false}
+      blockClose
+      title={
+        importPhase === 'uploading'
+          ? 'Subiendo Excel…'
+          : importProgress.total > 0
+            ? 'Guardando clientes…'
+            : 'Procesando Excel…'
+      }
+      subtitle="IMPORTACIÓN"
+      titleId="cliente-import-title"
+      size="sm"
+      zIndexClass="z-[200]"
+    >
+      <div className="flex flex-col items-center">
+        <div className="mx-auto mb-6 flex justify-center">
+          {importPhase === 'uploading' ||
+          (importPhase === 'processing' && importProgress.total === 0) ? (
+            <div className="h-[88px] w-[88px] animate-spin rounded-full border-[6px] border-[#eadfcd] border-t-[#b8924b]" />
+          ) : (
+            <CircularProgress percent={progressPercent} />
+          )}
+        </div>
+        <p id="cliente-import-desc" className={`m-0 ${COCONUT_DIALOG_BODY_TEXT_CLASS}`}>
+          No cierres esta ventana ni navegues a otra página hasta que termine la
+          importación.
+        </p>
+        {importPhase === 'processing' && importProgress.total > 0 ? (
+          <p className="mt-3 text-xs font-medium text-[#a49a8f]">
+            {importProgress.current} de {importProgress.total} filas
+          </p>
+        ) : null}
+      </div>
+    </CoconutBrandedDialog>
+  );
 
   return (
     <>
@@ -314,33 +313,15 @@ export function ClienteExcelImportButton({
       {importOverlay}
 
       {tipoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={() => setTipoModalOpen(false)}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Tipo de clientes
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Elige si estos clientes son de alquiler o de venta antes de
-                  importar el Excel.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTipoModalOpen(false)}
-                className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
+        <CoconutBrandedDialog
+          open={tipoModalOpen}
+          onClose={() => setTipoModalOpen(false)}
+          title="Tipo de clientes"
+          subtitle="IMPORTACIÓN"
+          size="sm"
+          align="left"
+          description="Elige si estos clientes son de alquiler o de venta antes de importar el Excel."
+        >
             <div className="grid gap-2 sm:grid-cols-2">
               {(['alquiler', 'venta'] as const).map((tipo) => (
                 <button
@@ -354,25 +335,18 @@ export function ClienteExcelImportButton({
               ))}
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setTipoModalOpen(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
+            <CoconutBrandedDialogActions align="end">
+              <CoconutBrandedDialogCancelButton onClick={() => setTipoModalOpen(false)}>
                 Cancelar
-              </button>
-              <button
-                type="button"
+              </CoconutBrandedDialogCancelButton>
+              <CoconutBrandedDialogPrimaryButton
                 onClick={confirmTipoAndPickFile}
                 disabled={!pendingTipo}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
               >
                 Elegir archivo
-              </button>
-            </div>
-          </div>
-        </div>
+              </CoconutBrandedDialogPrimaryButton>
+            </CoconutBrandedDialogActions>
+        </CoconutBrandedDialog>
       )}
     </>
   );

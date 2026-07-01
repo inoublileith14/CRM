@@ -29,12 +29,14 @@ import { UpdateClientePerfilDto } from './dto/update-cliente-perfil.dto';
 import { Cliente } from './interfaces/cliente.interface';
 import { ClientePerfil } from './interfaces/cliente-perfil.interface';
 import { normalizeClienteZonas } from './cliente-zonas.util';
+import { normalizeClienteTelefonosExtra } from './cliente-telefonos.util';
 
 const SELECT_FIELDS = `
   id,
   nombre,
   email,
   telefono,
+  telefonos_extra,
   ciudad,
   barrio,
   distrito,
@@ -145,7 +147,7 @@ export class ClientesService {
 
   async create(dto: CreateClienteDto): Promise<Cliente> {
     const { inmueble_ids, worker_ids, ...clienteData } = dto;
-    const payload = this.sanitizeClienteWriteData(clienteData);
+    const payload = this.buildClienteWritePayload(clienteData);
 
     const duplicate = await this.findDuplicateByPhoneDateAndInmuebles(
       payload.telefono,
@@ -183,7 +185,7 @@ export class ClientesService {
     await this.findOne(id);
 
     const { inmueble_ids, worker_ids, ...clienteData } = dto;
-    const payload = this.sanitizeClienteWriteData(clienteData);
+    const payload = this.buildClienteWritePayload(clienteData);
 
     const { error } = await this.supabase
       .getAdmin()
@@ -1295,6 +1297,21 @@ export class ClientesService {
     return null;
   }
 
+  private buildClienteWritePayload(
+    clienteData: Omit<UpdateClienteDto, 'inmueble_ids' | 'worker_ids'>,
+  ) {
+    return this.sanitizeClienteWriteData({
+      ...clienteData,
+      ...(clienteData.telefonos_extra !== undefined
+        ? {
+            telefonos_extra: normalizeClienteTelefonosExtra(
+              clienteData.telefonos_extra,
+            ),
+          }
+        : {}),
+    });
+  }
+
   private sanitizeClienteWriteData<T extends { fecha_entrada_inmueble?: string | null }>(
     data: T,
   ): T {
@@ -1375,6 +1392,7 @@ export class ClientesService {
       ...(rest as unknown as Cliente),
       barrio: normalizeClienteZonas(rest.barrio),
       distrito: normalizeClienteZonas(rest.distrito),
+      telefonos_extra: normalizeClienteTelefonosExtra(rest.telefonos_extra),
       fecha_entrada_inmueble: normalizeClienteEntradaPrevista(
         (rest.fecha_entrada_inmueble as string | null) ?? null,
       ),

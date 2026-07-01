@@ -52,6 +52,19 @@ export function getInmuebles(
   return request<Inmueble[]>(`/api/inmuebles${qs ? `?${qs}` : ''}`);
 }
 
+export function getInmuebleClienteRefsByTipo(
+  tipo_operacion: 'alquiler' | 'venta',
+  search?: string,
+): Promise<{ refs: string[] }> {
+  const params = new URLSearchParams({ tipo_operacion });
+  if (search?.trim()) {
+    params.set('q', search.trim());
+  }
+  return request<{ refs: string[] }>(
+    `/api/inmuebles/clientes/by-tipo/refs?${params.toString()}`,
+  );
+}
+
 export function getInmuebleClientesByTipo(
   tipo_operacion: 'alquiler' | 'venta',
   params: ClientesByTipoListParams,
@@ -66,6 +79,18 @@ export function getInmuebleClientesByTipo(
   }
   if (params.dir) {
     search.set('dir', params.dir);
+  }
+  if (params.nombre) {
+    search.set('nombre', params.nombre);
+  }
+  if (params.telefono) {
+    search.set('telefono', params.telefono);
+  }
+  if (params.ref_cliente) {
+    search.set('ref_cliente', params.ref_cliente);
+  }
+  if (params.entrada_prevista !== undefined) {
+    search.set('entrada_prevista', params.entrada_prevista);
   }
   return request<ClientesByTipoPageResult>(
     `/api/inmuebles/clientes/by-tipo?${search.toString()}`,

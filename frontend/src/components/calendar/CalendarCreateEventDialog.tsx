@@ -1,8 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  CoconutBrandedDialog,
+  CoconutBrandedDialogCancelButton,
+  CoconutBrandedDialogFooter,
+  CoconutBrandedDialogPrimaryButton,
+  COCONUT_DIALOG_INPUT_CLASS,
+  COCONUT_DIALOG_LABEL_CLASS,
+} from '@/components/CoconutBrandedDialog';
 import { createCalendarEvent } from '@/lib/calendar-api';
 import { ApiError } from '@/lib/api';
 import {
@@ -175,51 +182,41 @@ export function CalendarCreateEventDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label={labels.cancel}
-        className="absolute inset-0 bg-slate-900/50"
-        onClick={saving ? undefined : onClose}
-        disabled={saving}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="calendar-create-event-title"
-        className="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
-              <Plus className="h-5 w-5" />
-            </div>
-            <h2
-              id="calendar-create-event-title"
-              className="text-lg font-semibold text-slate-900"
-            >
-              {labels.heading}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
+    <CoconutBrandedDialog
+      open={open}
+      onClose={onClose}
+      blockClose={saving}
+      title={labels.heading}
+      subtitle="CALENDARIO"
+      titleId="calendar-create-event-title"
+      size="md"
+      align="left"
+      scrollable
+      zIndexClass="z-[300]"
+      bodyClassName="!pb-4"
+      footer={
+        <CoconutBrandedDialogFooter align="end">
+          <CoconutBrandedDialogCancelButton onClick={onClose} disabled={saving}>
+            {labels.cancel}
+          </CoconutBrandedDialogCancelButton>
+          <CoconutBrandedDialogPrimaryButton
+            type="submit"
+            form="calendar-create-event-form"
+            disabled={saving || !form.summary.trim()}
+            loading={saving}
           >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form
-          onSubmit={(submitEvent) => void handleSave(submitEvent)}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
-        >
-          <div className="space-y-4">
+            {labels.save}
+          </CoconutBrandedDialogPrimaryButton>
+        </CoconutBrandedDialogFooter>
+      }
+    >
+      <form
+        id="calendar-create-event-form"
+        onSubmit={(submitEvent) => void handleSave(submitEvent)}
+        className="space-y-4"
+      >
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                {labels.title}
-              </span>
+              <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.title}</span>
               <input
                 type="text"
                 required
@@ -231,12 +228,12 @@ export function CalendarCreateEventDialog({
                   )
                 }
                 disabled={saving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                className={COCONUT_DIALOG_INPUT_CLASS}
               />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <span className={COCONUT_DIALOG_LABEL_CLASS}>
                 {labels.description}
               </span>
               <textarea
@@ -250,14 +247,12 @@ export function CalendarCreateEventDialog({
                 }
                 disabled={saving}
                 rows={3}
-                className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                className={`${COCONUT_DIALOG_INPUT_CLASS} resize-y`}
               />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                {labels.location}
-              </span>
+              <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.location}</span>
               <input
                 type="text"
                 value={form.location}
@@ -267,7 +262,7 @@ export function CalendarCreateEventDialog({
                   )
                 }
                 disabled={saving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                className={COCONUT_DIALOG_INPUT_CLASS}
               />
             </label>
 
@@ -281,9 +276,9 @@ export function CalendarCreateEventDialog({
                   )
                 }
                 disabled={saving}
-                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                className="h-4 w-4 rounded border-[#eadfcd] text-[#b8924b]"
               />
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-[#5f574f]">
                 {labels.allDay}
               </span>
             </label>
@@ -291,9 +286,7 @@ export function CalendarCreateEventDialog({
             {form.allDay ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    {labels.date}
-                  </span>
+                  <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.date}</span>
                   <input
                     type="date"
                     required
@@ -313,13 +306,11 @@ export function CalendarCreateEventDialog({
                       )
                     }
                     disabled={saving}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                    className={COCONUT_DIALOG_INPUT_CLASS}
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    {labels.endDate}
-                  </span>
+                  <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.endDate}</span>
                   <input
                     type="date"
                     required
@@ -333,16 +324,14 @@ export function CalendarCreateEventDialog({
                       )
                     }
                     disabled={saving}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                    className={COCONUT_DIALOG_INPUT_CLASS}
                   />
                 </label>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label className="block sm:col-span-1">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    {labels.date}
-                  </span>
+                  <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.date}</span>
                   <input
                     type="date"
                     required
@@ -353,11 +342,11 @@ export function CalendarCreateEventDialog({
                       )
                     }
                     disabled={saving}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                    className={COCONUT_DIALOG_INPUT_CLASS}
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <span className={COCONUT_DIALOG_LABEL_CLASS}>
                     {labels.startTime}
                   </span>
                   <input
@@ -372,13 +361,11 @@ export function CalendarCreateEventDialog({
                       )
                     }
                     disabled={saving}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                    className={COCONUT_DIALOG_INPUT_CLASS}
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    {labels.endTime}
-                  </span>
+                  <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.endTime}</span>
                   <input
                     type="time"
                     required
@@ -389,14 +376,14 @@ export function CalendarCreateEventDialog({
                       )
                     }
                     disabled={saving}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                    className={COCONUT_DIALOG_INPUT_CLASS}
                   />
                 </label>
               </div>
             )}
 
             <div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <span className={`${COCONUT_DIALOG_LABEL_CLASS} mb-2`}>
                 {labels.color}
               </span>
               <div className="flex flex-wrap gap-2">
@@ -426,29 +413,8 @@ export function CalendarCreateEventDialog({
                 })}
               </div>
             </div>
-          </div>
-
-          <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-              {labels.cancel}
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !form.summary.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {labels.save}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </CoconutBrandedDialog>
   );
 }
 

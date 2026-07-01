@@ -3,11 +3,17 @@
 import { useEffect, useState } from 'react';
 import {
   ExternalLink,
-  Loader2,
   Pencil,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  CoconutBrandedDialog,
+  CoconutBrandedDialogCancelButton,
+  CoconutBrandedDialogFooter,
+  CoconutBrandedDialogPrimaryButton,
+  COCONUT_DIALOG_INPUT_CLASS,
+  COCONUT_DIALOG_LABEL_CLASS,
+} from '@/components/CoconutBrandedDialog';
 import { updateCalendarEvent } from '@/lib/calendar-api';
 import { ApiError } from '@/lib/api';
 import {
@@ -172,10 +178,6 @@ export function CalendarEventDetailDialog({
   if (!open || !event || !form) return null;
 
   const localeTag = locale === 'en' ? 'en-GB' : 'es-ES';
-  const colorSwatch =
-    GOOGLE_CALENDAR_COLORS.find((color) => color.id === form.colorId) ??
-    GOOGLE_CALENDAR_COLORS[0];
-
   async function handleSave(submitEvent: React.FormEvent) {
     submitEvent.preventDefault();
     if (!event || !form) return;
@@ -236,119 +238,93 @@ export function CalendarEventDetailDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label={labels.close}
-        className="absolute inset-0 bg-slate-900/50"
-        onClick={saving ? undefined : onClose}
-        disabled={saving}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="calendar-event-detail-title"
-        className="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div
-              className="mt-1 h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
-              style={{ backgroundColor: event.backgroundColor ?? colorSwatch.backgroundColor }}
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <h2
-                id="calendar-event-detail-title"
-                className="text-lg font-semibold text-slate-900"
+    <CoconutBrandedDialog
+      open={open}
+      onClose={onClose}
+      blockClose={saving}
+      title={mode === 'view' ? event.title : labels.title}
+      subtitle="CALENDARIO"
+      titleId="calendar-event-detail-title"
+      size="md"
+      align="left"
+      scrollable
+      zIndexClass="z-[300]"
+      bodyClassName="!pb-4"
+      description={
+        mode === 'view' ? formatEventWhen(event, localeTag) : undefined
+      }
+      footer={
+        mode === 'view' ? (
+          <CoconutBrandedDialogFooter align="end">
+            {event.htmlLink ? (
+              <a
+                href={event.htmlLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mr-auto inline-flex items-center gap-1.5 text-sm font-semibold text-[#b8924b] hover:brightness-95"
               >
-                {mode === 'view' ? event.title : labels.title}
-              </h2>
-              {mode === 'view' ? (
-                <p className="mt-1 text-sm text-slate-500">
-                  {formatEventWhen(event, localeTag)}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
+                {labels.openInGoogle}
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : null}
+            <CoconutBrandedDialogCancelButton onClick={onClose}>
+              {labels.close}
+            </CoconutBrandedDialogCancelButton>
+            {canEdit ? (
+              <CoconutBrandedDialogPrimaryButton onClick={() => setMode('edit')}>
+                <Pencil className="h-4 w-4" />
+                {labels.edit}
+              </CoconutBrandedDialogPrimaryButton>
+            ) : (
+              <p className="max-w-xs text-xs text-amber-800">{labels.readOnlyHint}</p>
+            )}
+          </CoconutBrandedDialogFooter>
+        ) : (
+          <CoconutBrandedDialogFooter align="end">
+            <CoconutBrandedDialogCancelButton
+              onClick={() => {
+                setForm(eventToForm(event));
+                setMode('view');
+              }}
+              disabled={saving}
+            >
+              {labels.cancel}
+            </CoconutBrandedDialogCancelButton>
+            <CoconutBrandedDialogPrimaryButton
+              type="submit"
+              form="calendar-event-detail-form"
+              disabled={saving || !form.summary.trim()}
+              loading={saving}
+            >
+              {labels.save}
+            </CoconutBrandedDialogPrimaryButton>
+          </CoconutBrandedDialogFooter>
+        )
+      }
+    >
         {mode === 'view' ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
-            <dl className="space-y-4">
+          <dl className="m-0 space-y-4">
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {labels.description}
-                </dt>
-                <dd className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                <dt className={COCONUT_DIALOG_LABEL_CLASS}>{labels.description}</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-[#24211f]">
                   {event.description?.trim() ? event.description : labels.noDescription}
                 </dd>
               </div>
               {event.location ? (
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {labels.location}
-                  </dt>
-                  <dd className="mt-1 text-sm text-slate-800">{event.location}</dd>
+                  <dt className={COCONUT_DIALOG_LABEL_CLASS}>{labels.location}</dt>
+                  <dd className="mt-1 text-sm text-[#24211f]">{event.location}</dd>
                 </div>
               ) : null}
-            </dl>
-
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-              <div className="flex flex-wrap gap-2">
-                {event.htmlLink ? (
-                  <a
-                    href={event.htmlLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-                  >
-                    {labels.openInGoogle}
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  {labels.close}
-                </button>
-                {canEdit ? (
-                  <button
-                    type="button"
-                    onClick={() => setMode('edit')}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    {labels.edit}
-                  </button>
-                ) : (
-                  <p className="max-w-xs text-xs text-amber-800">{labels.readOnlyHint}</p>
-                )}
-              </div>
-            </div>
-          </div>
+          </dl>
         ) : (
           <form
+            id="calendar-event-detail-form"
             onSubmit={(submitEvent) => void handleSave(submitEvent)}
-            className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
+            className="space-y-4"
           >
-            <div className="space-y-4">
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  {labels.title}
-                </span>
+                <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.title}</span>
                 <input
                   type="text"
                   required
@@ -359,14 +335,12 @@ export function CalendarEventDetailDialog({
                     )
                   }
                   disabled={saving}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                  className={COCONUT_DIALOG_INPUT_CLASS}
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  {labels.description}
-                </span>
+                <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.description}</span>
                 <textarea
                   value={form.description}
                   onChange={(changeEvent) =>
@@ -378,14 +352,12 @@ export function CalendarEventDetailDialog({
                   }
                   disabled={saving}
                   rows={4}
-                  className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                  className={`${COCONUT_DIALOG_INPUT_CLASS} resize-y`}
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  {labels.location}
-                </span>
+                <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.location}</span>
                 <input
                   type="text"
                   value={form.location}
@@ -395,7 +367,7 @@ export function CalendarEventDetailDialog({
                     )
                   }
                   disabled={saving}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                  className={COCONUT_DIALOG_INPUT_CLASS}
                 />
               </label>
 
@@ -409,9 +381,9 @@ export function CalendarEventDetailDialog({
                     )
                   }
                   disabled={saving}
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                  className="h-4 w-4 rounded border-[#eadfcd] text-[#b8924b]"
                 />
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-[#5f574f]">
                   {labels.allDay}
                 </span>
               </label>
@@ -419,9 +391,7 @@ export function CalendarEventDetailDialog({
               {form.allDay ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {labels.date}
-                    </span>
+                    <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.date}</span>
                     <input
                       type="date"
                       required
@@ -441,13 +411,11 @@ export function CalendarEventDetailDialog({
                         )
                       }
                       disabled={saving}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                      className={COCONUT_DIALOG_INPUT_CLASS}
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {labels.endDate}
-                    </span>
+                    <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.endDate}</span>
                     <input
                       type="date"
                       required
@@ -459,16 +427,14 @@ export function CalendarEventDetailDialog({
                         )
                       }
                       disabled={saving}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                      className={COCONUT_DIALOG_INPUT_CLASS}
                     />
                   </label>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <label className="block sm:col-span-1">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {labels.date}
-                    </span>
+                    <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.date}</span>
                     <input
                       type="date"
                       required
@@ -479,13 +445,11 @@ export function CalendarEventDetailDialog({
                         )
                       }
                       disabled={saving}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                      className={COCONUT_DIALOG_INPUT_CLASS}
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {labels.startTime}
-                    </span>
+                    <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.startTime}</span>
                     <input
                       type="time"
                       required
@@ -496,13 +460,11 @@ export function CalendarEventDetailDialog({
                         )
                       }
                       disabled={saving}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                      className={COCONUT_DIALOG_INPUT_CLASS}
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {labels.endTime}
-                    </span>
+                    <span className={COCONUT_DIALOG_LABEL_CLASS}>{labels.endTime}</span>
                     <input
                       type="time"
                       required
@@ -513,14 +475,14 @@ export function CalendarEventDetailDialog({
                         )
                       }
                       disabled={saving}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-emerald-600 focus:ring-2 disabled:opacity-60"
+                      className={COCONUT_DIALOG_INPUT_CLASS}
                     />
                   </label>
                 </div>
               )}
 
               <div>
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <span className={`${COCONUT_DIALOG_LABEL_CLASS} mb-2`}>
                   {labels.color}
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -550,32 +512,8 @@ export function CalendarEventDetailDialog({
                   })}
                 </div>
               </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setForm(eventToForm(event));
-                  setMode('view');
-                }}
-                disabled={saving}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-              >
-                {labels.cancel}
-              </button>
-              <button
-                type="submit"
-                disabled={saving || !form.summary.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {labels.save}
-              </button>
-            </div>
           </form>
         )}
-      </div>
-    </div>
+    </CoconutBrandedDialog>
   );
 }

@@ -7,14 +7,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Eye, Minus, Pencil, Plus, X, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { ExcelImportButton } from '@/components/ExcelImportButton';
+import { CoconutBrandedDialog } from '@/components/CoconutBrandedDialog';
 import { ImagePreviewModal } from '@/components/ImagePreviewModal';
 import { InmuebleAlquilerFiltersBar } from '@/components/InmuebleAlquilerFiltersBar';
+import { InmueblePisoCodigoLegend } from '@/components/InmueblePisoCodigoLegend';
 import { InmuebleDenseLinkButtons } from '@/components/InmuebleDenseLinkButtons';
 import { InmuebleDenseImageCell } from '@/components/InmuebleDenseImageCell';
 import { InmuebleForm } from '@/components/InmuebleForm';
 import { InmuebleObservacionesLineCell } from '@/components/InmuebleObservacionesLineCell';
 import { InmuebleObservacionesColumnHead } from '@/components/InmuebleObservacionesColumnHead';
 import { InmuebleRefInlineCell } from '@/components/InmuebleRefInlineCell';
+import { InmuebleLargaEstanciaInlineCell } from '@/components/InmuebleLargaEstanciaInlineCell';
 import {
   InmuebleNumericInlineCell,
   isInmuebleEditableNumericField,
@@ -27,7 +30,6 @@ import { InmuebleBcnStatusFilterHead } from '@/components/InmuebleBcnStatusFilte
 import { InmuebleDenseSimpleFilterHead } from '@/components/InmuebleDenseSimpleFilterHead';
 import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
 import { TableFilterBar } from '@/components/TableFilterBar';
-import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import { TablePagination } from '@/components/TablePagination';
 import {
   STABLE_EMPTY_COLUMN_FILTERS,
@@ -98,10 +100,14 @@ import {
 import {
   DEFAULT_ALQUILER_ROW_COLOR,
   DEFAULT_VENTA_DENSE_ROW_COLOR,
+  filterInmueblesByPisoCodigo,
   getInmuebleDenseBodyCellBackground,
   getInmuebleRowStyle,
+  INMUEBLE_PISO_CODIGO_VALUES,
   isInmueblePisoCodigo,
   resolveInmuebleRowColor,
+  togglePisoCodigoFilter,
+  type InmueblePisoCodigo,
 } from '@/lib/inmueble-status';
 import { InmueblePropiCell } from '@/components/InmueblePropiCell';
 import { hydrateInmuebleSplitFields, resolveInmuebleStatusListingLink } from '@/lib/inmueble-split-fields';
@@ -260,6 +266,9 @@ export function InmueblesPageContent({
     `${tableStateKey}:filters-visible`,
     true,
   );
+  const [pisoCodigoFilter, setPisoCodigoFilter] = usePersistedState<
+    InmueblePisoCodigo[]
+  >(`${tableStateKey}:piso-codigo-filter`, [...INMUEBLE_PISO_CODIGO_VALUES]);
   const [maskedTextAllVisible, setMaskedTextAllVisible] = usePersistedState(
     `${tableStateKey}:masked-text-all-visible`,
     DEFAULT_MASKED_TEXT_ALL_VISIBLE,
@@ -284,10 +293,12 @@ export function InmueblesPageContent({
     [tipoOperacion, extraColumnsVisible],
   );
   const isDenseTable = isDenseInmuebleTable(tipoOperacion);
-  const splitStickyHeader = isDenseTable && filtersVisible;
+  const splitStickyHeader = isDenseTable && filtersVisible && !isPisosInactivos;
+  const pisosInactivosStickyHead = isDenseTable && isPisosInactivos;
+  const usesDetachedStickyHead = isDenseTable && (splitStickyHeader || pisosInactivosStickyHead);
   const tableHeaderClass = getInmuebleTableHeaderClass(tipoOperacion);
   const denseTableHeadClass = isDenseTable
-    ? splitStickyHeader
+    ? usesDetachedStickyHead
       ? getInmuebleTableHeaderClass(tipoOperacion)
       : getInmuebleStickyHeadClass(tipoOperacion)
     : '';
@@ -389,7 +400,7 @@ export function InmueblesPageContent({
   }, []);
 
   useLayoutEffect(() => {
-    if (!isDenseTable || splitStickyHeader) {
+    if (!isDenseTable || usesDetachedStickyHead) {
       setStickyTableHeadTop(0);
       return;
     }
@@ -417,7 +428,7 @@ export function InmueblesPageContent({
       window.removeEventListener('resize', measureFilterHeight);
       observer?.disconnect();
     };
-  }, [isDenseTable, splitStickyHeader, alquilerFilters]);
+  }, [isDenseTable, usesDetachedStickyHead, alquilerFilters]);
 
   function denseHeadCellStyle(
     fieldKey: keyof InmuebleFormData | 'actions',
@@ -429,7 +440,7 @@ export function InmueblesPageContent({
       tipoOperacion,
     );
     return {
-      ...(splitStickyHeader ? {} : { top: stickyTableHeadTop }),
+      ...(usesDetachedStickyHead ? {} : { top: stickyTableHeadTop }),
       backgroundColor,
     };
   }
@@ -605,14 +616,33 @@ export function InmueblesPageContent({
   const denseStatusFilterActive =
     isDenseTable && isFilterActiveForColumn('status');
 
+  const rowsAfterPisoCodigoFilter = useMemo(() => {
+    if (!isPisosInactivos) return rowsAfterDenseStatusFilter;
+
+    const codigoField = isPisosAlquilados
+      ? 'alquilado_codigo'
+      : 'vendido_codigo';
+
+    return filterInmueblesByPisoCodigo(
+      rowsAfterDenseStatusFilter,
+      pisoCodigoFilter,
+      codigoField,
+    );
+  }, [
+    isPisosInactivos,
+    isPisosAlquilados,
+    rowsAfterDenseStatusFilter,
+    pisoCodigoFilter,
+  ]);
+
   const sortedDenseRows = useMemo(() => {
     if (!enablePrecioColumnSort || !tableSort) {
-      return rowsAfterDenseStatusFilter;
+      return rowsAfterPisoCodigoFilter;
     }
 
     if (tableSort.column === 'precio') {
       const mult = tableSort.direction === 'asc' ? 1 : -1;
-      return [...rowsAfterDenseStatusFilter].sort((a, b) => {
+      return [...rowsAfterPisoCodigoFilter].sort((a, b) => {
         const pa = a.precio;
         const pb = b.precio;
         if (pa == null && pb == null) return 0;
@@ -624,7 +654,7 @@ export function InmueblesPageContent({
 
     if (tableSort.column === 'fecha_entrada_inmueble') {
       const mult = tableSort.direction === 'asc' ? 1 : -1;
-      return [...rowsAfterDenseStatusFilter].sort((a, b) => {
+      return [...rowsAfterPisoCodigoFilter].sort((a, b) => {
         const da = a.fecha_entrada_inmueble ?? a.created_at ?? '';
         const db = b.fecha_entrada_inmueble ?? b.created_at ?? '';
         if (!da && !db) return 0;
@@ -634,8 +664,8 @@ export function InmueblesPageContent({
       });
     }
 
-    return rowsAfterDenseStatusFilter;
-  }, [enablePrecioColumnSort, tableSort, rowsAfterDenseStatusFilter]);
+    return rowsAfterPisoCodigoFilter;
+  }, [enablePrecioColumnSort, tableSort, rowsAfterPisoCodigoFilter]);
 
   const alquilerFiltersActive = isDenseTable
     ? hasActiveInmuebleAlquilerFilters(alquilerFilters)
@@ -665,6 +695,7 @@ export function InmueblesPageContent({
         : { status: columnFilters.status },
       tableSort,
       isDenseTable ? alquilerFilters : STABLE_EMPTY_COLUMN_FILTERS,
+      isPisosInactivos ? pisoCodigoFilter : null,
     ],
     setPage,
   );
@@ -675,7 +706,13 @@ export function InmueblesPageContent({
       clearSort();
       setAlquilerFilters(EMPTY_INMUEBLE_ALQUILER_FILTERS);
       setColumnFilter('status', undefined);
+      setPisoCodigoFilter([...INMUEBLE_PISO_CODIGO_VALUES]);
     }
+  }
+
+  function togglePisoCodigoLegendFilter(codigo: InmueblePisoCodigo) {
+    setPisoCodigoFilter((current) => togglePisoCodigoFilter(current, codigo));
+    setPage(1);
   }
 
   function patchInmuebleInCache(
@@ -696,6 +733,11 @@ export function InmueblesPageContent({
         | 'telf'
         | 'barrio_distrito'
         | 'distrito_ciudad'
+        | 'larga_estancia_temporada'
+        | 'precio'
+        | 'hab'
+        | 'banos'
+        | 'metros'
       >
     >,
   ) {
@@ -1028,7 +1070,7 @@ export function InmueblesPageContent({
                 {isPisosInactivos ? (
                   <Link
                     href={basePath}
-                    className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+                    className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-bold uppercase tracking-wide transition ${
                       isVentaTable
                         ? 'text-yellow-300 hover:brightness-90 ring-2 ring-inset ring-white/35 brightness-90'
                         : 'border-emerald-700 bg-emerald-700 text-yellow-300 hover:bg-emerald-800'
@@ -1042,7 +1084,7 @@ export function InmueblesPageContent({
                 <button
                   type="button"
                   onClick={() => setFiltersVisible((prev) => !prev)}
-                  className={`rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${denseToolbarButtonClass(filtersVisible)}`}
+                  className={`rounded-md border px-3 py-1 text-xs font-bold uppercase tracking-wide transition ${denseToolbarButtonClass(filtersVisible)}`}
                   style={ventaToolbarButtonStyle}
                   aria-expanded={filtersVisible}
                 >
@@ -1052,7 +1094,7 @@ export function InmueblesPageContent({
                   <button
                     type="button"
                     onClick={toggleRecienteSort}
-                    className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${denseToolbarButtonClass(recienteSortActive)}`}
+                    className={`inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-bold uppercase tracking-wide transition ${denseToolbarButtonClass(recienteSortActive)}`}
                     style={ventaToolbarButtonStyle}
                     title={
                       recienteSortActive
@@ -1103,7 +1145,7 @@ export function InmueblesPageContent({
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}
-                className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition sm:w-auto ${ventaPrimaryButtonClass}`}
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition sm:w-auto ${ventaPrimaryButtonClass}`}
                 style={
                   isVentaTable
                     ? { backgroundColor: INMUEBLE_VENTA_DENSE_HEADER_COLOR }
@@ -1152,7 +1194,7 @@ export function InmueblesPageContent({
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className={`mt-4 text-sm font-medium ${
+              className={`mt-4 text-sm font-bold ${
                 isVentaTable
                   ? 'text-slate-900 hover:text-slate-700'
                   : 'text-emerald-600 hover:text-emerald-500'
@@ -1164,9 +1206,56 @@ export function InmueblesPageContent({
         </div>
       ) : (
         <>
-        {splitStickyHeader && effectiveFilteredInmuebles.length > 0 ? (
+        {pisosInactivosStickyHead ? (
+          <>
+            {filtersVisible ? (
+              <div
+                ref={filterBarRef}
+                className="overflow-hidden rounded-t-xl border border-b-0 border-slate-200"
+                style={{
+                  backgroundColor: isVentaTable
+                    ? DEFAULT_VENTA_DENSE_ROW_COLOR
+                    : pageTheme?.filterBackground,
+                }}
+              >
+                <InmuebleAlquilerFiltersBar
+                  inmuebles={inmuebles}
+                  filters={alquilerFilters}
+                  onChange={setAlquilerFilters}
+                  onClear={() =>
+                    setAlquilerFilters(EMPTY_INMUEBLE_ALQUILER_FILTERS)
+                  }
+                  disabled={showPageLoading}
+                  hasActiveFilters={alquilerFiltersActive}
+                  tipoOperacion={tipoOperacion}
+                />
+              </div>
+            ) : null}
+            <div
+              className={`${INMUEBLE_DENSE_STICKY_STACK_CLASS} overflow-hidden border border-b-0 border-slate-200${
+                filtersVisible ? '' : ' rounded-t-xl'
+              }`}
+            >
+              <InmueblePisoCodigoLegend
+                className="border-b border-slate-200/80"
+                selected={pisoCodigoFilter}
+                onToggle={togglePisoCodigoLegendFilter}
+                disabled={showPageLoading}
+                style={{
+                  backgroundColor: isVentaTable
+                    ? DEFAULT_VENTA_DENSE_ROW_COLOR
+                    : pageTheme?.filterBackground,
+                }}
+              />
+              <table className={denseTableClass} style={denseTableStyle}>
+                {denseColgroup}
+                {inmuebleTableHead}
+              </table>
+            </div>
+          </>
+        ) : splitStickyHeader ? (
           <div
-            className={`${INMUEBLE_DENSE_STICKY_STACK_CLASS} overflow-hidden border border-b-0 border-slate-200`}
+            className={`${INMUEBLE_DENSE_STICKY_STACK_CLASS} overflow-hidden rounded-t-xl border border-b-0 border-slate-200`}
           >
             <div
               ref={filterBarRef}
@@ -1197,7 +1286,7 @@ export function InmueblesPageContent({
         ) : null}
         <div
           className={`overflow-visible border border-slate-200 bg-white shadow-sm${
-            splitStickyHeader && effectiveFilteredInmuebles.length > 0
+            splitStickyHeader || pisosInactivosStickyHead
               ? ' rounded-b-xl border-t-0'
               : ' rounded-xl'
           }`}
@@ -1211,10 +1300,6 @@ export function InmueblesPageContent({
               onClear={clearAllFilters}
             />
           )}
-          {effectiveFilteredInmuebles.length === 0 ? (
-            <TableFilterEmptyState onClear={clearAllFilters} />
-          ) : (
-          <>
           <div
             className={
               isDenseTable
@@ -1227,8 +1312,18 @@ export function InmueblesPageContent({
               style={isDenseTable ? denseTableStyle : undefined}
             >
               {denseColgroup}
-              {!splitStickyHeader ? inmuebleTableHead : null}
+              {!usesDetachedStickyHead ? inmuebleTableHead : null}
               <tbody className={isDenseTable ? undefined : 'divide-y divide-slate-100'}>
+                {paginatedItems.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={displayedTableFields.length}
+                      className="px-4 py-10 text-center text-sm text-slate-500"
+                    >
+                      Ningún registro coincide con los filtros.
+                    </td>
+                  </tr>
+                ) : null}
                 {paginatedItems.map((inmueble) => {
                   const rowStyle = getInmuebleRowStyle(
                     inmueble.row_color,
@@ -1370,6 +1465,31 @@ export function InmueblesPageContent({
                                 }
                               />
                             </span>
+                          </td>
+                        );
+                      }
+
+                      if (
+                        isDenseTable &&
+                        field.key === 'larga_estancia_temporada'
+                      ) {
+                        return (
+                          <td
+                            key={field.key}
+                            className={inmuebleCellClass(field)}
+                            style={denseBodyCellStyle(field.key, inmueble)}
+                          >
+                            <InmuebleLargaEstanciaInlineCell
+                              inmuebleId={inmueble.id}
+                              value={inmueble.larga_estancia_temporada}
+                              editable={canManageInmuebles}
+                              disabled={saving}
+                              onUpdated={(next) =>
+                                patchInmuebleInCache(inmueble.id, {
+                                  larga_estancia_temporada: next,
+                                })
+                              }
+                            />
                           </td>
                         );
                       }
@@ -1759,17 +1879,7 @@ export function InmueblesPageContent({
                             <Eye className="h-3.5 w-3.5" />
                           </Link>
                         )}
-                        {canManageInmuebles ? (
-                          isDenseTable ? (
-                            <Link
-                              href={`${basePath}/${inmueble.id}/edit`}
-                              className={DENSE_ACC_BUTTON_CLASS}
-                              title="Editar inmueble"
-                            >
-                              <Pencil className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                              Editar
-                            </Link>
-                          ) : (
+                        {!isDenseTable && canManageInmuebles ? (
                             <Link
                               href={`${basePath}/${inmueble.id}/edit`}
                               className={`rounded p-0.5 text-slate-500 transition hover:bg-slate-100 ${
@@ -1781,7 +1891,6 @@ export function InmueblesPageContent({
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Link>
-                          )
                         ) : null}
                         {isDenseTable ? (
                           <>
@@ -1797,6 +1906,16 @@ export function InmueblesPageContent({
                             >
                               Plan
                             </Link>
+                            {canManageInmuebles ? (
+                              <Link
+                                href={`${basePath}/${inmueble.id}/edit`}
+                                className={DENSE_ACC_BUTTON_CLASS}
+                                title="Editar inmueble"
+                              >
+                                <Pencil className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                                Editar
+                              </Link>
+                            ) : null}
                             <InmuebleActivoToggle
                               inmuebleId={inmueble.id}
                               activo={inmueble.activo ?? true}
@@ -1818,8 +1937,6 @@ export function InmueblesPageContent({
               </tbody>
             </table>
           </div>
-          </>
-          )}
           {effectiveFilteredInmuebles.length > 0 && (
           <TablePagination
             page={page}
@@ -1843,43 +1960,28 @@ export function InmueblesPageContent({
       )}
 
       {modalOpen && canManageInmuebles && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="fixed inset-0 bg-slate-900/50"
-            onClick={closeModal}
-          />
-          <div className="relative z-10 flex min-h-full justify-center px-3 pb-6 pt-12 sm:px-5 sm:pb-8 sm:pt-16 md:px-8">
-            <div className="flex w-full max-w-[min(96vw,90rem)] flex-col">
-              <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
-                  Nuevo inmueble
-                </h2>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded p-1 text-slate-400 transition hover:bg-white/80 hover:text-slate-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div
-                className="max-h-[calc(100vh-7rem)] overflow-y-auto rounded-xl bg-white px-4 py-4 shadow-2xl ring-1 ring-slate-900/10 sm:px-6 sm:py-5 [&_form]:space-y-4 [&_form>div:last-child]:sticky [&_form>div:last-child]:bottom-0 [&_form>div:last-child]:z-10 [&_form>div:last-child]:-mx-4 [&_form>div:last-child]:border-t [&_form>div:last-child]:border-slate-200 [&_form>div:last-child]:bg-white/95 [&_form>div:last-child]:px-4 [&_form>div:last-child]:py-3 [&_form>div:last-child]:backdrop-blur sm:[&_form>div:last-child]:-mx-6 sm:[&_form>div:last-child]:px-6 [&_h3]:text-sm [&_section]:rounded-lg [&_section]:border-0 [&_section]:bg-slate-50/50 [&_section]:p-4 [&_section]:shadow-none [&_section>div:first-child]:mb-3 [&_section:first-of-type_.grid]:grid-cols-1 [&_section:first-of-type_.grid]:gap-3 [&_section:first-of-type_.grid]:sm:grid-cols-3 [&_section:first-of-type_.grid>div:has(#fecha_entrada_inmueble)]:hidden"
-              >
-                <InmuebleForm
-                  onSubmit={handleSubmit}
-                  onCancel={closeModal}
-                  submitLabel="Crear inmueble"
-                  loading={saving}
-                  fixedTipoOperacion={tipoOperacion}
-                />
-              </div>
-            </div>
+        <CoconutBrandedDialog
+          open={modalOpen}
+          onClose={closeModal}
+          blockClose={saving}
+          title="Nuevo inmueble"
+          subtitle="INMUEBLES"
+          size="full"
+          align="left"
+          scrollable
+          maxHeightClass="max-h-[calc(100vh-2rem)]"
+          bodyClassName="!pb-4"
+        >
+          <div className="[&_form]:space-y-4 [&_form>div:last-child]:sticky [&_form>div:last-child]:bottom-0 [&_form>div:last-child]:z-10 [&_form>div:last-child]:-mx-6 [&_form>div:last-child]:border-t [&_form>div:last-child]:border-[#eadfcd] [&_form>div:last-child]:bg-white/95 [&_form>div:last-child]:px-6 [&_form>div:last-child]:py-3 [&_form>div:last-child]:backdrop-blur [&_h3]:text-sm [&_section]:rounded-lg [&_section]:border-0 [&_section]:bg-[#faf7f1] [&_section]:p-4 [&_section]:shadow-none [&_section>div:first-child]:mb-3 [&_section:first-of-type_.grid]:grid-cols-1 [&_section:first-of-type_.grid]:gap-3 [&_section:first-of-type_.grid]:sm:grid-cols-3 [&_section:first-of-type_.grid>div:has(#fecha_entrada_inmueble)]:hidden">
+            <InmuebleForm
+              onSubmit={handleSubmit}
+              onCancel={closeModal}
+              submitLabel="Crear inmueble"
+              loading={saving}
+              fixedTipoOperacion={tipoOperacion}
+            />
           </div>
-        </div>
+        </CoconutBrandedDialog>
       )}
     </div>
   );

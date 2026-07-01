@@ -31,6 +31,8 @@ import { ClienteFechaEntradaInmuebleCell } from '@/components/ClienteFechaEntrad
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
 import { TableColumnTextFilterHead } from '@/components/TableColumnTextFilterHead';
+import { TableColumnRefFilterHead } from '@/components/TableColumnRefFilterHead';
+import { TableColumnEntradaPrevistaFilterHead } from '@/components/TableColumnEntradaPrevistaFilterHead';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
 import { TablePagination } from '@/components/TablePagination';
@@ -82,7 +84,17 @@ import {
 import { TIPO_OPERACION_LABELS, TipoOperacion } from '@/types/inmueble';
 import { ClienteRefValue, clienteDenseTextClass } from '@/components/ClienteRefValue';
 import { getWorkerRolLabel } from '@/types/worker';
-import { normalizeClienteEntradaPrevista } from '@/lib/cliente-entrada-prevista';
+import {
+  DEFAULT_CLIENTE_ENTRADA_PREVISTA_FILTER,
+  buildClienteEntradaPrevistaApiParam,
+  filterClienteLinkRowsByEntradaPrevista,
+  isClienteEntradaPrevistaFilterActive,
+  toggleClienteEntradaPrevistaFilter,
+} from '@/lib/cliente-entrada-prevista-filters';
+import {
+  ClienteEntradaPrevista,
+  normalizeClienteEntradaPrevista,
+} from '@/lib/cliente-entrada-prevista';
 
 const PAGE_THEMES = {
   alquiler: {
@@ -147,6 +159,7 @@ const DEFAULT_CLIENTES_GENERAL_LIST_STATE = {
   } as TableSort | null,
   ventaRangeFilters: EMPTY_VENTA_RANGE_FILTERS,
   textFilters: EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
+  entradaPrevistaFilter: DEFAULT_CLIENTE_ENTRADA_PREVISTA_FILTER,
 };
 
 type ClienteGlobalTextFilterColumn = keyof typeof EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS;
@@ -173,6 +186,9 @@ export function InmuebleClientesGeneralPageContent({
     ...EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
     ...(listState.textFilters ?? {}),
   };
+  const entradaPrevistaFilter = (
+    listState.entradaPrevistaFilter ?? DEFAULT_CLIENTE_ENTRADA_PREVISTA_FILTER
+  ) as ClienteEntradaPrevista[];
   const pageSize = resolveClientesGeneralPageSize(listState.pageSize);
 
   const setPage = useCallback((value: number) => {
@@ -207,6 +223,21 @@ export function InmuebleClientesGeneralPageContent({
       textFilters:
         typeof value === 'function' ? value(prev.textFilters) : value,
     }));
+  const setEntradaPrevistaFilter = (
+    value:
+      | ClienteEntradaPrevista[]
+      | ((prev: ClienteEntradaPrevista[]) => ClienteEntradaPrevista[]),
+  ) =>
+    setListState((prev) => ({
+      ...prev,
+      entradaPrevistaFilter:
+        typeof value === 'function'
+          ? value(
+              (prev.entradaPrevistaFilter ??
+                DEFAULT_CLIENTE_ENTRADA_PREVISTA_FILTER) as ClienteEntradaPrevista[],
+            )
+          : value,
+    }));
   const effectiveLimit = pageSize;
 
   const sortListParams = useMemo((): Pick<
@@ -219,29 +250,60 @@ export function InmuebleClientesGeneralPageContent({
     return {};
   }, [tableSort]);
 
-  const listParams = useMemo((): ClientesByTipoListParams => {
-    return {
+  const ventaRangeFiltersActive = hasActiveVentaRangeFilters(ventaRangeFilters);
+  const textFiltersActive = hasActiveClienteGlobalTextFilters(textFilters);
+  const entradaPrevistaFilterActive = isClienteEntradaPrevistaFilterActive(
+    entradaPrevistaFilter,
+  );
+  const serverColumnFiltersActive =
+    textFiltersActive || entradaPrevistaFilterActive;
+  const needsFullDataset = ventaRangeFiltersActive;
+  const columnFiltersActive =
+    ventaRangeFiltersActive || serverColumnFiltersActive;
+
+  const apiListParams = useMemo((): ClientesByTipoListParams => {
+    const params: ClientesByTipoListParams = {
       page,
       limit: effectiveLimit,
       ...sortListParams,
     };
-  }, [page, effectiveLimit, sortListParams]);
 
-  const ventaRangeFiltersActive = hasActiveVentaRangeFilters(ventaRangeFilters);
-  const textFiltersActive = hasActiveClienteGlobalTextFilters(textFilters);
-  const columnFiltersActive = ventaRangeFiltersActive || textFiltersActive;
+    if (!needsFullDataset) {
+      const nombre = textFilters.nombre.trim();
+      const telefono = textFilters.telefono.trim();
+      const refCliente = textFilters.ref_cliente.trim();
+      if (nombre) params.nombre = nombre;
+      if (telefono) params.telefono = telefono;
+      if (refCliente) params.ref_cliente = refCliente;
+      const entradaPrevista = buildClienteEntradaPrevistaApiParam(
+        entradaPrevistaFilter,
+      );
+      if (entradaPrevista !== undefined) {
+        params.entrada_prevista = entradaPrevista;
+      }
+    }
+
+    return params;
+  }, [
+    page,
+    effectiveLimit,
+    sortListParams,
+    needsFullDataset,
+    textFilters,
+    entradaPrevistaFilter,
+  ]);
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
   const [wantFullSelectionDataset, setWantFullSelectionDataset] = useState(false);
   const [pendingSelectAll, setPendingSelectAll] = useState(false);
 
-  const rowsQuery = useClientesByTipoQuery(expectedTipo, listParams, {
+  const rowsQuery = useClientesByTipoQuery(expectedTipo, apiListParams, {
     enabled: isListStateHydrated,
   });
   const allRowsQuery = useClientesByTipoAllQuery(expectedTipo, sortListParams, {
     enabled:
       isListStateHydrated &&
-      (columnFiltersActive || wantFullSelectionDataset),
+      (needsFullDataset || wantFullSelectionDataset),
   });
   useClientesByTipoRealtime(expectedTipo);
   const workersQuery = useWorkersQuery(true);
@@ -250,10 +312,10 @@ export function InmuebleClientesGeneralPageContent({
   const allRowsData = allRowsQuery.data;
   const catalogTotal = allRowsData?.total ?? pageData?.total ?? 0;
   const isLoadingFullDataset =
-    columnFiltersActive && !allRowsData && allRowsQuery.isFetching;
+    needsFullDataset && !allRowsData && allRowsQuery.isFetching;
 
   const sourceRows =
-    columnFiltersActive && allRowsData?.rows
+    needsFullDataset && allRowsData?.rows
       ? allRowsData.rows
       : (pageData?.rows ?? []);
 
@@ -264,41 +326,61 @@ export function InmuebleClientesGeneralPageContent({
   } = useQueryUiState(rowsQuery);
   const showInitialLoading = showPageInitialLoading && !pageData;
   const isRefreshing =
-    isPageRefreshing || (columnFiltersActive && allRowsQuery.isFetching);
+    isPageRefreshing || (needsFullDataset && allRowsQuery.isFetching);
   const showError = showPageError;
 
   const rowsAfterRangeFilters = useMemo(() => {
+    if (!needsFullDataset) return sourceRows;
     return filterRowsByVentaRange(sourceRows, ventaRangeFilters);
-  }, [sourceRows, ventaRangeFilters]);
+  }, [sourceRows, ventaRangeFilters, needsFullDataset]);
 
   const filteredRows = useMemo(() => {
-    return filterClienteLinkRowsByText(rowsAfterRangeFilters, textFilters);
-  }, [rowsAfterRangeFilters, textFilters]);
+    if (!needsFullDataset) return rowsAfterRangeFilters;
+    return filterClienteLinkRowsByEntradaPrevista(
+      filterClienteLinkRowsByText(rowsAfterRangeFilters, textFilters),
+      entradaPrevistaFilter,
+    );
+  }, [
+    rowsAfterRangeFilters,
+    textFilters,
+    entradaPrevistaFilter,
+    needsFullDataset,
+  ]);
 
-  const totalItems =
-    columnFiltersActive && allRowsData
-      ? filteredRows.length
-      : columnFiltersActive
-        ? filteredRows.length
-        : catalogTotal;
-  const totalPages =
-    columnFiltersActive && !allRowsData
-      ? 1
-      : Math.max(1, Math.ceil(totalItems / effectiveLimit));
+  const totalItems = needsFullDataset
+    ? filteredRows.length
+    : (pageData?.total ?? catalogTotal);
+  const totalPages = needsFullDataset
+    ? Math.max(1, Math.ceil(totalItems / effectiveLimit))
+    : Math.max(1, Math.ceil(totalItems / effectiveLimit));
 
   const displayRows = useMemo(() => {
-    if (!columnFiltersActive || !allRowsData) return filteredRows;
+    if (!needsFullDataset) return filteredRows;
+    if (!allRowsData) return filteredRows;
     const start = (page - 1) * effectiveLimit;
     return filteredRows.slice(start, start + effectiveLimit);
-  }, [columnFiltersActive, filteredRows, allRowsData, page, effectiveLimit]);
+  }, [needsFullDataset, filteredRows, allRowsData, page, effectiveLimit]);
 
   const rowsForSelection = useMemo(() => {
     const base = allRowsData?.rows ?? sourceRows;
-    return filterClienteLinkRowsByText(
-      filterRowsByVentaRange(base, ventaRangeFilters),
-      textFilters,
+    if (!needsFullDataset) {
+      return base;
+    }
+    return filterClienteLinkRowsByEntradaPrevista(
+      filterClienteLinkRowsByText(
+        filterRowsByVentaRange(base, ventaRangeFilters),
+        textFilters,
+      ),
+      entradaPrevistaFilter,
     );
-  }, [allRowsData, sourceRows, ventaRangeFilters, textFilters]);
+  }, [
+    allRowsData,
+    sourceRows,
+    ventaRangeFilters,
+    textFilters,
+    entradaPrevistaFilter,
+    needsFullDataset,
+  ]);
   const workers = workersQuery.data ?? [];
   const inmuebles = inmueblesQuery.data ?? [];
   const assignableInmuebles = useMemo(
@@ -315,6 +397,9 @@ export function InmuebleClientesGeneralPageContent({
   >(null);
   const [openTextFilterColumn, setOpenTextFilterColumn] =
     useState<ClienteGlobalTextFilterColumn | null>(null);
+  const [openRefFilter, setOpenRefFilter] = useState(false);
+  const [openEntradaPrevistaFilter, setOpenEntradaPrevistaFilter] =
+    useState(false);
   const assigningBusy = assigningWorker || assigningInmueble || deletingClientes;
   const tableAnchorRef = useRef<HTMLElement>(null);
   const tableHeadScrollRef = useRef<HTMLDivElement>(null);
@@ -322,7 +407,7 @@ export function InmuebleClientesGeneralPageContent({
   const syncingTableScrollRef = useRef(false);
   const skipScrollOnPageRef = useRef(true);
   const isPageFetching =
-    rowsQuery.isFetching && !rowsQuery.isLoading && !columnFiltersActive;
+    (rowsQuery.isFetching && !rowsQuery.isLoading) || isLoadingFullDataset;
   const isFilterDatasetLoading = isLoadingFullDataset;
   const needsFullDatasetForSelection =
     !allRowsData?.rows && catalogTotal > rowsForSelection.length;
@@ -397,21 +482,27 @@ export function InmuebleClientesGeneralPageContent({
     setListState((prev) => ({ ...prev, pageSize: size, page: 1 }));
   }
 
-  useResetPageOnFilterChange([ventaRangeFilters, textFilters], setPage);
+  useResetPageOnFilterChange(
+    [ventaRangeFilters, textFilters, entradaPrevistaFilter],
+    setPage,
+  );
 
   useEffect(() => {
     if (!pendingSelectAll || !allRowsData?.rows) return;
     setPendingSelectAll(false);
-    const rows = filterClienteLinkRowsByText(
-      filterRowsByVentaRange(allRowsData.rows, ventaRangeFilters),
-      textFilters,
+    const rows = filterClienteLinkRowsByEntradaPrevista(
+      filterClienteLinkRowsByText(
+        filterRowsByVentaRange(allRowsData.rows, ventaRangeFilters),
+        textFilters,
+      ),
+      entradaPrevistaFilter,
     );
     setSelectedRowKeys((prev) => {
       const next = new Set(prev);
       for (const row of rows) next.add(row.row_key);
       return next;
     });
-  }, [pendingSelectAll, allRowsData, ventaRangeFilters, textFilters]);
+  }, [pendingSelectAll, allRowsData, ventaRangeFilters, textFilters, entradaPrevistaFilter]);
 
   useEffect(() => {
     if (selectedRowKeys.size === 0) {
@@ -447,6 +538,7 @@ export function InmuebleClientesGeneralPageContent({
     clearSort();
     setVentaRangeFilters(EMPTY_VENTA_RANGE_FILTERS);
     setTextFilters(EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS);
+    setEntradaPrevistaFilter(DEFAULT_CLIENTE_ENTRADA_PREVISTA_FILTER);
   }
 
   const syncTableHorizontalScroll = useCallback((source: 'head' | 'body') => {
@@ -469,6 +561,18 @@ export function InmuebleClientesGeneralPageContent({
   ) {
     setPage(1);
     setTextFilters((prev) => ({ ...prev, [column]: value }));
+  }
+
+  function toggleEntradaPrevistaFilter(value: ClienteEntradaPrevista) {
+    setPage(1);
+    setEntradaPrevistaFilter((current) =>
+      toggleClienteEntradaPrevistaFilter(current, value),
+    );
+  }
+
+  function clearEntradaPrevistaFilter() {
+    setPage(1);
+    setEntradaPrevistaFilter(DEFAULT_CLIENTE_ENTRADA_PREVISTA_FILTER);
   }
 
   function toggleRowSelection(rowKey: string) {
@@ -794,16 +898,67 @@ export function InmuebleClientesGeneralPageContent({
                 shortLabel={col.shortLabel}
                 value={textFilters[filterKey] ?? ''}
                 placeholder={
-                  col.key === 'nombre' ? 'Buscar nombre…' : 'Buscar teléfono…'
+                  col.key === 'nombre'
+                    ? 'Buscar nombre…'
+                    : 'Buscar teléfono…'
                 }
+                live
                 isOpen={openTextFilterColumn === filterKey}
                 isFilterActive={(textFilters[filterKey] ?? '').trim() !== ''}
-                onOpenChange={(open) =>
-                  setOpenTextFilterColumn(open ? filterKey : null)
-                }
+                onOpenChange={(open) => {
+                  setOpenEntradaPrevistaFilter(false);
+                  setOpenRefFilter(false);
+                  setOpenTextFilterColumn(open ? filterKey : null);
+                }}
                 onApply={(value) => setTextFilter(filterKey, value)}
                 accent={filterAccent}
                 className={`${CLIENTES_TABLE_HEAD_CELL_CLASS} ${col.headClassName ?? ''}`}
+              />
+            );
+          }
+
+          if (col.key === 'ref_cliente') {
+            return (
+              <TableColumnRefFilterHead
+                key={col.key}
+                label={col.label}
+                shortLabel={col.shortLabel}
+                value={textFilters.ref_cliente ?? ''}
+                tipoOperacion={expectedTipo}
+                isOpen={openRefFilter}
+                isFilterActive={(textFilters.ref_cliente ?? '').trim() !== ''}
+                onOpenChange={(open) => {
+                  setOpenEntradaPrevistaFilter(false);
+                  setOpenTextFilterColumn(null);
+                  setOpenRefFilter(open);
+                }}
+                onApply={(value) => setTextFilter('ref_cliente', value)}
+                accent={filterAccent}
+                className={`${CLIENTES_TABLE_HEAD_CELL_CLASS} ${col.headClassName ?? ''}`}
+                labelClassName="text-center whitespace-pre-line break-words leading-tight"
+              />
+            );
+          }
+
+          if (col.key === 'fecha_entrada_inmueble') {
+            return (
+              <TableColumnEntradaPrevistaFilterHead
+                key={col.key}
+                label={col.label}
+                shortLabel={col.shortLabel}
+                selected={entradaPrevistaFilter}
+                isOpen={openEntradaPrevistaFilter}
+                isFilterActive={entradaPrevistaFilterActive}
+                onOpenChange={(open) => {
+                  setOpenTextFilterColumn(null);
+                  setOpenRefFilter(false);
+                  setOpenEntradaPrevistaFilter(open);
+                }}
+                onToggle={toggleEntradaPrevistaFilter}
+                onClear={clearEntradaPrevistaFilter}
+                accent={filterAccent}
+                className={`${CLIENTES_TABLE_HEAD_CELL_CLASS} ${col.headClassName ?? ''}`}
+                labelClassName={DENSE_ENTRADA_PREVISTA_HEAD_LABEL_CLASS}
               />
             );
           }
@@ -918,13 +1073,7 @@ export function InmuebleClientesGeneralPageContent({
         <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:px-6">
           <div>
             <h2 className="font-semibold text-slate-900">
-              Clientes (
-              {columnFiltersActive && allRowsData
-                ? filteredRows.length
-                : isLoadingFullDataset
-                  ? '…'
-                  : catalogTotal}
-              )
+              Clientes ({isLoadingFullDataset ? '…' : totalItems})
             </h2>
           </div>
         </div>
@@ -1028,9 +1177,7 @@ export function InmuebleClientesGeneralPageContent({
           <>
             {columnFiltersActive && (
               <TableFilterBar
-                filteredCount={
-                  allRowsData ? filteredRows.length : displayRows.length
-                }
+                filteredCount={totalItems}
                 totalCount={catalogTotal}
                 entityLabel="clientes"
                 hasSort={!!tableSort}
@@ -1039,7 +1186,7 @@ export function InmuebleClientesGeneralPageContent({
             )}
             {isLoadingFullDataset ? (
               <p className="border-b border-slate-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 sm:px-6">
-                Cargando todos los clientes para filtrar en toda la lista…
+                Cargando todos los clientes para filtrar por rango…
               </p>
             ) : null}
             <div className={CLIENTES_TABLE_HEAD_STICKY_CLASS}>

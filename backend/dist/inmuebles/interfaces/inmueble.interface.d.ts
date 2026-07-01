@@ -1,4 +1,5 @@
 import { Cliente } from '../../clientes/interfaces/cliente.interface';
+import type { InmuebleAmueblado } from '../inmueble-amueblado';
 export interface Inmueble {
     id: string;
     ref: string | null;
@@ -30,7 +31,7 @@ export interface Inmueble {
     fecha_visitas_entrada: string | null;
     observaciones: string | null;
     requisitos_propietario: string | null;
-    amueblado: 'si' | 'no' | null;
+    amueblado: InmuebleAmueblado | null;
     captador: string | null;
     alquilado_por: string | null;
     captador_alquilado_por: string | null;

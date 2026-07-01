@@ -1,14 +1,9 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { InmuebleObservacionesEditDialog } from '@/components/InmuebleObservacionesEditDialog';
 import { updateInmueble } from '@/lib/inmuebles-api';
 import {
   INMUEBLE_MASKED_TEXT_FIELDS,
@@ -21,41 +16,14 @@ interface InmuebleObservacionesLineCellProps {
   fieldKey?: InmuebleMaskedTextFieldKey;
   disabled?: boolean;
   onUpdated: (value: string | null) => void;
-  /** Stretch textarea to fill the table cell (dense excel tables). */
+  /** Dense excel table: centered preview + branded popup editor. */
   fillCell?: boolean;
   expanded?: boolean;
   onToggleExpanded?: () => void;
 }
 
-const AUTO_SAVE_MS = 1000;
-
-function useAutoResizeTextarea(
-  ref: React.RefObject<HTMLTextAreaElement | null>,
-  value: string,
-  enabled: boolean,
-) {
-  const resize = useCallback(() => {
-    const el = ref.current;
-    if (!el || !enabled) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [enabled, ref]);
-
-  useLayoutEffect(() => {
-    resize();
-  }, [resize, value]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
-  }, [enabled, resize]);
-
-  return resize;
-}
-
-const DENSE_TEXTAREA_CLASS =
-  'box-border max-h-full w-full resize-none overflow-hidden border-0 bg-transparent text-center text-[9px] font-bold leading-tight text-red-600 outline-none placeholder:text-red-300/70 disabled:cursor-not-allowed disabled:opacity-60 sm:text-[10px]';
+const DENSE_PREVIEW_CLASS =
+  'line-clamp-4 max-w-full whitespace-pre-wrap break-words text-center text-[9px] font-bold leading-snug text-red-600 sm:text-[10px]';
 
 export function InmuebleObservacionesLineCell({
   inmuebleId,
@@ -68,22 +36,17 @@ export function InmuebleObservacionesLineCell({
   onToggleExpanded,
 }: InmuebleObservacionesLineCellProps) {
   const fieldMeta = INMUEBLE_MASKED_TEXT_FIELDS[fieldKey];
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const [saving, setSaving] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const resizeTextarea = useAutoResizeTextarea(
-    textareaRef,
-    draft,
-    expanded && !disabled && !fillCell,
-  );
 
   useEffect(() => {
-    if (!saving) {
+    if (!saving && !dialogOpen) {
       setDraft(value ?? '');
     }
-  }, [value, saving]);
+  }, [value, saving, dialogOpen]);
 
   const save = useCallback(
     async (nextDraft: string) => {
@@ -92,18 +55,20 @@ export function InmuebleObservacionesLineCell({
       const current = value?.trim() || null;
 
       if (next === current) {
-        return;
+        return true;
       }
 
       setSaving(true);
       try {
         await updateInmueble(inmuebleId, { [fieldKey]: next });
         onUpdated(next);
+        return true;
       } catch (error) {
         setDraft(value ?? '');
         toast.error(
           error instanceof Error ? error.message : fieldMeta.saveError,
         );
+        return false;
       } finally {
         setSaving(false);
       }
@@ -112,49 +77,31 @@ export function InmuebleObservacionesLineCell({
   );
 
   useEffect(() => {
-    if (!expanded || disabled || saving) return;
-
-    const trimmed = draft.trim();
-    const next = trimmed || null;
-    const current = value?.trim() || null;
-    if (next === current) return;
-
-    const timer = window.setTimeout(() => {
-      void save(draft);
-    }, AUTO_SAVE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [draft, disabled, expanded, save, saving, value]);
-
-  useEffect(() => {
-    if (expanded) return;
+    if (expanded || fillCell) return;
     const trimmed = draftRef.current.trim();
     const next = trimmed || null;
     const current = value?.trim() || null;
     if (next !== current) {
       void save(draftRef.current);
     }
-  }, [expanded, save, value]);
+  }, [expanded, fillCell, save, value]);
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      setDraft(value ?? '');
-      textareaRef.current?.blur();
-      return;
-    }
+  function openDialog() {
+    if (saving || !expanded) return;
+    setDraft(value ?? '');
+    setDialogOpen(true);
+  }
 
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      void save(draft);
-      textareaRef.current?.blur();
-      return;
-    }
+  function closeDialog() {
+    if (saving) return;
+    setDraft(value ?? '');
+    setDialogOpen(false);
+  }
 
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      void save(draft);
-      textareaRef.current?.blur();
+  async function handleDialogSave() {
+    const ok = await save(draft);
+    if (ok) {
+      setDialogOpen(false);
     }
   }
 
@@ -165,7 +112,7 @@ export function InmuebleObservacionesLineCell({
         event.stopPropagation();
         onToggleExpanded();
       }}
-      className="absolute right-0.5 top-1/2 z-[2] -translate-y-1/2 rounded bg-black/40 p-0.5 text-white/90 transition hover:bg-black/55 hover:text-white"
+      className="absolute right-0.5 top-1 z-[2] rounded bg-black/40 p-0.5 text-white/90 transition hover:bg-black/55 hover:text-white"
       title={
         expanded
           ? `Ocultar ${fieldMeta.visibilityEntity}`
@@ -186,61 +133,99 @@ export function InmuebleObservacionesLineCell({
     </button>
   ) : null;
 
+  if (fillCell) {
+    const previewText = draft.trim();
+
+    return (
+      <>
+        <div className="absolute inset-0 min-h-[2.75rem] sm:min-h-[3rem]">
+          {toggleButton}
+          {expanded ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={(event) => {
+                event.stopPropagation();
+                openDialog();
+              }}
+              className="absolute inset-0 z-[1] flex items-center justify-center bg-transparent px-1.5 py-1 pr-7 transition hover:bg-white/90 disabled:cursor-wait disabled:opacity-60 sm:px-2 sm:pr-8"
+              title={
+                previewText
+                  ? `${previewText} — clic para ${disabled ? 'ver' : 'editar'}`
+                  : disabled
+                    ? 'Sin observaciones'
+                    : 'Clic para añadir'
+              }
+            >
+              <span className="flex w-full items-center justify-center">
+                {previewText ? (
+                  <span className={DENSE_PREVIEW_CLASS}>{previewText}</span>
+                ) : (
+                  <span className="text-center text-[9px] font-bold text-red-300/80 sm:text-[10px]">
+                    —
+                  </span>
+                )}
+              </span>
+            </button>
+          ) : (
+            <div
+              className="absolute inset-0 flex items-center justify-center px-1.5 py-1 pr-7 sm:px-2 sm:pr-8"
+              aria-hidden={!previewText}
+            >
+              {previewText ? (
+                <span className="text-center text-[9px] font-bold leading-tight tracking-wider text-red-600/80 sm:text-[10px]">
+                  ****
+                </span>
+              ) : null}
+            </div>
+          )}
+          {saving ? (
+            <Loader2 className="pointer-events-none absolute bottom-0.5 left-0.5 z-[2] h-3 w-3 animate-spin text-red-400" />
+          ) : null}
+        </div>
+
+        <InmuebleObservacionesEditDialog
+          open={dialogOpen}
+          subtitle={fieldMeta.shortLabel}
+          title={fieldMeta.label}
+          value={draft}
+          saving={saving}
+          readOnly={disabled}
+          onChange={setDraft}
+          onSave={() => void handleDialogSave()}
+          onClose={closeDialog}
+        />
+      </>
+    );
+  }
+
   return (
-    <div
-      className={fillCell ? 'absolute inset-0' : 'relative w-full min-w-0'}
-    >
+    <div className="relative w-full min-w-0">
       {toggleButton}
       {expanded ? (
-        fillCell ? (
-          <div
-            className="absolute inset-0 z-[1] flex items-center justify-center bg-transparent px-1.5 py-1 pr-6 transition focus-within:bg-white/95 sm:px-2 sm:py-1.5 sm:pr-7"
+        <div className="flex min-h-[2.5rem] w-full items-center justify-center px-1 py-0.5 pr-6">
+          <button
+            type="button"
+            disabled={disabled || saving}
             onClick={(event) => {
               event.stopPropagation();
-              textareaRef.current?.focus();
+              openDialog();
             }}
+            className="w-full transition hover:opacity-80 disabled:cursor-default disabled:opacity-60"
+            title={draft.trim() ? `${draft.trim()} — clic para editar` : 'Clic para añadir'}
           >
-            <textarea
-              ref={textareaRef}
-              value={draft}
-              disabled={disabled || saving}
-              rows={1}
-              onChange={(event) => setDraft(event.target.value)}
-              onBlur={() => void save(draft)}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              onKeyDown={handleKeyDown}
-              title="Enter guarda · Shift+Enter nueva línea"
-              className={DENSE_TEXTAREA_CLASS}
-            />
-          </div>
-        ) : (
-          <div className="flex min-h-[2.5rem] w-full items-center justify-center px-1 py-0.5 pr-6">
-            <textarea
-              ref={textareaRef}
-              value={draft}
-              disabled={disabled || saving}
-              rows={1}
-              onChange={(event) => {
-                setDraft(event.target.value);
-                requestAnimationFrame(() => resizeTextarea());
-              }}
-              onBlur={() => void save(draft)}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              onKeyDown={handleKeyDown}
-              title="Enter guarda · Shift+Enter nueva línea"
-              className="block max-h-full w-full resize-none rounded border border-transparent bg-transparent text-center text-sm font-bold leading-snug text-red-600 outline-none transition placeholder:text-red-300/70 focus:border-red-300/60 focus:bg-white/80 disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </div>
-        )
+            {draft.trim() ? (
+              <span className="line-clamp-3 whitespace-pre-wrap break-words text-center text-sm font-bold leading-snug text-red-600">
+                {draft.trim()}
+              </span>
+            ) : (
+              <span className="text-center text-sm font-bold text-red-300/80">—</span>
+            )}
+          </button>
+        </div>
       ) : (
         <div
-          className={
-            fillCell
-              ? 'absolute inset-0 flex items-center justify-center px-1.5 py-1 pr-6 sm:px-2 sm:pr-7'
-              : 'flex min-h-[2.5rem] w-full items-center justify-center px-1 py-0.5 pr-6'
-          }
+          className="flex min-h-[2.5rem] w-full items-center justify-center px-1 py-0.5 pr-6"
           aria-hidden={!draft.trim()}
         >
           {draft.trim() ? (
@@ -253,6 +238,18 @@ export function InmuebleObservacionesLineCell({
       {saving ? (
         <Loader2 className="pointer-events-none absolute bottom-0.5 left-0.5 z-[2] h-3 w-3 animate-spin text-red-400" />
       ) : null}
+
+      <InmuebleObservacionesEditDialog
+        open={dialogOpen}
+        subtitle={fieldMeta.shortLabel}
+        title={fieldMeta.label}
+        value={draft}
+        saving={saving}
+        readOnly={disabled}
+        onChange={setDraft}
+        onSave={() => void handleDialogSave()}
+        onClose={closeDialog}
+      />
     </div>
   );
 }

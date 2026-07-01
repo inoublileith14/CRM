@@ -1,3 +1,4 @@
+import { getInmuebleAmuebladoShortLabel } from '@/lib/inmueble-amueblado';
 import {
   InmuebleFormData,
   TIPO_OPERACION_LABELS,
@@ -118,7 +119,9 @@ export function formatInmuebleCell(
     return value === 'larga' ? 'Larga' : value === 't' ? 'Temporada' : String(value);
   }
   if (key === 'amueblado') {
-    return value === 'si' ? 'Sí' : value === 'no' ? 'No' : String(value);
+    return getInmuebleAmuebladoShortLabel(
+      typeof value === 'string' ? value : null,
+    );
   }
   if (key === 'status') {
     return value === 'I' || value === 'P' || value === 'I-M'

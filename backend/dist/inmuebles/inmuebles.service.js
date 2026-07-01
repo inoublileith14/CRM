@@ -15,15 +15,17 @@ const common_1 = require("@nestjs/common");
 const cliente_gestion_estado_1 = require("../clientes/cliente-gestion-estado");
 const supabase_service_1 = require("../supabase/supabase.service");
 const inmueble_propietarios_util_1 = require("./inmueble-propietarios.util");
+const cliente_entrada_prevista_1 = require("../clientes/cliente-entrada-prevista");
 const cliente_entrada_sort_util_1 = require("./cliente-entrada-sort.util");
 const inmueble_split_fields_1 = require("./inmueble-split-fields");
 const SELECT_FIELDS = 'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, distrito_ciudad, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista, link_espejo, link_idealista_espejo, fecha_visitas, fecha_visitas_entrada, observaciones, requisitos_propietario, amueblado, captador, alquilado_por, captador_alquilado_por, status, activo, alquilado_codigo, vendido_codigo, row_color, tipo_operacion, created_at, updated_at';
-const SELECT_DETAIL = `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))`;
+const SELECT_DETAIL = `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, telefonos_extra, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))`;
 const CLIENTE_GLOBAL_FIELDS = `
   id,
   nombre,
   email,
   telefono,
+  telefonos_extra,
   ciudad,
   barrio,
   distrito,
@@ -58,15 +60,73 @@ const CLIENTE_UNLINKED_SELECT = `
 const LINK_INDEX_SELECT = `
   cliente_id,
   inmueble_id,
-  clientes!inner(fecha_contacto),
+  clientes!inner(
+    fecha_contacto,
+    nombre,
+    telefono,
+    ref_cliente,
+    fecha_entrada_inmueble
+  ),
   inmuebles!inner(tipo_operacion)
 `;
 const UNLINKED_INDEX_SELECT = `
   id,
   fecha_contacto,
+  nombre,
+  telefono,
+  ref_cliente,
+  fecha_entrada_inmueble,
   cliente_inmuebles(inmueble_id)
 `;
 const MAX_CLIENTES_BY_TIPO_LIMIT = 10_000;
+function readIndexClienteFields(raw) {
+    return {
+        nombre: String(raw?.nombre ?? ''),
+        telefono: String(raw?.telefono ?? ''),
+        ref_cliente: String(raw?.ref_cliente ?? ''),
+        fecha_entrada_inmueble: raw?.fecha_entrada_inmueble ?? null,
+    };
+}
+function normalizePhoneDigits(value) {
+    return (value ?? '').replace(/\D/g, '');
+}
+function applyClientesByTipoIndexFilters(items, query) {
+    let result = items;
+    const nombre = query.nombre?.trim().toLowerCase();
+    if (nombre) {
+        result = result.filter((item) => item.nombre.toLowerCase().includes(nombre));
+    }
+    const telefono = normalizePhoneDigits(query.telefono);
+    if (telefono) {
+        result = result.filter((item) => normalizePhoneDigits(item.telefono).includes(telefono));
+    }
+    const refCliente = query.ref_cliente?.trim().toLowerCase();
+    if (refCliente) {
+        result = result.filter((item) => item.ref_cliente.toLowerCase().includes(refCliente));
+    }
+    const entradaParam = query.entrada_prevista;
+    if (entradaParam !== undefined) {
+        const trimmed = entradaParam.trim();
+        if (!trimmed) {
+            return [];
+        }
+        const allowed = new Set(trimmed
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean));
+        if (allowed.size === 0) {
+            return [];
+        }
+        if (allowed.size < cliente_entrada_prevista_1.CLIENTE_ENTRADA_PREVISTA_VALUES.length) {
+            result = result.filter((item) => {
+                const value = (0, cliente_entrada_prevista_1.normalizeClienteEntradaPrevista)(item.fecha_entrada_inmueble) ??
+                    'sin_info';
+                return allowed.has(value);
+            });
+        }
+    }
+    return result;
+}
 const CLIENTE_SELECT = `
   id,
   nombre,
@@ -216,7 +276,8 @@ let InmueblesService = class InmueblesService {
         const limit = Math.min(Math.max(1, query.limit), MAX_CLIENTES_BY_TIPO_LIMIT);
         const sortDir = query.sort === 'fecha_entrada' && query.dir === 'asc' ? 'asc' : 'desc';
         const index = await this.buildClientesByTipoIndex(tipoOperacion);
-        const sorted = [...index].sort((a, b) => {
+        const filtered = applyClientesByTipoIndexFilters(index, query);
+        const sorted = [...filtered].sort((a, b) => {
             if (a.sort_key !== b.sort_key) {
                 return sortDir === 'asc'
                     ? a.sort_key - b.sort_key
@@ -230,6 +291,21 @@ let InmueblesService = class InmueblesService {
         const defaultGestion = (0, cliente_gestion_estado_1.getDefaultClienteGestionEstado)(tipoOperacion);
         const rows = await this.hydrateClientesByTipoPage(slice, tipoOperacion, defaultGestion);
         return { rows, total, page, limit };
+    }
+    async findClientesByTipoRefs(tipoOperacion, search) {
+        const index = await this.buildClientesByTipoIndex(tipoOperacion);
+        const refs = new Set();
+        for (const item of index) {
+            const ref = item.ref_cliente.trim();
+            if (ref)
+                refs.add(ref);
+        }
+        let list = [...refs].sort((a, b) => a.localeCompare(b, 'es'));
+        const query = search?.trim().toLowerCase();
+        if (query) {
+            list = list.filter((ref) => ref.toLowerCase().includes(query));
+        }
+        return { refs: list.slice(0, 2000) };
     }
     async buildClientesByTipoIndex(tipoOperacion) {
         const cacheKey = tipoOperacion;
@@ -268,6 +344,7 @@ let InmueblesService = class InmueblesService {
                 cliente_id: clienteId,
                 inmueble_id: inmuebleId,
                 sort_key: (0, cliente_entrada_sort_util_1.getClienteEntradaSortKey)(clienteRaw?.fecha_contacto ?? null),
+                ...readIndexClienteFields(clienteRaw),
             });
         }
         let rawClientes = [];
@@ -295,6 +372,7 @@ let InmueblesService = class InmueblesService {
                 cliente_id: clienteId,
                 inmueble_id: null,
                 sort_key: (0, cliente_entrada_sort_util_1.getClienteEntradaSortKey)(row.fecha_contacto),
+                ...readIndexClienteFields(row),
             });
         }
         this.clientesByTipoIndexCache.set(cacheKey, {

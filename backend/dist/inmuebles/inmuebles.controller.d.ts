@@ -10,7 +10,10 @@ export declare class InmueblesController {
     constructor(inmueblesService: InmueblesService);
     private assertAdmin;
     findAll(tipo_operacion?: string, propietario_id?: string): Promise<import("./interfaces/inmueble.interface").Inmueble[]>;
-    findClientesByTipo(tipo_operacion?: string, page?: string, limit?: string, sort?: string, dir?: string): Promise<import("./interfaces/clientes-by-tipo-page.interface").ClientesByTipoPageResult>;
+    findClientesByTipoRefs(tipo_operacion?: string, q?: string): Promise<{
+        refs: string[];
+    }>;
+    findClientesByTipo(tipo_operacion?: string, page?: string, limit?: string, sort?: string, dir?: string, nombre?: string, telefono?: string, ref_cliente?: string, entrada_prevista?: string): Promise<import("./interfaces/clientes-by-tipo-page.interface").ClientesByTipoPageResult>;
     updateClienteGestionEstado(inmuebleId: string, clienteId: string, dto: UpdateClienteGestionEstadoDto): Promise<{
         gestion_estado: import("../clientes/cliente-gestion-estado").ClienteGestionEstado;
         fecha_ultima_gestion: string;

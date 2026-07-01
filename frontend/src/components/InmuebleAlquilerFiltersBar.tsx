@@ -2,12 +2,7 @@
 
 import { useMemo } from 'react';
 import { CalendarRange } from 'lucide-react';
-import {
-  ALQUILADO_CODIGO_C_ROW_COLOR,
-  ALQUILADO_CODIGO_O_ROW_COLOR,
-  ALQUILADO_CODIGO_R_ROW_COLOR,
-  DEFAULT_VENTA_DENSE_ROW_COLOR,
-} from '@/lib/inmueble-status';
+import { DEFAULT_VENTA_DENSE_ROW_COLOR } from '@/lib/inmueble-status';
 import {
   buildPropietarioFilterOptions,
   buildRefFilterOptions,
@@ -76,36 +71,6 @@ function RangeFilterGroup({
           aria-label={`${label} máximo`}
         />
       </div>
-    </div>
-  );
-}
-
-const PISO_CODIGO_LEGEND = [
-  {
-    color: ALQUILADO_CODIGO_C_ROW_COLOR,
-    label: 'Alquilado por Coconut',
-  },
-  {
-    color: ALQUILADO_CODIGO_O_ROW_COLOR,
-    label: 'Desactivado',
-  },
-  {
-    color: ALQUILADO_CODIGO_R_ROW_COLOR,
-    label: 'Reservado',
-  },
-] as const;
-
-function PisoCodigoLegendSwitch({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className="relative flex h-5 w-[2.35rem] shrink-0 items-center rounded-full border border-black/10 shadow-sm"
-        style={{ backgroundColor: color }}
-        aria-hidden
-      >
-        <span className="absolute right-0.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow" />
-      </span>
-      <span className="text-xs font-medium text-slate-700">{label}</span>
     </div>
   );
 }
@@ -264,20 +229,6 @@ export function InmuebleAlquilerFiltersBar({
               aria-label="Filtrar por dirección o barrio"
             />
           </div>
-        </div>
-
-        <div
-          className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5 pt-0.5"
-          role="group"
-          aria-label="Leyenda de colores de fila"
-        >
-          {PISO_CODIGO_LEGEND.map((item) => (
-            <PisoCodigoLegendSwitch
-              key={item.label}
-              color={item.color}
-              label={item.label}
-            />
-          ))}
         </div>
       </div>
     </div>

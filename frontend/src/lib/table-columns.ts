@@ -12,6 +12,7 @@ import {
 } from '@/lib/cliente-entrada-prevista';
 import { getClienteTipoClienteLabel } from '@/lib/cliente-tipo';
 import { formatClienteZonasLabel } from '@/lib/cliente-zonas';
+import { formatClientePhonesDisplay } from '@/lib/cliente-telefonos';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import {
   CLIENTE_ESTADO_LABELS,
@@ -345,9 +346,9 @@ export function buildVentaDenseClienteTableColumns(
       key: 'telefono',
       label: 'TELÉFONO',
       shortLabel: 'TEL.',
-      headClassName: 'w-[6.25rem] text-center',
-      cellClassName: `whitespace-nowrap ${center}`,
-      getDisplayValue: (cliente) => toFilterDisplay(cliente.telefono),
+      headClassName: 'w-[7.5rem] text-center',
+      cellClassName: `max-w-[7.5rem] align-top ${center}`,
+      getDisplayValue: (cliente) => formatClientePhonesDisplay(cliente),
     },
     {
       key: 'presupuesto_maximo',

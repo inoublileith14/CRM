@@ -2,6 +2,7 @@ export class UpdateClienteDto {
   nombre?: string;
   email?: string;
   telefono?: string;
+  telefonos_extra?: string[];
   ciudad?: string;
   barrio?: string[] | null;
   distrito?: string[] | null;

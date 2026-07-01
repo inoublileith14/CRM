@@ -16,6 +16,56 @@ export const ALQUILADO_CODIGO_R_ROW_COLOR = '#ff69b4';
 
 export const INMUEBLE_PISO_CODIGO_VALUES: InmueblePisoCodigo[] = ['C', 'O', 'R'];
 
+export const INMUEBLE_PISO_CODIGO_LEGEND_ITEMS = [
+  {
+    codigo: 'C' as const,
+    color: ALQUILADO_CODIGO_C_ROW_COLOR,
+    label: 'Alquilado por Coconut',
+  },
+  {
+    codigo: 'O' as const,
+    color: ALQUILADO_CODIGO_O_ROW_COLOR,
+    label: 'Desactivado',
+  },
+  {
+    codigo: 'R' as const,
+    color: ALQUILADO_CODIGO_R_ROW_COLOR,
+    label: 'Reservado',
+  },
+] as const;
+
+export function isPisoCodigoFilterActive(
+  selected: readonly InmueblePisoCodigo[],
+): boolean {
+  return selected.length < INMUEBLE_PISO_CODIGO_VALUES.length;
+}
+
+export function togglePisoCodigoFilter(
+  selected: readonly InmueblePisoCodigo[],
+  codigo: InmueblePisoCodigo,
+): InmueblePisoCodigo[] {
+  const set = new Set(selected);
+  if (set.has(codigo)) {
+    set.delete(codigo);
+  } else {
+    set.add(codigo);
+  }
+  return INMUEBLE_PISO_CODIGO_VALUES.filter((value) => set.has(value));
+}
+
+export function filterInmueblesByPisoCodigo<T extends Inmueble>(
+  rows: T[],
+  selected: readonly InmueblePisoCodigo[],
+  codigoField: 'alquilado_codigo' | 'vendido_codigo',
+): T[] {
+  if (!isPisoCodigoFilterActive(selected)) return rows;
+  const allowed = new Set(selected);
+  return rows.filter((row) => {
+    const codigo = row[codigoField];
+    return isInmueblePisoCodigo(codigo) && allowed.has(codigo);
+  });
+}
+
 export function isInmueblePisoCodigo(
   value: unknown,
 ): value is InmueblePisoCodigo {

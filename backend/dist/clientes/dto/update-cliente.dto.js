@@ -5,6 +5,7 @@ class UpdateClienteDto {
     nombre;
     email;
     telefono;
+    telefonos_extra;
     ciudad;
     barrio;
     distrito;

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { PropietarioForm } from '@/components/PropietarioForm';
+import { CoconutBrandedDialog } from '@/components/CoconutBrandedDialog';
 import { TableColumnFilterHead } from '@/components/TableColumnFilterHead';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { TableFilterEmptyState } from '@/components/TableFilterEmptyState';
@@ -313,37 +314,24 @@ export function PropietariosPageContent({
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
-            onClick={closeModal}
+        <CoconutBrandedDialog
+          open={modalOpen}
+          onClose={closeModal}
+          blockClose={saving}
+          title={`Nuevo propietario — ${TIPO_OPERACION_LABELS[expectedTipo]}`}
+          subtitle="PROPIETARIOS"
+          size="lg"
+          align="left"
+          scrollable
+        >
+          <PropietarioForm
+            onSubmit={handleSubmit}
+            onCancel={closeModal}
+            submitLabel="Crear propietario"
+            loading={saving}
+            fixedTipoOperacion={expectedTipo}
           />
-          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Nuevo propietario — {TIPO_OPERACION_LABELS[expectedTipo]}
-              </h2>
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <PropietarioForm
-              onSubmit={handleSubmit}
-              onCancel={closeModal}
-              submitLabel="Crear propietario"
-              loading={saving}
-              fixedTipoOperacion={expectedTipo}
-            />
-          </div>
-        </div>
+        </CoconutBrandedDialog>
       )}
     </div>
   );

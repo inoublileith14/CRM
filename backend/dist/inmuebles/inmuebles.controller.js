@@ -36,7 +36,13 @@ let InmueblesController = class InmueblesController {
             propietario_id,
         });
     }
-    findClientesByTipo(tipo_operacion, page, limit, sort, dir) {
+    findClientesByTipoRefs(tipo_operacion, q) {
+        if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
+            throw new common_1.BadRequestException('tipo_operacion debe ser alquiler o venta');
+        }
+        return this.inmueblesService.findClientesByTipoRefs(tipo_operacion, q);
+    }
+    findClientesByTipo(tipo_operacion, page, limit, sort, dir, nombre, telefono, ref_cliente, entrada_prevista) {
         if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
             throw new common_1.BadRequestException('tipo_operacion debe ser alquiler o venta');
         }
@@ -48,6 +54,10 @@ let InmueblesController = class InmueblesController {
             limit: limitNum,
             sort: sort === 'fecha_entrada' ? 'fecha_entrada' : undefined,
             dir: dir === 'asc' || dir === 'desc' ? dir : undefined,
+            nombre: nombre?.trim() || undefined,
+            telefono: telefono?.trim() || undefined,
+            ref_cliente: ref_cliente?.trim() || undefined,
+            entrada_prevista: entrada_prevista?.trim() || undefined,
         });
     }
     updateClienteGestionEstado(inmuebleId, clienteId, dto) {
@@ -93,14 +103,26 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "findAll", null);
 __decorate([
+    (0, common_1.Get)('clientes/by-tipo/refs'),
+    __param(0, (0, common_1.Query)('tipo_operacion')),
+    __param(1, (0, common_1.Query)('q')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], InmueblesController.prototype, "findClientesByTipoRefs", null);
+__decorate([
     (0, common_1.Get)('clientes/by-tipo'),
     __param(0, (0, common_1.Query)('tipo_operacion')),
     __param(1, (0, common_1.Query)('page')),
     __param(2, (0, common_1.Query)('limit')),
     __param(3, (0, common_1.Query)('sort')),
     __param(4, (0, common_1.Query)('dir')),
+    __param(5, (0, common_1.Query)('nombre')),
+    __param(6, (0, common_1.Query)('telefono')),
+    __param(7, (0, common_1.Query)('ref_cliente')),
+    __param(8, (0, common_1.Query)('entrada_prevista')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "findClientesByTipo", null);
 __decorate([

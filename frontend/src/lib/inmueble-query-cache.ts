@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-keys';
+import { normalizeInmuebleAmueblado } from '@/lib/inmueble-amueblado';
 import { isInmueblePisoCodigo } from '@/lib/inmueble-status';
 import { Inmueble } from '@/types/inmueble';
 
@@ -75,8 +76,9 @@ export function mapRealtimeRowToInmueble(
     fecha_visitas_entrada: toStringOrNull(row.fecha_visitas_entrada),
     observaciones: toStringOrNull(row.observaciones),
     requisitos_propietario: toStringOrNull(row.requisitos_propietario),
-    amueblado:
-      row.amueblado === 'si' || row.amueblado === 'no' ? row.amueblado : null,
+    amueblado: normalizeInmuebleAmueblado(
+      toStringOrNull(row.amueblado) ?? undefined,
+    ),
     captador: toStringOrNull(row.captador),
     alquilado_por: toStringOrNull(row.alquilado_por),
     captador_alquilado_por: toStringOrNull(row.captador_alquilado_por),

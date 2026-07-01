@@ -16,6 +16,7 @@ import {
   toInmuebleCellValue,
 } from '@/lib/inmueble-table-utils';
 import { formatInmuebleStatusDisplay } from '@/lib/inmueble-status';
+import { getInmuebleAmuebladoLabel } from '@/lib/inmueble-amueblado';
 import { hydrateInmuebleSplitFields } from '@/lib/inmueble-split-fields';
 import { updateInmueble } from '@/lib/inmuebles-api';
 import { INMUEBLE_FIELDS, Inmueble, InmuebleFormData, TIPO_OPERACION_LABELS } from '@/types/inmueble';
@@ -426,9 +427,15 @@ export function InmuebleInfoCard({
     }
     if (key === 'larga_estancia_temporada' || key === 'amueblado') {
       const raw = toInmuebleCellValue(detail[key]);
+      const display =
+        key === 'amueblado'
+          ? getInmuebleAmuebladoLabel(
+              typeof raw === 'string' ? raw : null,
+            )
+          : formatInmuebleCell(key, raw);
       return (
-        <span className="text-sm font-bold leading-none text-slate-900">
-          {formatInmuebleCell(key, raw)}
+        <span className="text-sm font-bold leading-snug text-slate-900">
+          {display}
         </span>
       );
     }

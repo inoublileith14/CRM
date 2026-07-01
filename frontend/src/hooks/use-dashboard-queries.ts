@@ -10,6 +10,7 @@ import { getClientes, getCliente } from '@/lib/clientes-api';
 import {
   fetchAllInmuebleClientesByTipo,
   getInmueble,
+  getInmuebleClienteRefsByTipo,
   getInmuebleClientesByTipo,
   getInmuebles,
   InmueblesFilters,
@@ -104,6 +105,20 @@ export function useClientesByTipoQuery(
     queryFn: () => getInmuebleClientesByTipo(tipo, params),
     staleTime: QUERY_STALE_TIME.list,
     placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
+    ...defaultQueryOptions,
+  });
+}
+
+export function useClientesByTipoRefsQuery(
+  tipo: TipoOperacion,
+  search?: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.clientes.refsByTipo(tipo, search),
+    queryFn: () => getInmuebleClienteRefsByTipo(tipo, search),
+    staleTime: QUERY_STALE_TIME.list,
     enabled: options?.enabled ?? true,
     ...defaultQueryOptions,
   });

@@ -1,8 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  CoconutBrandedDialog,
+  CoconutBrandedDialogCancelButton,
+  CoconutBrandedDialogFooter,
+  CoconutBrandedDialogPrimaryButton,
+  COCONUT_DIALOG_INPUT_CLASS,
+  COCONUT_DIALOG_LABEL_CLASS,
+} from '@/components/CoconutBrandedDialog';
 import { ClienteGestionEstado } from '@/lib/cliente-gestion-estado';
 import {
   addMinutesToDate,
@@ -148,82 +155,70 @@ export function GestionCalendarEventDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Cerrar"
-        className="absolute inset-0 bg-slate-900/50"
-        onClick={loading ? undefined : onCancel}
-        disabled={loading}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="gestion-calendar-dialog-title"
-        className="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-blue-50 p-2 text-blue-700">
-              <CalendarDays className="h-5 w-5" />
-            </div>
-            <div>
-              <h2
-                id="gestion-calendar-dialog-title"
-                className="text-lg font-semibold text-slate-900"
-              >
-                {titleLabel}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {clienteNombre}
-                {inmuebleLabel ? ` · ${inmuebleLabel}` : ''}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
+    <CoconutBrandedDialog
+      open={open}
+      onClose={onCancel}
+      blockClose={loading}
+      title={titleLabel}
+      subtitle="CALENDARIO"
+      titleId="gestion-calendar-dialog-title"
+      size="md"
+      align="left"
+      scrollable
+      zIndexClass="z-[300]"
+      bodyClassName="!pb-4"
+      description={
+        <>
+          {clienteNombre}
+          {inmuebleLabel ? ` · ${inmuebleLabel}` : ''}
+        </>
+      }
+      footer={
+        <CoconutBrandedDialogFooter align="end">
+          <CoconutBrandedDialogCancelButton onClick={onCancel} disabled={loading}>
+            Cancelar
+          </CoconutBrandedDialogCancelButton>
+          <CoconutBrandedDialogPrimaryButton
+            type="submit"
+            form="gestion-calendar-event-form"
+            disabled={loading || !summary.trim()}
+            loading={loading}
           >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
-        >
-          <div className="space-y-4">
+            Guardar gestión
+          </CoconutBrandedDialogPrimaryButton>
+        </CoconutBrandedDialogFooter>
+      }
+    >
+      <form
+        id="gestion-calendar-event-form"
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Título
-              </span>
+              <span className={COCONUT_DIALOG_LABEL_CLASS}>Título</span>
               <input
                 type="text"
                 required
                 value={summary}
                 onChange={(event) => setSummary(event.target.value)}
                 disabled={loading}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
+                className={COCONUT_DIALOG_INPUT_CLASS}
               />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Descripción
-              </span>
+              <span className={COCONUT_DIALOG_LABEL_CLASS}>Descripción</span>
               <textarea
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 disabled={loading}
                 rows={3}
-                className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
+                className={`${COCONUT_DIALOG_INPUT_CLASS} resize-y`}
               />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <span className={COCONUT_DIALOG_LABEL_CLASS}>
                 {gestionEstado === 'videollamada' ? 'Enlace / notas' : 'Ubicación'}
               </span>
               <input
@@ -236,54 +231,48 @@ export function GestionCalendarEventDialog({
                     ? 'Enlace Meet, Zoom…'
                     : 'Dirección del inmueble'
                 }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
+                className={COCONUT_DIALOG_INPUT_CLASS}
               />
             </label>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="block sm:col-span-1">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Fecha
-                </span>
+                <span className={COCONUT_DIALOG_LABEL_CLASS}>Fecha</span>
                 <input
                   type="date"
                   required
                   value={date}
                   onChange={(event) => setDate(event.target.value)}
                   disabled={loading}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
+                  className={COCONUT_DIALOG_INPUT_CLASS}
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Hora inicio
-                </span>
+                <span className={COCONUT_DIALOG_LABEL_CLASS}>Hora inicio</span>
                 <input
                   type="time"
                   required
                   value={startTime}
                   onChange={(event) => setStartTime(event.target.value)}
                   disabled={loading}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
+                  className={COCONUT_DIALOG_INPUT_CLASS}
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Hora fin
-                </span>
+                <span className={COCONUT_DIALOG_LABEL_CLASS}>Hora fin</span>
                 <input
                   type="time"
                   required
                   value={endTime}
                   onChange={(event) => setEndTime(event.target.value)}
                   disabled={loading}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-600 focus:ring-2 disabled:opacity-60"
+                  className={COCONUT_DIALOG_INPUT_CLASS}
                 />
               </label>
             </div>
 
             <div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <span className={`${COCONUT_DIALOG_LABEL_CLASS} mb-2`}>
                 Color del evento
               </span>
               <div className="flex flex-wrap gap-2">
@@ -319,47 +308,26 @@ export function GestionCalendarEventDialog({
                     setCreateInGoogleCalendar(event.target.checked)
                   }
                   disabled={loading}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-700"
+                  className="mt-0.5 h-4 w-4 rounded border-[#eadfcd] text-[#b8924b]"
                 />
-                <span className="text-sm text-slate-700">
+                <span className="text-sm text-[#5f574f]">
                   Crear evento en Google Calendar
                 </span>
               </label>
             ) : calendarConnected ? (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 El calendario de la agencia está conectado solo con permiso de
                 lectura. Un administrador debe reconectar Google Calendar con
                 permiso de escritura.
               </p>
             ) : (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 Google Calendar no está conectado. Se guardará la gestión sin
                 crear evento. Un administrador debe conectarlo en Ajustes.
               </p>
             )}
-          </div>
-
-          <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={loading}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !summary.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Guardar gestión
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </CoconutBrandedDialog>
   );
 }
 

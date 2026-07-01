@@ -1,3 +1,4 @@
+import type { InmuebleAmueblado } from '../inmueble-amueblado';
 export declare class UpdateInmuebleDto {
     ref?: string | null;
     fecha_entrada_inmueble?: string | null;
@@ -28,7 +29,7 @@ export declare class UpdateInmuebleDto {
     fecha_visitas_entrada?: string | null;
     observaciones?: string | null;
     requisitos_propietario?: string | null;
-    amueblado?: 'si' | 'no' | null;
+    amueblado?: InmuebleAmueblado | null;
     captador?: string | null;
     alquilado_por?: string | null;
     captador_alquilado_por?: string | null;
