@@ -96,11 +96,14 @@ export function useClienteQuery(id: string) {
 export function useClientesByTipoQuery(
   tipo: TipoOperacion,
   params: ClientesByTipoListParams,
+  options?: { enabled?: boolean },
 ) {
   return useQuery({
     queryKey: queryKeys.clientes.byTipo(tipo, params),
     queryFn: () => getInmuebleClientesByTipo(tipo, params),
     staleTime: QUERY_STALE_TIME.list,
+    placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
     ...defaultQueryOptions,
   });
 }

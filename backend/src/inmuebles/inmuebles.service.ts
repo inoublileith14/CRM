@@ -147,7 +147,6 @@ function chunkArray<T>(items: T[], size: number): T[][] {
 }
 
 /** Above this many linked rows, avoid huge `.in()` filters (URL limits). */
-const HYDRATE_LINKED_FULL_SCAN_THRESHOLD = 120;
 const HYDRATE_LINKED_IN_BATCH_SIZE = 80;
 const HYDRATE_UNLINKED_IN_BATCH_SIZE = 200;
 
@@ -500,28 +499,6 @@ export class InmueblesService {
     linkedItems: ClientesByTipoIndexItem[],
     pairKeys: Set<string>,
   ): Promise<Record<string, unknown>[]> {
-    const fetchByTipo = () =>
-      fetchAll<Record<string, unknown>>((from, to) =>
-        this.supabase
-          .getAdmin()
-          .from('cliente_inmuebles')
-          .select(CLIENTE_INMUEBLE_LINK_SELECT)
-          .eq('inmuebles.tipo_operacion', tipoOperacion)
-          .range(from, to),
-      );
-
-    if (linkedItems.length > HYDRATE_LINKED_FULL_SCAN_THRESHOLD) {
-      const all = await fetchByTipo();
-      return all.filter((linkRow) => {
-        const inmuebleId = linkRow.inmueble_id as string | undefined;
-        const clienteId = linkRow.cliente_id as string | undefined;
-        return (
-          Boolean(inmuebleId && clienteId) &&
-          pairKeys.has(`${inmuebleId}:${clienteId}`)
-        );
-      });
-    }
-
     const linkedRows: Record<string, unknown>[] = [];
     const seen = new Set<string>();
 
@@ -704,9 +681,14 @@ export class InmueblesService {
 
   async create(dto: CreateInmuebleDto): Promise<Inmueble> {
     const ownerFields = normalizePropietariosContactos(dto);
+    const today = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const fechaEntradaDefault = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
     const payload = normalizeInmuebleSplitFields({
       ...dto,
       ...ownerFields,
+      fecha_entrada_inmueble:
+        dto.fecha_entrada_inmueble?.trim() || fechaEntradaDefault,
     });
 
     const { data, error } = await this.supabase

@@ -10,6 +10,7 @@ import {
   normalizeClienteEntradaPrevista,
   CLIENTE_ENTRADA_PREVISTA_OPTIONS,
 } from '@/lib/cliente-entrada-prevista';
+import { getClienteTipoClienteLabel } from '@/lib/cliente-tipo';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
 import {
   CLIENTE_ESTADO_LABELS,

@@ -20,6 +20,7 @@ import {
   TIPO_OPERACION_LABELS,
   TipoOperacion,
   emptyInmuebleForm,
+  getInmuebleDefaultEntradaDate,
 } from '@/types/inmueble';
 
 interface InmuebleFormProps {
@@ -42,7 +43,7 @@ const FORM_SECTIONS: {
 }[] = [
   {
     title: 'Operación',
-    keys: ['tipo_operacion', 'ref', 'fecha_entrada_inmueble', 'status'],
+    keys: ['tipo_operacion', 'ref', 'status'],
   },
   {
     title: 'Imágenes del inmueble',
@@ -143,8 +144,9 @@ export function InmuebleForm({
 
     const data = normalizeInmuebleSplitFieldsForSave({
       ref: (form.get('ref') as string) || null,
-      fecha_entrada_inmueble:
-        (form.get('fecha_entrada_inmueble') as string) || null,
+      fecha_entrada_inmueble: initial
+        ? defaults.fecha_entrada_inmueble ?? getInmuebleDefaultEntradaDate()
+        : getInmuebleDefaultEntradaDate(),
       imagen_real: (form.get('imagen_real') as string) || null,
       direccion_piso_real: (form.get('direccion_piso_real') as string) || null,
       foto_espejo: (form.get('foto_espejo') as string) || null,
@@ -179,6 +181,7 @@ export function InmuebleForm({
       alquilado_por: (form.get('alquilado_por') as string) || null,
       captador_alquilado_por: null,
       status: (form.get('status') as 'I' | 'P' | 'I-M') || null,
+      activo: defaults.activo ?? true,
       row_color: defaults.row_color ?? null,
       tipo_operacion: tipoOperacion,
     });

@@ -13,6 +13,7 @@ exports.CLIENTE_GESTION_ESTADOS_ALQUILER = [
     'perfil_no_encaja',
     'videollamada',
     'ya_encontro_piso',
+    'cliente_no_interesado',
 ];
 exports.CLIENTE_GESTION_ESTADOS_VENTA = [
     'no_gestionado',
@@ -23,6 +24,7 @@ exports.CLIENTE_GESTION_ESTADOS_VENTA = [
     'ya_compro',
     'perfil_no_encaja',
     'videollamada',
+    'cliente_no_interesado',
 ];
 exports.CLIENTE_GESTION_ESTADOS = [
     ...exports.CLIENTE_GESTION_ESTADOS_ALQUILER,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -69,6 +69,11 @@ import {
 import { Inmueble, TipoOperacion } from '@/types/inmueble';
 import { getWorkerRolLabel } from '@/types/worker';
 
+const INMUEBLE_CLIENTES_TABLE_CLASS =
+  'table-fixed min-w-[56rem] w-full border-collapse border border-black text-left text-sm';
+const INMUEBLE_CLIENTES_TABLE_X_SCROLL_CLASS = 'w-full overflow-x-auto';
+const INMUEBLE_CLIENTES_TABLE_HEAD_X_SCROLL_CLASS = `${INMUEBLE_CLIENTES_TABLE_X_SCROLL_CLASS} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`;
+
 interface InmuebleDetailPageContentProps {
   listPath: string;
   listLabel: string;
@@ -117,6 +122,18 @@ export function InmuebleDetailPageContent({
     context: ClienteGestionEventContext;
   } | null>(null);
   const bulkBusy = assigning || updatingEstado;
+  const tableHeadScrollRef = useRef<HTMLDivElement>(null);
+  const tableBodyScrollRef = useRef<HTMLDivElement>(null);
+  const syncTableHorizontalScroll = useCallback((source: 'head' | 'body') => {
+    const head = tableHeadScrollRef.current;
+    const body = tableBodyScrollRef.current;
+    if (!head || !body) return;
+    if (source === 'head') {
+      body.scrollLeft = head.scrollLeft;
+    } else {
+      head.scrollLeft = body.scrollLeft;
+    }
+  }, []);
   const calendarStatusQuery = useCalendarStatusQuery(bulkCalendarDialogOpen);
   const calendarConnected = calendarStatusQuery.data?.connected ?? false;
   const canCreateEvents = calendarStatusQuery.data?.canCreateEvents ?? false;
@@ -493,6 +510,8 @@ export function InmuebleDetailPageContent({
     !allClientesSelected;
   const tipoAccentClass =
     expectedTipo === 'alquiler' ? 'text-emerald-600' : 'text-blue-600';
+  const clienteTableHeadBg =
+    expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900';
 
   return (
     <div>
@@ -511,110 +530,234 @@ export function InmuebleDetailPageContent({
       />
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-200 px-2 py-1.5 sm:px-3">
-          <h2 className="shrink-0 text-xs font-semibold whitespace-nowrap text-slate-900">
-            Clientes ({clientes.length})
-          </h2>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <InmuebleClienteManualAddButton
-              inmuebleId={inmueble.id}
-              inmuebleRef={inmueble.ref}
-              inmuebleLabel={
-                inmueble.direccion_piso_real ??
-                inmueble.espejo_direccion ??
-                inmueble.ref
-              }
-              tipoOperacion={expectedTipo}
-              workers={workers}
-              onComplete={refreshInmueble}
-              compact
-            />
-            <ClienteExcelImportButton
-              inmuebleId={inmueble.id}
-              tipoOperacion={expectedTipo}
-              onComplete={refreshInmueble}
-              compact
-            />
-          </div>
-        </div>
-
-        {clientes.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-200 bg-slate-50 px-2 py-1.5 sm:px-3">
-            <span className="shrink-0 text-xs text-slate-600">
-              {selectedClienteIds.size > 0
-                ? `${selectedClienteIds.size} sel.`
-                : '0 sel.'}
-            </span>
-            <InmuebleClienteFiltersBar
-              filters={clienteFilters}
-              onChange={setClienteFilters}
-              onClear={clearAllFilters}
-              tipoOperacion={expectedTipo}
-              workers={workers}
-              hasActiveFilters={clienteFiltersActive}
-              disabled={bulkBusy}
-              compact
-            />
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-              <ClienteWhatsAppButton
+        <div className="sticky top-0 z-40 bg-white shadow-[0_1px_0_0_rgb(226,232,240)]">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-200 px-2 py-1.5 sm:px-3">
+            <h2 className="shrink-0 text-xs font-semibold whitespace-nowrap text-slate-900">
+              Clientes ({clientes.length})
+            </h2>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <InmuebleClienteManualAddButton
                 inmuebleId={inmueble.id}
-                clienteIds={[...selectedClienteIds]}
-                disabled={bulkBusy}
-                compact
-                onSent={(updates) => {
-                  for (const update of updates) {
-                    handleClientePatch(update.clienteId, {
-                      gestion_estado: update.gestionEstado as Cliente['gestion_estado'],
-                      fecha_ultima_gestion: update.fechaUltimaGestion,
-                    });
-                  }
-                }}
-              />
-              <ClienteCopyContactsButton
-                clientes={selectedClientes}
-                disabled={bulkBusy}
-                compact
-              />
-              <select
-                value=""
-                onChange={(e) => void handleBulkGestionEstadoSelect(e.target.value)}
-                disabled={bulkBusy || selectedClienteIds.size === 0}
-                className={`w-full sm:w-auto ${selectClass}`}
-                aria-label="Estado de gestión para asignar"
-              >
-                <option value="" disabled>
-                  {updatingEstado ? 'Actualizando…' : 'Cambiar estado…'}
-                </option>
-                {gestionEstadoOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value=""
-                onChange={(e) =>
-                  void handleAssignWorkerSelect(inmueble.id, e.target.value)
+                inmuebleRef={inmueble.ref}
+                inmuebleLabel={
+                  inmueble.direccion_piso_real ??
+                  inmueble.espejo_direccion ??
+                  inmueble.ref
                 }
-                disabled={bulkBusy || selectedClienteIds.size === 0}
-                className={`w-full sm:w-auto ${selectClass}`}
-                aria-label="Trabajador para asignar"
-              >
-                <option value="" disabled>
-                  {assigning ? 'Asignando…' : 'Asignar a trabajador…'}
-                </option>
-                <option value={INMUEBLE_CLIENTE_UNASSIGNED_WORKER}>
-                  Sin asignar
-                </option>
-                {workers.map((worker) => (
-                  <option key={worker.id} value={worker.id}>
-                    {worker.nombre} ({getWorkerRolLabel(worker.rol)})
-                  </option>
-                ))}
-              </select>
+                tipoOperacion={expectedTipo}
+                workers={workers}
+                onComplete={refreshInmueble}
+                compact
+              />
+              <ClienteExcelImportButton
+                inmuebleId={inmueble.id}
+                tipoOperacion={expectedTipo}
+                onComplete={refreshInmueble}
+                compact
+              />
             </div>
           </div>
-        )}
+
+          {clientes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-200 bg-slate-50 px-2 py-1.5 sm:px-3">
+              <span className="shrink-0 text-xs text-slate-600">
+                {selectedClienteIds.size > 0
+                  ? `${selectedClienteIds.size} sel.`
+                  : '0 sel.'}
+              </span>
+              <InmuebleClienteFiltersBar
+                filters={clienteFilters}
+                onChange={setClienteFilters}
+                onClear={clearAllFilters}
+                tipoOperacion={expectedTipo}
+                workers={workers}
+                hasActiveFilters={clienteFiltersActive}
+                disabled={bulkBusy}
+                compact
+              />
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+                <ClienteWhatsAppButton
+                  inmuebleId={inmueble.id}
+                  clienteIds={[...selectedClienteIds]}
+                  disabled={bulkBusy}
+                  compact
+                  onSent={(updates) => {
+                    for (const update of updates) {
+                      handleClientePatch(update.clienteId, {
+                        gestion_estado: update.gestionEstado as Cliente['gestion_estado'],
+                        fecha_ultima_gestion: update.fechaUltimaGestion,
+                      });
+                    }
+                  }}
+                />
+                <ClienteCopyContactsButton
+                  clientes={selectedClientes}
+                  disabled={bulkBusy}
+                  compact
+                />
+                <select
+                  value=""
+                  onChange={(e) => void handleBulkGestionEstadoSelect(e.target.value)}
+                  disabled={bulkBusy || selectedClienteIds.size === 0}
+                  className={`w-full sm:w-auto ${selectClass}`}
+                  aria-label="Estado de gestión para asignar"
+                >
+                  <option value="" disabled>
+                    {updatingEstado ? 'Actualizando…' : 'Cambiar estado…'}
+                  </option>
+                  {gestionEstadoOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value=""
+                  onChange={(e) =>
+                    void handleAssignWorkerSelect(inmueble.id, e.target.value)
+                  }
+                  disabled={bulkBusy || selectedClienteIds.size === 0}
+                  className={`w-full sm:w-auto ${selectClass}`}
+                  aria-label="Trabajador para asignar"
+                >
+                  <option value="" disabled>
+                    {assigning ? 'Asignando…' : 'Asignar a trabajador…'}
+                  </option>
+                  <option value={INMUEBLE_CLIENTE_UNASSIGNED_WORKER}>
+                    Sin asignar
+                  </option>
+                  {workers.map((worker) => (
+                    <option key={worker.id} value={worker.id}>
+                      {worker.nombre} ({getWorkerRolLabel(worker.rol)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {filteredClientes.length > 0 && (
+            <div
+              ref={tableHeadScrollRef}
+              className={INMUEBLE_CLIENTES_TABLE_HEAD_X_SCROLL_CLASS}
+              onScroll={() => syncTableHorizontalScroll('head')}
+            >
+              <table className={INMUEBLE_CLIENTES_TABLE_CLASS}>
+                <thead className="border-b border-black">
+                  <tr>
+                    <th
+                      className={`w-10 border border-black px-3 py-4 ${clienteTableHeadBg}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={allClientesSelected}
+                        ref={(el) => {
+                          if (el) {
+                            el.indeterminate = someClientesSelected;
+                          }
+                        }}
+                        onChange={() =>
+                          toggleSelectAllClientes(filteredClientes)
+                        }
+                        disabled={bulkBusy}
+                        className={`h-4 w-4 rounded border-slate-300 ${accentCheckbox}`}
+                        aria-label="Seleccionar todos los clientes"
+                      />
+                    </th>
+                    {clienteTableColumns.map((col) =>
+                      col.key === 'fecha_contacto' ? (
+                        <th
+                          key={col.key}
+                          className={`w-[5.5rem] min-w-[5.5rem] border border-black px-2 py-4 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={toggleFechaContactoSort}
+                            className="inline-flex w-full flex-col items-center justify-center gap-0.5 uppercase transition hover:text-yellow-200"
+                            title={
+                              fechaContactoSort === 'asc'
+                                ? 'Más antigua primero — clic para más reciente'
+                                : fechaContactoSort === 'desc'
+                                  ? 'Más reciente primero — clic para más antigua'
+                                  : 'Clic para ordenar por fecha de petición'
+                            }
+                          >
+                            <span className="whitespace-pre-line leading-tight">
+                              {formatTableHeaderLabel(
+                                col.shortLabel ?? col.label,
+                              )}
+                            </span>
+                            {fechaContactoSort === 'asc' ? (
+                              <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            ) : fechaContactoSort === 'desc' ? (
+                              <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            ) : (
+                              <ArrowUpDown
+                                className="h-3.5 w-3.5 shrink-0 opacity-60"
+                                aria-hidden
+                              />
+                            )}
+                          </button>
+                        </th>
+                      ) : col.key === 'fecha_ultima_gestion' ? (
+                        <th
+                          key={col.key}
+                          className={`w-[5.5rem] min-w-[5.5rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                        >
+                          <ClienteFechaUltimaGestionFilterHead
+                            label={col.shortLabel ?? col.label}
+                            value={clienteFilters.fecha_ultima_gestion ?? ''}
+                            onChange={(fecha_ultima_gestion) =>
+                              setClienteFilters((prev) => ({
+                                ...prev,
+                                fecha_ultima_gestion,
+                              }))
+                            }
+                            disabled={bulkBusy}
+                            accent={expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}
+                          />
+                        </th>
+                      ) : col.key === 'nombre' ? (
+                        <th
+                          key={col.key}
+                          className={`w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                        >
+                          {formatTableHeaderLabel(col.label)}
+                        </th>
+                      ) : col.key === 'ref_cliente' ? (
+                        <th
+                          key={col.key}
+                          className={`w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                        >
+                          {formatTableHeaderLabel(col.label)}
+                        </th>
+                      ) : col.key === 'gestion_estado' ? (
+                        <th
+                          key={col.key}
+                          className={`w-[14rem] max-w-[14rem] border border-black px-3 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                        >
+                          {formatTableHeaderLabel(col.label)}
+                        </th>
+                      ) : (
+                        <th
+                          key={col.key}
+                          className={`border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                        >
+                          {formatTableHeaderLabel(col.label)}
+                        </th>
+                      ),
+                    )}
+                    <th
+                      className={`w-16 max-w-[4rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${clienteTableHeadBg}`}
+                    >
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+          )}
+        </div>
 
         {clientes.length === 0 ? (
           <p className="py-10 text-center text-slate-500">
@@ -624,136 +767,12 @@ export function InmuebleDetailPageContent({
         ) : filteredClientes.length === 0 ? (
           <TableFilterEmptyState onClear={clearAllFilters} />
         ) : (
-          <>
-          <div className="w-full">
-            <table className="table-fixed min-w-[56rem] w-full border-collapse border border-black text-left text-sm">
-              <thead className="border-b border-black">
-                <tr>
-                  <th
-                    className={`sticky top-0 z-30 w-10 border border-black px-3 py-4 ${
-                      expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={allClientesSelected}
-                      ref={(el) => {
-                        if (el) {
-                          el.indeterminate = someClientesSelected;
-                        }
-                      }}
-                      onChange={() =>
-                        toggleSelectAllClientes(filteredClientes)
-                      }
-                      disabled={bulkBusy}
-                      className={`h-4 w-4 rounded border-slate-300 ${accentCheckbox}`}
-                      aria-label="Seleccionar todos los clientes"
-                    />
-                  </th>
-                  {clienteTableColumns.map((col) =>
-                    col.key === 'fecha_contacto' ? (
-                      <th
-                        key={col.key}
-                        className={`sticky top-0 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-2 py-4 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={toggleFechaContactoSort}
-                          className="inline-flex w-full flex-col items-center justify-center gap-0.5 uppercase transition hover:text-yellow-200"
-                          title={
-                            fechaContactoSort === 'asc'
-                              ? 'Más antigua primero — clic para más reciente'
-                              : fechaContactoSort === 'desc'
-                                ? 'Más reciente primero — clic para más antigua'
-                                : 'Clic para ordenar por fecha de petición'
-                          }
-                        >
-                          <span className="whitespace-pre-line leading-tight">
-                            {formatTableHeaderLabel(
-                              col.shortLabel ?? col.label,
-                            )}
-                          </span>
-                          {fechaContactoSort === 'asc' ? (
-                            <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          ) : fechaContactoSort === 'desc' ? (
-                            <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          ) : (
-                            <ArrowUpDown
-                              className="h-3.5 w-3.5 shrink-0 opacity-60"
-                              aria-hidden
-                            />
-                          )}
-                        </button>
-                      </th>
-                    ) : col.key === 'fecha_ultima_gestion' ? (
-                      <th
-                        key={col.key}
-                        className={`sticky top-0 z-30 w-[5.5rem] min-w-[5.5rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                        }`}
-                      >
-                        <ClienteFechaUltimaGestionFilterHead
-                          label={col.shortLabel ?? col.label}
-                          value={clienteFilters.fecha_ultima_gestion ?? ''}
-                          onChange={(fecha_ultima_gestion) =>
-                            setClienteFilters((prev) => ({
-                              ...prev,
-                              fecha_ultima_gestion,
-                            }))
-                          }
-                          disabled={bulkBusy}
-                          accent={expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}
-                        />
-                      </th>
-                    ) : col.key === 'nombre' ? (
-                      <th
-                        key={col.key}
-                        className={`sticky top-0 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                        }`}
-                      >
-                        {formatTableHeaderLabel(col.label)}
-                      </th>
-                    ) : col.key === 'ref_cliente' ? (
-                      <th
-                        key={col.key}
-                        className={`sticky top-0 z-30 w-[11rem] max-w-[11rem] border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                        }`}
-                      >
-                        {formatTableHeaderLabel(col.label)}
-                      </th>
-                    ) : col.key === 'gestion_estado' ? (
-                      <th
-                        key={col.key}
-                        className={`sticky top-0 z-30 w-[14rem] max-w-[14rem] border border-black px-3 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                        }`}
-                      >
-                        {formatTableHeaderLabel(col.label)}
-                      </th>
-                    ) : (
-                      <th
-                        key={col.key}
-                        className={`sticky top-0 z-30 border border-black px-4 py-4 text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                          expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                        }`}
-                      >
-                        {formatTableHeaderLabel(col.label)}
-                      </th>
-                    ),
-                  )}
-                  <th
-                    className={`sticky top-0 z-30 w-16 max-w-[4rem] border border-black px-1 py-3 text-center text-xs font-semibold uppercase tracking-wide text-yellow-300 ${
-                      expectedTipo === 'alquiler' ? 'bg-emerald-800' : 'bg-slate-900'
-                    }`}
-                  >
-                    <span className="sr-only">Acciones</span>
-                  </th>
-                </tr>
-              </thead>
+          <div
+            ref={tableBodyScrollRef}
+            className={INMUEBLE_CLIENTES_TABLE_X_SCROLL_CLASS}
+            onScroll={() => syncTableHorizontalScroll('body')}
+          >
+            <table className={INMUEBLE_CLIENTES_TABLE_CLASS}>
               <tbody>
                 {filteredClientes.map((cliente) => {
                   const isSelected = selectedClienteIds.has(cliente.id);
@@ -959,7 +978,6 @@ export function InmuebleDetailPageContent({
               </tbody>
             </table>
           </div>
-          </>
         )}
       </section>
 

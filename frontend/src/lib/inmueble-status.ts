@@ -1,4 +1,4 @@
-import type { Inmueble, TipoOperacion } from '@/types/inmueble';
+import type { Inmueble, InmuebleFormData, TipoOperacion } from '@/types/inmueble';
 
 export type InmuebleStatus = NonNullable<Inmueble['status']>;
 

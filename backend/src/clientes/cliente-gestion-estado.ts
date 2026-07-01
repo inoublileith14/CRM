@@ -8,6 +8,7 @@ export const CLIENTE_GESTION_ESTADOS_ALQUILER = [
   'perfil_no_encaja',
   'videollamada',
   'ya_encontro_piso',
+  'cliente_no_interesado',
 ] as const;
 
 export const CLIENTE_GESTION_ESTADOS_VENTA = [
@@ -19,6 +20,7 @@ export const CLIENTE_GESTION_ESTADOS_VENTA = [
   'ya_compro',
   'perfil_no_encaja',
   'videollamada',
+  'cliente_no_interesado',
 ] as const;
 
 export const CLIENTE_GESTION_ESTADOS = [

@@ -124,6 +124,7 @@ import {
   InmuebleFormData,
   TIPO_OPERACION_LABELS,
   TipoOperacion,
+  getInmuebleDefaultEntradaDate,
 } from '@/types/inmueble';
 
 const PAGE_THEMES = {
@@ -622,6 +623,7 @@ export function InmueblesPageContent({
       const created = await createInmueble({
         ...data,
         tipo_operacion: tipoOperacion,
+        fecha_entrada_inmueble: getInmuebleDefaultEntradaDate(),
       });
       applyInmuebleInsertToCache(queryClient, created);
       toast.success('Inmueble creado');
@@ -1652,35 +1654,41 @@ export function InmueblesPageContent({
       )}
 
       {modalOpen && canManageInmuebles && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto">
           <button
             type="button"
             aria-label="Cerrar"
-            className="absolute inset-0 bg-slate-900/50"
+            className="fixed inset-0 bg-slate-900/50"
             onClick={closeModal}
           />
-          <div className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Nuevo inmueble
-              </h2>
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="relative z-10 flex min-h-full justify-center px-3 pb-6 pt-12 sm:px-5 sm:pb-8 sm:pt-16 md:px-8">
+            <div className="flex w-full max-w-[min(96vw,90rem)] flex-col">
+              <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
+                  Nuevo inmueble
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="rounded p-1 text-slate-400 transition hover:bg-white/80 hover:text-slate-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-            <InmuebleForm
-              onSubmit={handleSubmit}
-              onCancel={closeModal}
-              submitLabel="Crear inmueble"
-              loading={saving}
-              fixedTipoOperacion={tipoOperacion}
-            />
+              <div
+                className="max-h-[calc(100vh-7rem)] overflow-y-auto rounded-xl bg-white px-4 py-4 shadow-2xl ring-1 ring-slate-900/10 sm:px-6 sm:py-5 [&_form]:space-y-4 [&_form>div:last-child]:sticky [&_form>div:last-child]:bottom-0 [&_form>div:last-child]:z-10 [&_form>div:last-child]:-mx-4 [&_form>div:last-child]:border-t [&_form>div:last-child]:border-slate-200 [&_form>div:last-child]:bg-white/95 [&_form>div:last-child]:px-4 [&_form>div:last-child]:py-3 [&_form>div:last-child]:backdrop-blur sm:[&_form>div:last-child]:-mx-6 sm:[&_form>div:last-child]:px-6 [&_h3]:text-sm [&_section]:rounded-lg [&_section]:border-0 [&_section]:bg-slate-50/50 [&_section]:p-4 [&_section]:shadow-none [&_section>div:first-child]:mb-3 [&_section:first-of-type_.grid]:grid-cols-1 [&_section:first-of-type_.grid]:gap-3 [&_section:first-of-type_.grid]:sm:grid-cols-3 [&_section:first-of-type_.grid>div:has(#fecha_entrada_inmueble)]:hidden"
+              >
+                <InmuebleForm
+                  onSubmit={handleSubmit}
+                  onCancel={closeModal}
+                  submitLabel="Crear inmueble"
+                  loading={saving}
+                  fixedTipoOperacion={tipoOperacion}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}

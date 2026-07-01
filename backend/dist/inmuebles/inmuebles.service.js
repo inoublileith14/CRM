@@ -114,7 +114,6 @@ function chunkArray(items, size) {
     }
     return chunks;
 }
-const HYDRATE_LINKED_FULL_SCAN_THRESHOLD = 120;
 const HYDRATE_LINKED_IN_BATCH_SIZE = 80;
 const HYDRATE_UNLINKED_IN_BATCH_SIZE = 200;
 let InmueblesService = class InmueblesService {
@@ -369,21 +368,6 @@ let InmueblesService = class InmueblesService {
             .filter((row) => row != null);
     }
     async fetchLinkedRowsForHydration(tipoOperacion, linkedItems, pairKeys) {
-        const fetchByTipo = () => fetchAll((from, to) => this.supabase
-            .getAdmin()
-            .from('cliente_inmuebles')
-            .select(CLIENTE_INMUEBLE_LINK_SELECT)
-            .eq('inmuebles.tipo_operacion', tipoOperacion)
-            .range(from, to));
-        if (linkedItems.length > HYDRATE_LINKED_FULL_SCAN_THRESHOLD) {
-            const all = await fetchByTipo();
-            return all.filter((linkRow) => {
-                const inmuebleId = linkRow.inmueble_id;
-                const clienteId = linkRow.cliente_id;
-                return (Boolean(inmuebleId && clienteId) &&
-                    pairKeys.has(`${inmuebleId}:${clienteId}`));
-            });
-        }
         const linkedRows = [];
         const seen = new Set();
         for (const batch of chunkArray(linkedItems, HYDRATE_LINKED_IN_BATCH_SIZE)) {
@@ -516,9 +500,13 @@ let InmueblesService = class InmueblesService {
     }
     async create(dto) {
         const ownerFields = (0, inmueble_propietarios_util_1.normalizePropietariosContactos)(dto);
+        const today = new Date();
+        const pad = (value) => String(value).padStart(2, '0');
+        const fechaEntradaDefault = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
         const payload = (0, inmueble_split_fields_1.normalizeInmuebleSplitFields)({
             ...dto,
             ...ownerFields,
+            fecha_entrada_inmueble: dto.fecha_entrada_inmueble?.trim() || fechaEntradaDefault,
         });
         const { data, error } = await this.supabase
             .getAdmin()

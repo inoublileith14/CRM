@@ -52,6 +52,11 @@ export type InmuebleFormData = Omit<
   'id' | 'created_at' | 'updated_at'
 >;
 
+export function getInmuebleDefaultEntradaDate(referenceDate = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${referenceDate.getFullYear()}-${pad(referenceDate.getMonth() + 1)}-${pad(referenceDate.getDate())}`;
+}
+
 export const INMUEBLE_FIELDS: {
   key: keyof InmuebleFormData;
   label: string;
@@ -145,7 +150,7 @@ export const INMUEBLE_FIELDS: {
 
 export const emptyInmuebleForm = (): InmuebleFormData => ({
   ref: null,
-  fecha_entrada_inmueble: null,
+  fecha_entrada_inmueble: getInmuebleDefaultEntradaDate(),
   imagen_real: null,
   direccion_piso_real: null,
   foto_espejo: null,

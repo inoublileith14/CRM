@@ -9,7 +9,8 @@ export type ClienteGestionEstadoAlquiler =
   | 'pendiente_cuadrar_docs'
   | 'perfil_no_encaja'
   | 'videollamada'
-  | 'ya_encontro_piso';
+  | 'ya_encontro_piso'
+  | 'cliente_no_interesado';
 
 export type ClienteGestionEstadoVenta =
   | 'no_gestionado'
@@ -19,7 +20,8 @@ export type ClienteGestionEstadoVenta =
   | 'pendiente_cuadrar_visita'
   | 'ya_compro'
   | 'perfil_no_encaja'
-  | 'videollamada';
+  | 'videollamada'
+  | 'cliente_no_interesado';
 
 export type ClienteGestionEstado =
   | ClienteGestionEstadoAlquiler
@@ -89,6 +91,12 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
     backgroundColor: '#ff0000',
     textColor: '#000000',
   },
+  {
+    value: 'cliente_no_interesado',
+    label: 'CLIENTE NO INTERESADO',
+    backgroundColor: '#a0a0a0',
+    textColor: '#000000',
+  },
 ];
 
 export const CLIENTE_GESTION_ESTADO_OPTIONS_VENTA: GestionOption[] = [
@@ -133,6 +141,12 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_VENTA: GestionOption[] = [
     label: 'PERFIL NO ENCAJA',
     backgroundColor: '#ff0000',
     textColor: '#ffffff',
+  },
+  {
+    value: 'cliente_no_interesado',
+    label: 'CLIENTE NO INTERESADO',
+    backgroundColor: '#a0a0a0',
+    textColor: '#000000',
   },
   {
     value: 'videollamada',

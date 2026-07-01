@@ -8,28 +8,27 @@ import {
 
 export function usePersistedState<T>(storageKey: string, defaultValue: T) {
   const [state, setState] = useState<T>(defaultValue);
-  const hydratedRef = useRef(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const skipSaveRef = useRef(true);
 
   useEffect(() => {
-    if (hydratedRef.current) return;
     setState(loadPersistedTableState(storageKey, defaultValue));
-    hydratedRef.current = true;
+    setIsHydrated(true);
   }, [storageKey, defaultValue]);
 
   useEffect(() => {
-    if (!hydratedRef.current) return;
+    if (!isHydrated) return;
     if (skipSaveRef.current) {
       skipSaveRef.current = false;
       return;
     }
     savePersistedTableState(storageKey, state);
-  }, [storageKey, state]);
+  }, [storageKey, state, isHydrated]);
 
   const reset = useCallback(() => {
     setState(defaultValue);
     savePersistedTableState(storageKey, defaultValue);
   }, [defaultValue, storageKey]);
 
-  return [state, setState, reset] as const;
+  return [state, setState, reset, isHydrated] as const;
 }

@@ -155,7 +155,7 @@ export function InmuebleClientesGeneralPageContent({
   const { invalidateClientesByTipo, invalidateAllInmuebles } =
     useInvalidateDashboardQueries();
 
-  const [listState, setListState] = usePersistedState(
+  const [listState, setListState, , isListStateHydrated] = usePersistedState(
     `${buildTableStateKey(pathname, expectedTipo)}:clientes-general:v2`,
     DEFAULT_CLIENTES_GENERAL_LIST_STATE,
   );
@@ -216,7 +216,9 @@ export function InmuebleClientesGeneralPageContent({
     return params;
   }, [page, effectiveLimit, tableSort]);
 
-  const rowsQuery = useClientesByTipoQuery(expectedTipo, listParams);
+  const rowsQuery = useClientesByTipoQuery(expectedTipo, listParams, {
+    enabled: isListStateHydrated,
+  });
   useClientesByTipoRealtime(expectedTipo);
   const workersQuery = useWorkersQuery(true);
   const inmueblesQuery = useInmueblesQuery({ tipo_operacion: expectedTipo });
