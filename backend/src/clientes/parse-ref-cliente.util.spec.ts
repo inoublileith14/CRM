@@ -6,6 +6,22 @@ import {
 import { findInmuebleIdByClienteRef } from './match-inmueble-ref.util';
 
 describe('parseRefCliente', () => {
+  it('parses alquiler rent reference with B token for banos', () => {
+    const parsed = parseRefCliente('1800 4h 1b RAMBLA POBLENOU');
+
+    expect(parsed.presupuesto).toBe('1800');
+    expect(parsed.habitaciones).toBe(4);
+    expect(parsed.banos).toBe(1);
+    expect(parsed.zona).toBe('RAMBLA POBLENOU');
+  });
+
+  it('prefers B token over second H for banos', () => {
+    const parsed = parseRefCliente('1500 3h 4b EIXAMPLE');
+
+    expect(parsed.habitaciones).toBe(3);
+    expect(parsed.banos).toBe(4);
+  });
+
   it('parses alquiler rent reference with two H tokens and metros', () => {
     const parsed = parseRefCliente(
       '5800 3H 1H 50M RAMBLA POBLENOU SANT MARTÍ',

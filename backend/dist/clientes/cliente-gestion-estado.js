@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CLIENTE_GESTION_ESTADOS = exports.CLIENTE_GESTION_ESTADOS_VENTA = exports.CLIENTE_GESTION_ESTADOS_ALQUILER = void 0;
 exports.getDefaultClienteGestionEstado = getDefaultClienteGestionEstado;
 exports.isClienteGestionEstadoForTipo = isClienteGestionEstadoForTipo;
+exports.isClienteVisitaGestionEstado = isClienteVisitaGestionEstado;
 exports.CLIENTE_GESTION_ESTADOS_ALQUILER = [
     'no_gestionando',
     'gestionando',
@@ -39,5 +40,8 @@ function isClienteGestionEstadoForTipo(value, tipoOperacion) {
         ? exports.CLIENTE_GESTION_ESTADOS_ALQUILER
         : exports.CLIENTE_GESTION_ESTADOS_VENTA;
     return allowed.includes(value);
+}
+function isClienteVisitaGestionEstado(value) {
+    return value === 'visita_concertada' || value === 'videollamada';
 }
 //# sourceMappingURL=cliente-gestion-estado.js.map

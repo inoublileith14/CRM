@@ -5,3 +5,10 @@ export declare function contactDayUtcRange(dateKey: string): {
     dayStart: string;
     dayEnd: string;
 };
+export interface ClienteTelefonoRef {
+    id: string;
+    telefono: string | null | undefined;
+}
+export declare function pickUniqueClienteIdsByTelefono(clientes: ClienteTelefonoRef[], options?: {
+    preferClienteIds?: Iterable<string>;
+}): string[];

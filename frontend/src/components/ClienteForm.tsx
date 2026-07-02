@@ -113,6 +113,7 @@ export function ClienteForm({
       barrio: parseZonasInput((form.get('barrio') as string) || ''),
       distrito: parseZonasInput((form.get('distrito') as string) || ''),
       tipo_nomina: initial?.tipo_nomina ?? null,
+      tipo_ingreso: initial?.tipo_ingreso ?? null,
       tipo_cliente: initial?.tipo_cliente ?? null,
       estado: (form.get('estado') as ClienteEstado) || 'pendiente',
       origen: ((form.get('origen') as string) || null) as ClienteOrigen | null,

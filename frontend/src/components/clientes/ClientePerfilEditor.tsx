@@ -8,6 +8,10 @@ import {
   CLIENTE_TIPO_NOMINA_OPTIONS,
   normalizeClienteTipoNomina,
 } from '@/lib/cliente-tipo-nomina';
+import {
+  CLIENTE_TIPO_INGRESO_OPTIONS,
+  normalizeClienteTipoIngreso,
+} from '@/lib/cliente-tipo-ingreso';
 import { ClientePerfil, ClientePerfilInput } from '@/types/cliente';
 
 interface ClientePerfilEditorProps {
@@ -22,7 +26,9 @@ interface PerfilDraft {
   telefono: string;
   pais: string;
   tipo_nomina: string;
+  tipo_ingreso: string;
   ingreso_monto: string;
+  banos: string;
   notas: string;
 }
 
@@ -36,9 +42,14 @@ function perfilToDraft(perfil: ClientePerfil): PerfilDraft {
     telefono: perfil.telefono?.trim() ?? '',
     pais: perfil.pais?.trim() ?? '',
     tipo_nomina: normalizeClienteTipoNomina(perfil.tipo_nomina) ?? '',
+    tipo_ingreso: normalizeClienteTipoIngreso(perfil.tipo_ingreso) ?? '',
     ingreso_monto:
       perfil.ingreso_monto != null && !Number.isNaN(perfil.ingreso_monto)
         ? String(perfil.ingreso_monto)
+        : '',
+    banos:
+      perfil.banos != null && !Number.isNaN(perfil.banos)
+        ? String(perfil.banos)
         : '',
     notas: perfil.notas?.trim() ?? '',
   };
@@ -58,6 +69,13 @@ function parseIngresoMonto(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function parseIntegerDraft(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const value = Number(trimmed.replace(',', '.'));
+  return Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
 function draftToPayload(
   draft: PerfilDraft,
   orden: number,
@@ -67,13 +85,20 @@ function draftToPayload(
     throw new Error('Introduce un importe de ingreso válido');
   }
 
+  const banos = parseIntegerDraft(draft.banos);
+  if (draft.banos.trim() && banos === null) {
+    throw new Error('Introduce un número válido de baños');
+  }
+
   return {
     orden,
     nombre: draft.nombre.trim() || null,
     telefono: draft.telefono.trim() || null,
     pais: draft.pais.trim() || null,
     tipo_nomina: draft.tipo_nomina.trim() || null,
+    tipo_ingreso: draft.tipo_ingreso.trim() || null,
     ingreso_monto: ingreso,
+    banos,
     notas: draft.notas.trim() || null,
   };
 }
@@ -216,12 +241,25 @@ export function ClientePerfilEditor({
           onChange={(value) => updateField('tipo_nomina', value)}
           options={CLIENTE_TIPO_NOMINA_OPTIONS}
         />
+        <PerfilSelectField
+          label="Origen ingresos"
+          value={draft.tipo_ingreso}
+          onChange={(value) => updateField('tipo_ingreso', value)}
+          options={CLIENTE_TIPO_INGRESO_OPTIONS}
+        />
         <PerfilField
           label="Ingreso"
           value={draft.ingreso_monto}
           onChange={(value) => updateField('ingreso_monto', value)}
           accentClassName={accentClassName}
           placeholder="1700"
+        />
+        <PerfilField
+          label="Baños"
+          value={draft.banos}
+          onChange={(value) => updateField('banos', value)}
+          type="number"
+          placeholder="1"
         />
         <label className="block rounded-xl bg-slate-50 px-3 py-2 sm:col-span-2">
           <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[10px]">

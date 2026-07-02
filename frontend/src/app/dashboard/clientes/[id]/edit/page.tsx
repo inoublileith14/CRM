@@ -69,6 +69,7 @@ export default function EditClientePage() {
     barrio: cliente.barrio,
     distrito: cliente.distrito,
     tipo_nomina: cliente.tipo_nomina,
+    tipo_ingreso: cliente.tipo_ingreso,
     tipo_cliente: cliente.tipo_cliente,
     estado: cliente.estado,
     origen: cliente.origen,

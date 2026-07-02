@@ -11,6 +11,8 @@ import {
   CLIENTE_ENTRADA_PREVISTA_OPTIONS,
 } from '@/lib/cliente-entrada-prevista';
 import { getClienteTipoClienteLabel } from '@/lib/cliente-tipo';
+import { getClienteTipoIngresoLabel } from '@/lib/cliente-tipo-ingreso';
+import { getClienteTipoNominaLabel } from '@/lib/cliente-tipo-nomina';
 import { formatClienteZonasLabel } from '@/lib/cliente-zonas';
 import { formatClientePhonesDisplay } from '@/lib/cliente-telefonos';
 import { parseRefCliente } from '@/lib/parse-ref-cliente';
@@ -257,6 +259,12 @@ export function buildInmuebleClienteTableColumns(
       getDisplayValue: (c) => toFilterDisplay(c.telefono),
     },
     {
+      key: 'visita_no_realizada',
+      label: 'NO ASIST.',
+      shortLabel: 'NO\nASIST.',
+      getDisplayValue: (c) => (c.visita_no_realizada ? 'Sí' : 'No'),
+    },
+    {
       key: 'gestion_estado',
       label: 'GESTIÓN',
       getDisplayValue: (c) =>
@@ -438,7 +446,17 @@ export function buildVentaDenseClienteTableColumns(
       shortLabel: 'NÓM.',
       headClassName: 'w-[7.5rem] text-center',
       cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
-      getDisplayValue: (cliente) => toFilterDisplay(cliente.tipo_nomina),
+      getDisplayValue: (cliente) =>
+        getClienteTipoNominaLabel(cliente.tipo_nomina, true),
+    },
+    {
+      key: 'tipo_ingreso',
+      label: 'ORIGEN INGRESOS',
+      shortLabel: 'ORIG.',
+      headClassName: 'w-[7.5rem] text-center',
+      cellClassName: `w-[7.5rem] max-w-[7.5rem] ${center}`,
+      getDisplayValue: (cliente) =>
+        getClienteTipoIngresoLabel(cliente.tipo_ingreso, true),
     },
     {
       key: 'tipo_cliente',

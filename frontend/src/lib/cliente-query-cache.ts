@@ -56,6 +56,7 @@ export function mapRealtimeRowToCliente(
     barrio: normalizeClienteZonas(row.barrio),
     distrito: normalizeClienteZonas(row.distrito),
     tipo_nomina: toStringOrNull(row.tipo_nomina),
+    tipo_ingreso: toStringOrNull(row.tipo_ingreso),
     tipo_cliente: isClienteTipoCliente(toStringOrNull(row.tipo_cliente))
       ? (toStringOrNull(row.tipo_cliente) as Cliente['tipo_cliente'])
       : null,
@@ -154,6 +155,7 @@ export function applyClienteLinkUpdateToInmuebleDetail(
   link: {
     gestion_estado?: string | null;
     fecha_ultima_gestion?: string | null;
+    visita_no_realizada?: boolean | null;
   },
 ): void {
   const patch: Partial<Cliente> = {};
@@ -162,6 +164,9 @@ export function applyClienteLinkUpdateToInmuebleDetail(
   }
   if (link.fecha_ultima_gestion !== undefined) {
     patch.fecha_ultima_gestion = link.fecha_ultima_gestion;
+  }
+  if (link.visita_no_realizada !== undefined && link.visita_no_realizada !== null) {
+    patch.visita_no_realizada = link.visita_no_realizada;
   }
   if (Object.keys(patch).length === 0) return;
   patchClienteInInmuebleDetail(queryClient, inmuebleId, clienteId, patch);

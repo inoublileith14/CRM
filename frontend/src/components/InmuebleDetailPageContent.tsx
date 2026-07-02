@@ -13,6 +13,7 @@ import { ClienteWhatsAppButton } from '@/components/ClienteWhatsAppButton';
 import { ClienteFechaUltimaGestionCell } from '@/components/ClienteFechaUltimaGestionCell';
 import { ClienteFechaUltimaGestionFilterHead } from '@/components/ClienteFechaUltimaGestionFilterHead';
 import { ClienteGestionEstadoSelect } from '@/components/ClienteGestionEstadoSelect';
+import { ClienteVisitaNoRealizadaSwitch } from '@/components/ClienteVisitaNoRealizadaSwitch';
 import type { ClienteGestionEventContext } from '@/components/ClienteGestionEstadoSelect';
 import {
   GestionCalendarEventDialog,
@@ -679,7 +680,7 @@ export function InmuebleDetailPageContent({
               onScroll={() => syncTableHorizontalScroll('head')}
             >
               <table className={INMUEBLE_CLIENTES_TABLE_CLASS}>
-                <InmuebleClienteTableColgroup />
+                <InmuebleClienteTableColgroup tipoOperacion={expectedTipo} />
                 <thead className="border-b border-black">
                   <tr>
                     <th className={INMUEBLE_CLIENTE_CHECKBOX_TH_CLASS + ` ${clienteTableHeadBg}`}>
@@ -788,7 +789,9 @@ export function InmuebleDetailPageContent({
                           key={col.key}
                           className={inmuebleClienteHeadClass(col.key, clienteTableHeadBg)}
                         >
-                          {formatTableHeaderLabel(col.shortLabel ?? col.label)}
+                          <span className="block whitespace-pre-line leading-tight">
+                            {formatTableHeaderLabel(col.shortLabel ?? col.label)}
+                          </span>
                         </th>
                       ),
                     )}
@@ -816,7 +819,7 @@ export function InmuebleDetailPageContent({
             onScroll={() => syncTableHorizontalScroll('body')}
           >
             <table className={INMUEBLE_CLIENTES_TABLE_CLASS}>
-              <InmuebleClienteTableColgroup />
+              <InmuebleClienteTableColgroup tipoOperacion={expectedTipo} />
               <tbody>
                 {filteredClientes.map((cliente) => {
                   const isSelected = selectedClienteIds.has(cliente.id);
@@ -848,6 +851,28 @@ export function InmuebleDetailPageContent({
                         );
                       }
 
+                      if (col.key === 'visita_no_realizada') {
+                        return (
+                          <td
+                            key={col.key}
+                            className={inmuebleClienteBodyClass(col.key)}
+                          >
+                            <ClienteVisitaNoRealizadaSwitch
+                              inmuebleId={inmueble.id}
+                              clienteId={cliente.id}
+                              gestionEstado={cliente.gestion_estado}
+                              value={cliente.visita_no_realizada}
+                              disabled={bulkBusy}
+                              onUpdated={(visita_no_realizada) =>
+                                handleClientePatch(cliente.id, {
+                                  visita_no_realizada,
+                                })
+                              }
+                            />
+                          </td>
+                        );
+                      }
+
                       if (col.key === 'gestion_estado') {
                         return (
                           <td
@@ -875,6 +900,10 @@ export function InmuebleDetailPageContent({
                                 handleClientePatch(cliente.id, {
                                   gestion_estado: result.gestion_estado,
                                   fecha_ultima_gestion: result.fecha_ultima_gestion,
+                                  ...(result.gestion_estado === 'visita_concertada' ||
+                                  result.gestion_estado === 'videollamada'
+                                    ? {}
+                                    : { visita_no_realizada: false }),
                                 })
                               }
                             />

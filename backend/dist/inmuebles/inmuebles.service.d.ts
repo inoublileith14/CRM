@@ -38,6 +38,9 @@ export declare class InmueblesService {
     updateClienteFechaUltimaGestion(inmuebleId: string, clienteId: string, fechaUltimaGestion: string | null): Promise<{
         fecha_ultima_gestion: string | null;
     }>;
+    updateClienteVisitaNoRealizada(inmuebleId: string, clienteId: string, visitaNoRealizada: boolean): Promise<{
+        visita_no_realizada: boolean;
+    }>;
     remove(id: string): Promise<{
         mensaje: string;
     }>;

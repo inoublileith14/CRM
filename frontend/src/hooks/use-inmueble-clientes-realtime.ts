@@ -39,6 +39,7 @@ function toDetailCliente(
   link?: {
     gestion_estado?: string | null;
     fecha_ultima_gestion?: string | null;
+    visita_no_realizada?: boolean | null;
   },
 ): Cliente {
   return {
@@ -49,6 +50,8 @@ function toDetailCliente(
       null,
     fecha_ultima_gestion:
       link?.fecha_ultima_gestion ?? fetched.fecha_ultima_gestion ?? null,
+    visita_no_realizada:
+      link?.visita_no_realizada ?? fetched.visita_no_realizada ?? false,
     workers: fetched.workers ?? [],
     worker_ids: fetched.worker_ids ?? [],
     workers_count: fetched.workers?.length ?? 0,
@@ -158,6 +161,10 @@ export function useInmuebleClientesRealtime(inmuebleId: string) {
                     fecha_ultima_gestion: toStringOrNullish(
                       newRecord?.fecha_ultima_gestion,
                     ),
+                    visita_no_realizada:
+                      typeof newRecord?.visita_no_realizada === 'boolean'
+                        ? newRecord.visita_no_realizada
+                        : undefined,
                   },
                 );
               } else {

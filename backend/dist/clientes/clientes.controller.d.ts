@@ -23,6 +23,7 @@ export declare class ClientesController {
     bulkAssignInmueble(dto: BulkAssignInmuebleDto): Promise<{
         assigned: number;
         skipped: number;
+        phone_duplicates_skipped: number;
     }>;
     bulkRemove(dto: BulkDeleteClientesDto): Promise<{
         deleted: number;

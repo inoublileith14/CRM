@@ -5,6 +5,9 @@ import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import {
   ClienteGestionEstado,
+  estimateGestionSelectWidthPx,
+  GESTION_SELECT_CHROME_PX,
+  GESTION_SELECT_LABEL_CLASS,
   getClienteGestionEstadoOption,
   getClienteGestionEstadoOptions,
   getGestionOptionStyle,
@@ -31,8 +34,12 @@ export function ClienteGestionEstadoFilterSelect({
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
 
   const options = getClienteGestionEstadoOptions(tipoOperacion);
+  const gestionSelectWidth =
+    measuredWidth ?? estimateGestionSelectWidthPx(tipoOperacion);
   const selected = value
     ? getClienteGestionEstadoOption(value, tipoOperacion)
     : null;
@@ -43,13 +50,26 @@ export function ClienteGestionEstadoFilterSelect({
       : 'focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20';
 
   const triggerClass = compact
-    ? `h-7 min-w-0 max-w-[6.5rem] shrink rounded-md border border-slate-300 bg-white px-2 text-xs outline-none transition disabled:opacity-60 sm:max-w-[7.5rem] ${focusRingClass}`
-    : `min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:ring-2 disabled:opacity-60 sm:w-56 ${focusRingClass}`;
+    ? `h-7 min-w-0 shrink-0 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition disabled:opacity-60 ${focusRingClass}`
+    : `min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 disabled:opacity-60 sm:w-56 ${focusRingClass}`;
 
   const placeholderLabel = compact ? 'Estados' : 'Todos los estados';
-  const allOptionLabel = 'TODOS LOS ESTADOS';
+  const allOptionLabel = 'Todos los estados';
 
   useEffect(() => setMounted(true), []);
+
+  useLayoutEffect(() => {
+    if (!compact || !measureRef.current) return;
+
+    const labels = measureRef.current.querySelectorAll('[data-gestion-label]');
+    let maxText = 0;
+    labels.forEach((node) => {
+      maxText = Math.max(maxText, node.getBoundingClientRect().width);
+    });
+    if (maxText > 0) {
+      setMeasuredWidth(Math.ceil(maxText) + GESTION_SELECT_CHROME_PX);
+    }
+  }, [compact, options, tipoOperacion]);
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -129,6 +149,19 @@ export function ClienteGestionEstadoFilterSelect({
           maxHeight: 'min(360px, calc(100vh - 1rem))',
         }}
       >
+        <li role="option" aria-selected={value === ''}>
+          <button
+            type="button"
+            onClick={() => handleSelect('')}
+            className={`block w-full px-2 py-1.5 text-center font-bold uppercase leading-tight transition hover:bg-slate-50 ${
+              compact ? 'text-[9px] break-words' : 'whitespace-nowrap py-2 text-[10px] sm:text-xs'
+            } ${
+              value === '' ? 'bg-slate-100 text-slate-900' : 'bg-white text-slate-700'
+            }`}
+          >
+            {allOptionLabel}
+          </button>
+        </li>
         {options.map((option) => (
           <li
             key={option.value}
@@ -139,7 +172,7 @@ export function ClienteGestionEstadoFilterSelect({
               type="button"
               onClick={() => handleSelect(option.value)}
               style={getGestionOptionStyle(option)}
-              className={`block w-full px-2 py-1.5 text-left font-bold uppercase leading-tight transition hover:brightness-95 ${
+              className={`block w-full px-2 py-1.5 text-center font-bold uppercase leading-tight transition hover:brightness-95 ${
                 compact ? 'text-[9px] break-words' : 'whitespace-nowrap py-2 text-[10px] sm:text-xs'
               }`}
             >
@@ -147,39 +180,41 @@ export function ClienteGestionEstadoFilterSelect({
             </button>
           </li>
         ))}
-        <li role="option" aria-selected={value === ''}>
-          <button
-            type="button"
-            onClick={() => handleSelect('')}
-            className={`block w-full px-2 py-1.5 text-left font-bold uppercase leading-tight transition hover:bg-slate-50 ${
-              compact ? 'text-[9px] break-words' : 'whitespace-nowrap py-2 text-[10px] sm:text-xs'
-            } ${
-              value === '' ? 'bg-slate-100 text-slate-900' : 'bg-white text-slate-700'
-            }`}
-          >
-            {allOptionLabel}
-          </button>
-        </li>
       </ul>
     ) : null;
 
   return (
     <>
+      {compact ? (
+        <div
+          ref={measureRef}
+          aria-hidden
+          className="pointer-events-none fixed -left-[9999px] top-0 opacity-0"
+        >
+          {options.map((option) => (
+            <span
+              key={option.value}
+              data-gestion-label
+              className={`block whitespace-nowrap ${GESTION_SELECT_LABEL_CLASS}`}
+            >
+              {option.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <button
         ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        style={selected ? getGestionOptionStyle(selected) : undefined}
-        className={`inline-flex items-center justify-between gap-1 text-left font-medium text-slate-900 ${triggerClass} ${
-          selected ? 'font-bold uppercase' : ''
-        }`}
+        style={compact ? { width: gestionSelectWidth } : undefined}
+        className={`inline-flex items-center justify-between gap-1 font-normal ${triggerClass}`}
         aria-label="Filtrar por estado"
         aria-haspopup="listbox"
         aria-expanded={open}
         title={compact ? 'Filtrar por estado' : undefined}
       >
-        <span className="min-w-0 flex-1 truncate">
+        <span className="min-w-0 flex-1 truncate text-center">
           {selected ? selected.label : placeholderLabel}
         </span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />

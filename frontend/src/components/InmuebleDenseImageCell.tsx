@@ -2,7 +2,12 @@
 
 import { Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { getInmuebleImageBackground, resolveInmuebleImageSrc } from '@/lib/inmueble-table-utils';
+import {
+  getInmuebleImageBackground,
+  INMUEBLE_DENSE_OVERLAY_BAR_CLASS,
+  INMUEBLE_DENSE_OVERLAY_TEXT_CLASS,
+  resolveInmuebleImageSrc,
+} from '@/lib/inmueble-table-utils';
 
 interface InmuebleDenseImageCellProps {
   imageUrl: string | null | undefined;
@@ -59,13 +64,13 @@ function ImageOverlayBar({
         tall
           ? 'min-h-[0.9375rem] items-center py-0.5 sm:min-h-[1.25rem] sm:py-1'
           : 'items-start py-px sm:py-0.5'
-      }${backgroundColor ? '' : ' bg-black/55'}`}
+      }${backgroundColor ? '' : ` ${INMUEBLE_DENSE_OVERLAY_BAR_CLASS}`}`}
       style={backgroundColor ? { backgroundColor } : undefined}
     >
       <p
-        className={`min-w-0 flex-1 select-text font-serif font-bold ${textColorClass} ${
-          compact ? 'text-[7px] sm:text-[8px]' : 'text-[10px] sm:text-xs'
-        } ${tall ? 'leading-snug' : 'leading-tight'} ${
+        className={`min-w-0 flex-1 select-text ${INMUEBLE_DENSE_OVERLAY_TEXT_CLASS} ${textColorClass} ${
+          compact ? 'text-[7px] sm:text-[8px]' : ''
+        } ${tall ? '' : 'leading-tight'} ${
           wrap ? 'break-words whitespace-normal' : 'truncate'
         }`}
       >

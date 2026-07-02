@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const create_inmueble_dto_1 = require("./dto/create-inmueble.dto");
 const update_cliente_fecha_ultima_gestion_dto_1 = require("./dto/update-cliente-fecha-ultima-gestion.dto");
+const update_cliente_visita_no_realizada_dto_1 = require("./dto/update-cliente-visita-no-realizada.dto");
 const update_cliente_gestion_estado_dto_1 = require("./dto/update-cliente-gestion-estado.dto");
 const update_inmueble_dto_1 = require("./dto/update-inmueble.dto");
 const inmuebles_service_1 = require("./inmuebles.service");
@@ -77,6 +78,9 @@ let InmueblesController = class InmueblesController {
     }
     updateClienteFechaUltimaGestion(inmuebleId, clienteId, dto) {
         return this.inmueblesService.updateClienteFechaUltimaGestion(inmuebleId, clienteId, dto.fecha_ultima_gestion);
+    }
+    updateClienteVisitaNoRealizada(inmuebleId, clienteId, dto) {
+        return this.inmueblesService.updateClienteVisitaNoRealizada(inmuebleId, clienteId, dto.visita_no_realizada);
     }
     findOne(id) {
         return this.inmueblesService.findOne(id);
@@ -167,6 +171,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, update_cliente_fecha_ultima_gestion_dto_1.UpdateClienteFechaUltimaGestionDto]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "updateClienteFechaUltimaGestion", null);
+__decorate([
+    (0, common_1.Patch)(':inmuebleId/clientes/:clienteId/visita-no-realizada'),
+    __param(0, (0, common_1.Param)('inmuebleId')),
+    __param(1, (0, common_1.Param)('clienteId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, update_cliente_visita_no_realizada_dto_1.UpdateClienteVisitaNoRealizadaDto]),
+    __metadata("design:returntype", void 0)
+], InmueblesController.prototype, "updateClienteVisitaNoRealizada", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

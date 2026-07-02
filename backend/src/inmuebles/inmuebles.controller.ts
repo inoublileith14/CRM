@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserProfile } from '../auth/interfaces/user.interface';
 import { CreateInmuebleDto } from './dto/create-inmueble.dto';
 import { UpdateClienteFechaUltimaGestionDto } from './dto/update-cliente-fecha-ultima-gestion.dto';
+import { UpdateClienteVisitaNoRealizadaDto } from './dto/update-cliente-visita-no-realizada.dto';
 import { UpdateClienteGestionEstadoDto } from './dto/update-cliente-gestion-estado.dto';
 import { UpdateInmuebleDto } from './dto/update-inmueble.dto';
 import { InmueblesService } from './inmuebles.service';
@@ -145,6 +146,19 @@ export class InmueblesController {
       inmuebleId,
       clienteId,
       dto.fecha_ultima_gestion,
+    );
+  }
+
+  @Patch(':inmuebleId/clientes/:clienteId/visita-no-realizada')
+  updateClienteVisitaNoRealizada(
+    @Param('inmuebleId') inmuebleId: string,
+    @Param('clienteId') clienteId: string,
+    @Body() dto: UpdateClienteVisitaNoRealizadaDto,
+  ) {
+    return this.inmueblesService.updateClienteVisitaNoRealizada(
+      inmuebleId,
+      clienteId,
+      dto.visita_no_realizada,
     );
   }
 

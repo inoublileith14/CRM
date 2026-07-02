@@ -5,13 +5,16 @@ import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getInmuebleDenseHeaderColor } from '@/lib/inmueble-table-layout';
 import {
   InmueblePropietarioContacto,
   padPropietarioFormSlots,
   parsePropietariosFromForm,
 } from '@/lib/inmueble-propietarios';
 import { updateInmueble } from '@/lib/inmuebles-api';
+import {
+  INMUEBLE_DENSE_OVERLAY_BAR_CLASS,
+  INMUEBLE_DENSE_OVERLAY_TEXT_CLASS,
+} from '@/lib/inmueble-table-utils';
 import { TipoOperacion } from '@/types/inmueble';
 
 interface InmueblePropiCellProps {
@@ -45,42 +48,31 @@ interface PillTheme {
   empty: string;
 }
 
-const DENSE_PROPI_PILL_STYLE_ALQUILER: PillStyleSet = {
-  pill: 'text-white shadow-sm shadow-black/10',
-  circle: 'bg-[#006847]',
+/** Dense PROPI tags — same bar as entrada address overlay (Calle…). */
+const DENSE_PROPI_TAG_BASE = INMUEBLE_DENSE_OVERLAY_BAR_CLASS;
+
+const DENSE_PROPI_TAG_TEXT = `${INMUEBLE_DENSE_OVERLAY_TEXT_CLASS} normal-case tracking-normal`;
+
+const DENSE_PROPI_PILL_STYLE: PillStyleSet = {
+  pill: DENSE_PROPI_TAG_BASE,
+  circle: 'bg-black/70',
   circleBorder: 'border-l border-white/20',
-  hover: 'hover:opacity-90',
+  hover: 'hover:bg-black/65',
 };
 
-const DENSE_PROPI_PILL_STYLE_VENTA: PillStyleSet = {
-  pill: 'text-white shadow-sm shadow-black/10',
-  circle: 'bg-[#163a72]',
-  circleBorder: 'border-l border-white/20',
-  hover: 'hover:opacity-90',
-};
-
-function getPillTheme(tipoOperacion: TipoOperacion): PillTheme {
-  const pillStyle =
-    tipoOperacion === 'venta'
-      ? DENSE_PROPI_PILL_STYLE_VENTA
-      : DENSE_PROPI_PILL_STYLE_ALQUILER;
+function getPillTheme(_tipoOperacion: TipoOperacion): PillTheme {
   return {
-    primary: pillStyle,
-    secondary: pillStyle,
-    fecha: pillStyle,
-    empty: 'text-white/60 shadow-sm shadow-black/10',
+    primary: DENSE_PROPI_PILL_STYLE,
+    secondary: DENSE_PROPI_PILL_STYLE,
+    fecha: DENSE_PROPI_PILL_STYLE,
+    empty: `${DENSE_PROPI_TAG_BASE} text-white/55`,
   };
-}
-
-function getPropiPillBackgroundStyle(tipoOperacion: TipoOperacion) {
-  return { backgroundColor: getInmuebleDenseHeaderColor(tipoOperacion) };
 }
 
 interface PropiPillProps {
   label: string;
   variant: PillVariant;
   theme: PillTheme;
-  pillBackgroundStyle: { backgroundColor: string };
   interactive?: boolean;
   isPlaceholder?: boolean;
   onClick?: () => void;
@@ -91,7 +83,6 @@ function PropiPill({
   label,
   variant,
   theme,
-  pillBackgroundStyle,
   interactive = false,
   isPlaceholder = false,
   onClick,
@@ -108,8 +99,8 @@ function PropiPill({
       : `${styles!.pill} ${interactive ? `${styles!.hover} cursor-pointer` : ''}`;
 
   const textClass = isPlaceholder
-    ? 'text-xs font-bold uppercase tracking-wide'
-    : 'text-xs font-bold normal-case tracking-normal';
+    ? `${DENSE_PROPI_TAG_TEXT} uppercase tracking-wide`
+    : DENSE_PROPI_TAG_TEXT;
 
   const inner = (
     <>
@@ -134,8 +125,7 @@ function PropiPill({
         type="button"
         onClick={onClick}
         title={title}
-        style={pillBackgroundStyle}
-        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${baseClass}`}
+        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${baseClass}`}
       >
         {inner}
       </button>
@@ -145,8 +135,7 @@ function PropiPill({
   return (
     <span
       title={title}
-      style={pillBackgroundStyle}
-      className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full ${baseClass}`}
+      className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm ${baseClass}`}
     >
       {inner}
     </span>
@@ -159,7 +148,6 @@ interface PropiValueLineProps {
   variant: 'primary' | 'secondary' | 'fecha';
   showFirstOnlyWhenMultiple?: boolean;
   theme: PillTheme;
-  pillBackgroundStyle: { backgroundColor: string };
   centered?: boolean;
 }
 
@@ -169,7 +157,6 @@ function PropiValueLine({
   variant,
   showFirstOnlyWhenMultiple = false,
   theme,
-  pillBackgroundStyle,
   centered = false,
 }: PropiValueLineProps) {
   const [open, setOpen] = useState(false);
@@ -222,7 +209,6 @@ function PropiValueLine({
           label={emptyLabel}
           variant="empty"
           theme={theme}
-          pillBackgroundStyle={pillBackgroundStyle}
           isPlaceholder
         />
       </div>
@@ -269,12 +255,11 @@ function PropiValueLine({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           title={`Ver todos (${values.length})`}
-          style={pillBackgroundStyle}
-          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${
+          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${
             theme[variant].pill
           } ${theme[variant].hover} cursor-pointer`}
         >
-          <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold leading-none normal-case tracking-normal">
+          <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${DENSE_PROPI_TAG_TEXT}`}>
             {summary}
           </span>
           <span
@@ -294,7 +279,6 @@ function PropiValueLine({
         label={summary}
         variant={variant}
         theme={theme}
-        pillBackgroundStyle={pillBackgroundStyle}
         title={summary}
       />
     </div>
@@ -320,7 +304,6 @@ interface EditablePropiValueLineProps {
   variant: 'primary' | 'secondary';
   showFirstOnlyWhenMultiple?: boolean;
   theme: PillTheme;
-  pillBackgroundStyle: { backgroundColor: string };
   centered?: boolean;
   disabled?: boolean;
   saving?: boolean;
@@ -335,7 +318,6 @@ function EditablePropiValueLine({
   variant,
   showFirstOnlyWhenMultiple = false,
   theme,
-  pillBackgroundStyle,
   centered = false,
   disabled,
   saving,
@@ -470,8 +452,7 @@ function EditablePropiValueLine({
     return (
       <div className={wrapperClass}>
         <div
-          style={pillBackgroundStyle}
-          className={`inline-flex h-6 w-full max-w-full items-center overflow-hidden rounded-full ${styles.pill}`}
+          className={`inline-flex h-6 w-full max-w-full items-center overflow-hidden rounded-sm ${styles.pill}`}
         >
           <input
             ref={inputRef}
@@ -493,7 +474,7 @@ function EditablePropiValueLine({
             }}
             onClick={(event) => event.stopPropagation()}
             placeholder={emptyLabel}
-            className="min-w-0 flex-1 border-0 bg-transparent px-2 py-1 text-center text-xs font-bold leading-none text-white outline-none placeholder:text-white/50 disabled:opacity-60"
+            className={`min-w-0 flex-1 border-0 bg-transparent px-2 py-1 text-center leading-none text-white outline-none placeholder:text-white/50 disabled:opacity-60 ${DENSE_PROPI_TAG_TEXT}`}
           />
           {saving ? (
             <Loader2 className="mr-1 h-3 w-3 shrink-0 animate-spin text-white/80" />
@@ -514,10 +495,9 @@ function EditablePropiValueLine({
             startEdit(0);
           }}
           title={`Clic para añadir ${emptyLabel.toLowerCase()}`}
-          style={pillBackgroundStyle}
-          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${theme.empty} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${theme.empty} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold uppercase tracking-wide leading-none">
+          <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 uppercase tracking-wide leading-none ${DENSE_PROPI_TAG_TEXT}`}>
             {emptyLabel}
           </span>
         </button>
@@ -592,10 +572,9 @@ function EditablePropiValueLine({
             toggleDropdown();
           }}
           title={`${summary} — clic para editar en el desplegable`}
-          style={pillBackgroundStyle}
-          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold leading-none normal-case tracking-normal">
+          <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${DENSE_PROPI_TAG_TEXT}`}>
             {summary}
           </span>
           <span
@@ -619,10 +598,9 @@ function EditablePropiValueLine({
           startEdit(entries[0].index);
         }}
         title={`${summary} — clic para editar`}
-        style={pillBackgroundStyle}
-        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-full transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        <span className="flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 text-xs font-bold leading-none normal-case tracking-normal">
+        <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${DENSE_PROPI_TAG_TEXT}`}>
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : summary}
         </span>
       </button>
@@ -688,7 +666,6 @@ export function InmueblePropiCell({
     entradaDate && entradaDate !== '—' ? [entradaDate] : [];
 
   const theme = getPillTheme(tipoOperacion);
-  const pillBackgroundStyle = getPropiPillBackgroundStyle(tipoOperacion);
 
   useEffect(() => {
     if (!saving) {
@@ -755,7 +732,6 @@ export function InmueblePropiCell({
         values={dateValues}
         variant="fecha"
         theme={theme}
-        pillBackgroundStyle={pillBackgroundStyle}
         centered={centered}
       />
       {isEditable ? (
@@ -766,7 +742,6 @@ export function InmueblePropiCell({
             field="nombre"
             variant="primary"
             theme={theme}
-            pillBackgroundStyle={pillBackgroundStyle}
             centered={centered}
             disabled={fieldDisabled}
             saving={saving}
@@ -779,7 +754,6 @@ export function InmueblePropiCell({
             variant="secondary"
             showFirstOnlyWhenMultiple
             theme={theme}
-            pillBackgroundStyle={pillBackgroundStyle}
             centered={centered}
             disabled={fieldDisabled}
             saving={saving}
@@ -794,7 +768,6 @@ export function InmueblePropiCell({
             values={names}
             variant="primary"
             theme={theme}
-            pillBackgroundStyle={pillBackgroundStyle}
             centered={centered}
           />
           <PropiValueLine
@@ -803,7 +776,6 @@ export function InmueblePropiCell({
             variant="secondary"
             showFirstOnlyWhenMultiple
             theme={theme}
-            pillBackgroundStyle={pillBackgroundStyle}
             centered={centered}
           />
         </>

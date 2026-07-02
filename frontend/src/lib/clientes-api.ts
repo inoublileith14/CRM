@@ -65,8 +65,16 @@ export function bulkUnassignWorker(data: {
 export function bulkAssignInmueble(data: {
   inmueble_id: string;
   cliente_ids: string[];
-}): Promise<{ assigned: number; skipped: number }> {
-  return request<{ assigned: number; skipped: number }>(
+}): Promise<{
+  assigned: number;
+  skipped: number;
+  phone_duplicates_skipped: number;
+}> {
+  return request<{
+    assigned: number;
+    skipped: number;
+    phone_duplicates_skipped: number;
+  }>(
     '/api/clientes/bulk-assign-inmueble',
     {
       method: 'POST',

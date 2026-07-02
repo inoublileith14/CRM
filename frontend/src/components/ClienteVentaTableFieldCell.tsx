@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { updateCliente } from '@/lib/clientes-api';
-import { parseRefCliente, setParsedRefField } from '@/lib/parse-ref-cliente';
+import { parseRefCliente, resolveClienteBanos, setParsedRefField } from '@/lib/parse-ref-cliente';
 import { clienteDenseTextClass } from '@/components/ClienteRefValue';
 
 export type ClienteVentaTableFieldKind =
@@ -48,8 +48,10 @@ function getFieldValue(
       return parsed.presupuesto ?? '';
     case 'habitaciones':
       return parsed.habitaciones != null ? String(parsed.habitaciones) : '';
-    case 'banos':
-      return banos != null ? String(banos) : '';
+    case 'banos': {
+      const resolved = resolveClienteBanos(banos, refCliente);
+      return resolved != null ? String(resolved) : '';
+    }
     case 'metros':
       return parsed.metros != null ? String(parsed.metros) : '';
     case 'tipo_nomina':

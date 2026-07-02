@@ -141,6 +141,7 @@ export function InmuebleClienteManualAddButton({
       barrio: [],
       distrito: [],
       tipo_nomina: null,
+      tipo_ingreso: null,
       tipo_cliente: null,
       estado: 'pendiente',
       origen: null,

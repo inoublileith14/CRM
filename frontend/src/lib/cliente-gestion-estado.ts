@@ -35,9 +35,16 @@ export type GestionOption = {
   textColor: string;
 };
 
-const VISITA_CONCERTADA_BG = '#39ff14';
+/** Electric green used for VISITA CONCERTADA (and no-asistió toggle ON). */
+export const CLIENTE_VISITA_CONCERTADA_GREEN = '#39ff14';
+
+const VISITA_CONCERTADA_BG = CLIENTE_VISITA_CONCERTADA_GREEN;
 const INT_PENDIENTE_DOCS_BG = '#5b9bd5';
 const INT_PENDIENTE_DOCS_TEXT = '#ffffff';
+const NC_BG = '#a0a0a0';
+const NC_TEXT = '#000000';
+const CLIENTE_NO_INTERESADO_BG = '#000000';
+const CLIENTE_NO_INTERESADO_TEXT = '#ffffff';
 
 export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
   {
@@ -67,14 +74,14 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
   {
     value: 'nc',
     label: 'NC',
-    backgroundColor: '#a9b8a0',
-    textColor: '#000000',
+    backgroundColor: NC_BG,
+    textColor: NC_TEXT,
   },
   {
     value: 'cliente_no_interesado',
     label: 'CLIENTE NO INTERESADO',
-    backgroundColor: '#a0a0a0',
-    textColor: '#000000',
+    backgroundColor: CLIENTE_NO_INTERESADO_BG,
+    textColor: CLIENTE_NO_INTERESADO_TEXT,
   },
   {
     value: 'pendiente_cuadrar_docs',
@@ -130,14 +137,14 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_VENTA: GestionOption[] = [
   {
     value: 'nc',
     label: 'NC',
-    backgroundColor: '#a9b8a0',
-    textColor: '#000000',
+    backgroundColor: NC_BG,
+    textColor: NC_TEXT,
   },
   {
     value: 'cliente_no_interesado',
     label: 'CLIENTE NO INTERESADO',
-    backgroundColor: '#a0a0a0',
-    textColor: '#000000',
+    backgroundColor: CLIENTE_NO_INTERESADO_BG,
+    textColor: CLIENTE_NO_INTERESADO_TEXT,
   },
   {
     value: 'pendiente_cuadrar_visita',
@@ -180,6 +187,56 @@ export function getClienteGestionEstadoOptions(
   return tipo === 'alquiler'
     ? CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER
     : CLIENTE_GESTION_ESTADO_OPTIONS_VENTA;
+}
+
+/** Longest gestión label for the given operation (dropdown width baseline). */
+export function getLongestClienteGestionEstadoLabel(tipo: TipoOperacion): string {
+  return getClienteGestionEstadoOptions(tipo).reduce(
+    (longest, option) =>
+      option.label.length > longest.length ? option.label : longest,
+    '',
+  );
+}
+
+/** Horizontal chrome: label padding + chevron column. */
+export const GESTION_SELECT_CHROME_PX = 40;
+
+export const GESTION_SELECT_LABEL_CLASS =
+  'text-[10px] font-bold uppercase leading-tight sm:text-xs';
+
+function measureGestionLabelsWidthPx(labels: string[]): number {
+  if (labels.length === 0) return 0;
+
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (context) {
+      const rootFontSize =
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+        16;
+      const fontSize =
+        window.matchMedia('(min-width: 640px)').matches
+          ? rootFontSize * 0.75
+          : rootFontSize * 0.625;
+      context.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+      return Math.max(
+        ...labels.map((label) => context.measureText(label).width),
+      );
+    }
+  }
+
+  return Math.max(...labels.map((label) => label.length * 7.25));
+}
+
+/**
+ * Estimated trigger/dropdown width so the longest option fits on one line.
+ * Used for per-house client tables (rent / sell detail).
+ */
+export function estimateGestionSelectWidthPx(tipo: TipoOperacion): number {
+  const labels = getClienteGestionEstadoOptions(tipo).map((option) => option.label);
+  const maxText = measureGestionLabelsWidthPx(labels);
+  if (!maxText) return 152;
+  return Math.ceil(maxText) + GESTION_SELECT_CHROME_PX;
 }
 
 export function getDefaultClienteGestionEstado(
@@ -226,4 +283,10 @@ export function requiresCalendarEventDialog(
   estado: ClienteGestionEstado,
 ): estado is 'visita_concertada' | 'videollamada' {
   return estado === 'visita_concertada' || estado === 'videollamada';
+}
+
+export function isClienteVisitaGestionEstado(
+  value: string | null | undefined,
+): value is 'visita_concertada' | 'videollamada' {
+  return value === 'visita_concertada' || value === 'videollamada';
 }

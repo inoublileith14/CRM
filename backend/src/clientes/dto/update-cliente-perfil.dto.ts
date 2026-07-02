@@ -5,6 +5,7 @@ export class UpdateClientePerfilDto {
   tipo_nomina?: string | null;
   tipo_ingreso?: string | null;
   ingreso_monto?: number | null;
+  banos?: number | null;
   pais?: string | null;
   notas?: string | null;
 }

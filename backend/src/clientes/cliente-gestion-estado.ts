@@ -53,3 +53,9 @@ export function isClienteGestionEstadoForTipo(
       : CLIENTE_GESTION_ESTADOS_VENTA;
   return (allowed as readonly string[]).includes(value);
 }
+
+export function isClienteVisitaGestionEstado(
+  value: string | null | undefined,
+): value is 'visita_concertada' | 'videollamada' {
+  return value === 'visita_concertada' || value === 'videollamada';
+}

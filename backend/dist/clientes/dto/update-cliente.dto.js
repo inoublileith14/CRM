@@ -10,6 +10,7 @@ class UpdateClienteDto {
     barrio;
     distrito;
     tipo_nomina;
+    tipo_ingreso;
     tipo_cliente;
     estado;
     origen;

@@ -6,6 +6,7 @@ export declare class CreateClienteDto {
     barrio?: string[] | null;
     distrito?: string[] | null;
     tipo_nomina?: string | null;
+    tipo_ingreso?: string | null;
     tipo_cliente?: 'estudiante' | 'parejas' | 'familia_con_hijos' | 'compartir' | null;
     estado?: 'activo' | 'inactivo' | 'pendiente';
     origen?: 'email' | 'call' | 'otro';

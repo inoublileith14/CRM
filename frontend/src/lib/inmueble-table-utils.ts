@@ -19,6 +19,13 @@ export const INMUEBLE_IMAGE_BACKGROUND_VENTA = DEFAULT_VENTA_DENSE_ROW_COLOR;
 /** @deprecated Use getInmuebleImageBackground */
 export const INMUEBLE_IMAGE_BACKGROUND = INMUEBLE_IMAGE_BACKGROUND_ALQUILER;
 
+/** Semi-transparent bar behind address/ref on dense property thumbnails. */
+export const INMUEBLE_DENSE_OVERLAY_BAR_CLASS = 'bg-black/55';
+
+/** Text on dense image overlay bars (entrada address, espejo ref, etc.). */
+export const INMUEBLE_DENSE_OVERLAY_TEXT_CLASS =
+  'font-serif font-bold text-white text-[10px] sm:text-xs leading-snug';
+
 export function getInmuebleImageBackground(
   tipoOperacion: TipoOperacion | null | undefined,
 ): string {

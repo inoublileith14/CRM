@@ -24,6 +24,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { InmuebleAssignSearchSelect } from '@/components/InmuebleAssignSearchSelect';
 import { ClienteVentaRangeFiltersBar } from '@/components/ClienteVentaRangeFiltersBar';
 import { ClienteTipoClienteSelect } from '@/components/ClienteTipoClienteSelect';
+import { ClienteTipoNominaSelect } from '@/components/ClienteTipoNominaSelect';
+import { ClienteTipoIngresoSelect } from '@/components/ClienteTipoIngresoSelect';
 import { ClienteVentaTableFieldCell } from '@/components/ClienteVentaTableFieldCell';
 import { ClienteZonasMultiField } from '@/components/ClienteZonasMultiField';
 import { ClienteFechaContactoCell } from '@/components/ClienteFechaContactoCell';
@@ -69,6 +71,7 @@ import {
   filterRowsByVentaRange,
   hasActiveVentaRangeFilters,
 } from '@/lib/cliente-venta-range-filters';
+import { pickUniqueClienteIdsFromLinkRows } from '@/lib/cliente-duplicate';
 import { bulkAssignInmueble, bulkAssignWorker, bulkDeleteClientes, bulkUnassignWorker } from '@/lib/clientes-api';
 import { INMUEBLE_CLIENTE_UNASSIGNED_WORKER } from '@/lib/inmueble-cliente-filters';
 import { getAssignableInmuebles, getInmuebleAssignLabel } from '@/lib/inmueble-assign-utils';
@@ -431,6 +434,21 @@ export function InmuebleClientesGeneralPageContent({
     return clientes;
   }, [rowsForSelection, selectedRowKeys]);
 
+  const selectedRowsForAssign = useMemo(
+    () =>
+      rowsForSelection.filter((row) => selectedRowKeys.has(row.row_key)),
+    [rowsForSelection, selectedRowKeys],
+  );
+
+  const uniqueClienteIdsForInmuebleAssign = useMemo(
+    () =>
+      pickUniqueClienteIdsFromLinkRows(
+        selectedRowsForAssign,
+        assignInmuebleId || undefined,
+      ),
+    [selectedRowsForAssign, assignInmuebleId],
+  );
+
   const tableColumns = useMemo(
     () => buildVentaGlobalClienteTableColumns(expectedTipo),
     [expectedTipo],
@@ -742,11 +760,14 @@ export function InmuebleClientesGeneralPageContent({
   }
 
   async function executeAssignInmueble() {
-    const selectedRows = rowsForSelection.filter((row) =>
-      selectedRowKeys.has(row.row_key),
-    );
-    const clienteIds = [...new Set(selectedRows.map((row) => row.cliente.id))];
+    const clienteIds = uniqueClienteIdsForInmuebleAssign;
     const count = clienteIds.length;
+    const duplicateRowsSkipped =
+      selectedRowsForAssign.length -
+      [...new Set(selectedRowsForAssign.map((row) => row.cliente.id))].length;
+    const duplicatePhonesSkipped =
+      [...new Set(selectedRowsForAssign.map((row) => row.cliente.id))].length -
+      count;
 
     setAssigningInmueble(true);
 
@@ -772,6 +793,18 @@ export function InmuebleClientesGeneralPageContent({
         );
       }
 
+      const phoneSkipped =
+        result.phone_duplicates_skipped || duplicatePhonesSkipped;
+      if (phoneSkipped > 0) {
+        toast.message(
+          `${phoneSkipped} fila${phoneSkipped !== 1 ? 's' : ''} omitida${phoneSkipped !== 1 ? 's' : ''} por teléfono duplicado`,
+        );
+      } else if (duplicateRowsSkipped > 0) {
+        toast.message(
+          `${duplicateRowsSkipped} fila${duplicateRowsSkipped !== 1 ? 's' : ''} repetida${duplicateRowsSkipped !== 1 ? 's' : ''} del mismo cliente omitida${duplicateRowsSkipped !== 1 ? 's' : ''}`,
+        );
+      }
+
       setAssignConfirm(null);
       clearSelection();
       setAssignInmuebleId('');
@@ -794,18 +827,24 @@ export function InmuebleClientesGeneralPageContent({
   const filterAccent = expectedTipo === 'alquiler' ? 'emerald' : 'blue';
 
   const inmuebleAssignConfirmCopy = useMemo(() => {
-    const selectedRows = rowsForSelection.filter((row) =>
-      selectedRowKeys.has(row.row_key),
-    );
-    const clienteIds = [...new Set(selectedRows.map((row) => row.cliente.id))];
+    const clienteIds = uniqueClienteIdsForInmuebleAssign;
     const inmueble = assignableInmuebles.find((item) => item.id === assignInmuebleId);
     const label = inmueble ? getInmuebleAssignLabel(inmueble) : 'el piso seleccionado';
+    const duplicateNote =
+      selectedRowKeys.size > clienteIds.length
+        ? ` (${selectedRowKeys.size} filas seleccionadas; se asignará 1 cliente por teléfono)`
+        : '';
 
     return {
       title: 'Asignar a piso',
-      description: `¿Asignar ${clienteIds.length} cliente${clienteIds.length !== 1 ? 's' : ''} al piso ${label}? La referencia del cliente se actualizará.`,
+      description: `¿Asignar ${clienteIds.length} cliente${clienteIds.length !== 1 ? 's' : ''} al piso ${label}? La referencia del cliente se actualizará.${duplicateNote}`,
     };
-  }, [rowsForSelection, selectedRowKeys, assignInmuebleId, assignableInmuebles]);
+  }, [
+    uniqueClienteIdsForInmuebleAssign,
+    selectedRowKeys.size,
+    assignInmuebleId,
+    assignableInmuebles,
+  ]);
 
   const deleteConfirmCopy = useMemo(() => {
     const selectedRows = rowsForSelection.filter((row) =>
@@ -1433,15 +1472,28 @@ export function InmuebleClientesGeneralPageContent({
                           />
                         </td>
                         <td className={denseCellClass('tipo_nomina', 'text-slate-600')}>
-                          <ClienteVentaTableFieldCell
+                          <ClienteTipoNominaSelect
                             clienteId={cliente.id}
-                            kind="tipo_nomina"
-                            refCliente={cliente.ref_cliente}
-                            tipoNomina={cliente.tipo_nomina}
+                            value={cliente.tipo_nomina}
                             disabled={assigningBusy}
                             compact
-                            onUpdated={(patch) =>
-                              updateClienteById(cliente.id, patch)
+                            onUpdated={(tipoNomina) =>
+                              updateClienteById(cliente.id, {
+                                tipo_nomina: tipoNomina,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className={denseCellClass('tipo_ingreso', 'text-slate-600')}>
+                          <ClienteTipoIngresoSelect
+                            clienteId={cliente.id}
+                            value={cliente.tipo_ingreso}
+                            disabled={assigningBusy}
+                            compact
+                            onUpdated={(tipoIngreso) =>
+                              updateClienteById(cliente.id, {
+                                tipo_ingreso: tipoIngreso,
+                              })
                             }
                           />
                         </td>

@@ -2,6 +2,7 @@ import { Request } from 'express';
 import { UserProfile } from '../auth/interfaces/user.interface';
 import { CreateInmuebleDto } from './dto/create-inmueble.dto';
 import { UpdateClienteFechaUltimaGestionDto } from './dto/update-cliente-fecha-ultima-gestion.dto';
+import { UpdateClienteVisitaNoRealizadaDto } from './dto/update-cliente-visita-no-realizada.dto';
 import { UpdateClienteGestionEstadoDto } from './dto/update-cliente-gestion-estado.dto';
 import { UpdateInmuebleDto } from './dto/update-inmueble.dto';
 import { InmueblesService } from './inmuebles.service';
@@ -20,6 +21,9 @@ export declare class InmueblesController {
     }>;
     updateClienteFechaUltimaGestion(inmuebleId: string, clienteId: string, dto: UpdateClienteFechaUltimaGestionDto): Promise<{
         fecha_ultima_gestion: string | null;
+    }>;
+    updateClienteVisitaNoRealizada(inmuebleId: string, clienteId: string, dto: UpdateClienteVisitaNoRealizadaDto): Promise<{
+        visita_no_realizada: boolean;
     }>;
     findOne(id: string): Promise<import("./interfaces/inmueble.interface").Inmueble>;
     create(req: Request & {

@@ -41,3 +41,44 @@ export function contactDayUtcRange(dateKey: string): {
   dayEndDate.setUTCDate(dayEndDate.getUTCDate() + 1);
   return { dayStart, dayEnd: dayEndDate.toISOString() };
 }
+
+export interface ClienteTelefonoRef {
+  id: string;
+  telefono: string | null | undefined;
+}
+
+/** One cliente per normalized phone when bulk-assigning to an inmueble. */
+export function pickUniqueClienteIdsByTelefono(
+  clientes: ClienteTelefonoRef[],
+  options?: { preferClienteIds?: Iterable<string> },
+): string[] {
+  const prefer = options?.preferClienteIds
+    ? new Set(options.preferClienteIds)
+    : null;
+  const seenIds = new Set<string>();
+  const byPhone = new Map<string, string>();
+  const withoutPhone: string[] = [];
+
+  for (const cliente of clientes) {
+    if (seenIds.has(cliente.id)) continue;
+    seenIds.add(cliente.id);
+
+    const phone = normalizeClienteTelefono(cliente.telefono);
+    if (!phone) {
+      withoutPhone.push(cliente.id);
+      continue;
+    }
+
+    const existingId = byPhone.get(phone);
+    if (!existingId) {
+      byPhone.set(phone, cliente.id);
+      continue;
+    }
+
+    if (prefer?.has(cliente.id) && !prefer.has(existingId)) {
+      byPhone.set(phone, cliente.id);
+    }
+  }
+
+  return [...withoutPhone, ...byPhone.values()];
+}

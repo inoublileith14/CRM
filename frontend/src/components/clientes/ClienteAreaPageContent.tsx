@@ -20,12 +20,15 @@ import {
 } from '@/lib/cliente-inmueble-suggestions';
 import { createClientePerfil, updateCliente } from '@/lib/clientes-api';
 import { getClienteTipoNominaLabel } from '@/lib/cliente-tipo-nomina';
+import { getClienteTipoIngresoLabel } from '@/lib/cliente-tipo-ingreso';
 import { ClientePerfilEditor } from '@/components/clientes/ClientePerfilEditor';
+import { ClienteTipoIngresoSelect } from '@/components/ClienteTipoIngresoSelect';
 import { ClienteFechaEntradaInmuebleCell } from '@/components/ClienteFechaEntradaInmuebleCell';
 import { formatClienteZonasLabel } from '@/lib/cliente-zonas';
 import {
   parseRefCliente,
   refsMatchForInmueble,
+  resolveClienteBanos,
 } from '@/lib/parse-ref-cliente';
 import {
   formatInmueblePrecio,
@@ -161,8 +164,9 @@ function resolveClientePerfiles(
       nombre: cliente.nombre,
       telefono: cliente.telefono,
       tipo_nomina: cliente.tipo_nomina,
-      tipo_ingreso: null,
+      tipo_ingreso: cliente.tipo_ingreso,
       ingreso_monto: null,
+      banos: resolveClienteBanos(cliente.banos, cliente.ref_cliente),
       pais: country,
       notas: null,
       created_at: cliente.created_at,
@@ -175,8 +179,14 @@ interface ClientePerfilSlot {
   id: string;
   perfil: ClientePerfil;
   tipoNomina: string;
+  tipoIngreso: string;
   countryName: string;
   ingreso: string;
+  banos: string;
+}
+
+function formatPerfilBanos(value: number | null | undefined): string {
+  return value != null && !Number.isNaN(value) ? String(value) : '—';
 }
 
 function buildClientePerfilSlots(
@@ -186,8 +196,10 @@ function buildClientePerfilSlots(
     id: `P${perfil.orden}`,
     perfil,
     tipoNomina: getClienteTipoNominaLabel(perfil.tipo_nomina),
+    tipoIngreso: getClienteTipoIngresoLabel(perfil.tipo_ingreso),
     countryName: perfil.pais?.trim() || '—',
     ingreso: formatIngresoMonto(perfil.ingreso_monto),
+    banos: formatPerfilBanos(perfil.banos),
   }));
 }
 
@@ -368,6 +380,9 @@ export function ClienteAreaPageContent({
   const barrioDistritoLabel = formatBarrioDistrito(cliente, parsedRef.zona);
   const habMaxLabel =
     parsedRef.habitaciones != null ? String(parsedRef.habitaciones) : '—';
+  const banosMaxLabel = formatPerfilBanos(
+    resolveClienteBanos(cliente.banos, cliente.ref_cliente),
+  );
   const entryInmueble = getEntryInmueble(cliente, linkedInmuebles);
 
   async function handleAddPerfil() {
@@ -383,6 +398,8 @@ export function ClienteAreaPageContent({
           nombre: cliente.nombre,
           telefono: cliente.telefono,
           tipo_nomina: cliente.tipo_nomina,
+          tipo_ingreso: cliente.tipo_ingreso,
+          banos: resolveClienteBanos(cliente.banos, cliente.ref_cliente),
           pais:
             phoneCountry.name !== 'International'
               ? phoneCountry.name
@@ -614,6 +631,30 @@ export function ClienteAreaPageContent({
                       ))}
                     </div>
 
+                    <div className="flex flex-wrap items-stretch gap-2 border-t border-slate-100 py-3 sm:gap-3">
+                      <label className="block min-w-[7rem] flex-1 rounded-xl bg-slate-50 px-3 py-2">
+                        <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[10px]">
+                          Origen ingresos
+                        </span>
+                        <div className="mt-1">
+                          <ClienteTipoIngresoSelect
+                            clienteId={cliente.id}
+                            value={cliente.tipo_ingreso}
+                            compact={false}
+                            onUpdated={() => void clienteQuery.refetch()}
+                          />
+                        </div>
+                      </label>
+                      {perfilFinancialSlots.map((slot) => (
+                        <PerfilMetric
+                          key={`${slot.id}-ingreso-origen`}
+                          label={`Origen ${slot.id}`}
+                          value={slot.tipoIngreso}
+                          className="min-w-[7rem] flex-1"
+                        />
+                      ))}
+                    </div>
+
                     <div className="flex flex-wrap items-stretch gap-2 py-3 sm:gap-3">
                       <PerfilMetric
                         label="Ingresos total"
@@ -643,10 +684,26 @@ export function ClienteAreaPageContent({
                         className="min-w-[5.5rem] flex-1"
                       />
                       <PerfilMetric
+                        label="Baños máx."
+                        value={banosMaxLabel}
+                        className="min-w-[5.5rem] flex-1"
+                      />
+                      <PerfilMetric
                         label="Barrio / Distrito"
                         value={barrioDistritoLabel}
                         className="min-w-[8rem] flex-[1.4]"
                       />
+                    </div>
+
+                    <div className="flex flex-wrap items-stretch gap-2 border-t border-slate-100 pt-3 sm:gap-3">
+                      {perfilFinancialSlots.map((slot) => (
+                        <PerfilMetric
+                          key={`${slot.id}-banos`}
+                          label={`Baños ${slot.id}`}
+                          value={slot.banos}
+                          className="min-w-[5.5rem] flex-1"
+                        />
+                      ))}
                     </div>
                   </>
                 ) : selectedPerfil ? (

@@ -1,6 +1,7 @@
 import {
   buildClienteDuplicateKey,
   normalizeClienteTelefono,
+  pickUniqueClienteIdsByTelefono,
 } from './cliente-duplicate.util';
 
 const PHONE = '612345678';
@@ -49,5 +50,30 @@ describe('buildClienteDuplicateKey', () => {
   it('returns null without inmueble (no property-scoped duplicate)', () => {
     expect(buildClienteDuplicateKey(PHONE, DATE, null)).toBeNull();
     expect(buildClienteDuplicateKey(PHONE, DATE, '')).toBeNull();
+  });
+});
+
+describe('pickUniqueClienteIdsByTelefono', () => {
+  it('keeps one cliente per normalized phone', () => {
+    const ids = pickUniqueClienteIdsByTelefono([
+      { id: 'a', telefono: '612 345 678' },
+      { id: 'b', telefono: '612345678' },
+      { id: 'c', telefono: '699111222' },
+    ]);
+    expect(ids).toHaveLength(2);
+    expect(ids).toContain('a');
+    expect(ids).toContain('c');
+    expect(ids).not.toContain('b');
+  });
+
+  it('prefers cliente already linked to target inmueble', () => {
+    const ids = pickUniqueClienteIdsByTelefono(
+      [
+        { id: 'a', telefono: '612345678' },
+        { id: 'b', telefono: '612345678' },
+      ],
+      { preferClienteIds: ['b'] },
+    );
+    expect(ids).toEqual(['b']);
   });
 });

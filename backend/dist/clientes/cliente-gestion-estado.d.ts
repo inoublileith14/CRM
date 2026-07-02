@@ -6,3 +6,4 @@ export type ClienteGestionEstadoVenta = (typeof CLIENTE_GESTION_ESTADOS_VENTA)[n
 export type ClienteGestionEstado = (typeof CLIENTE_GESTION_ESTADOS)[number];
 export declare function getDefaultClienteGestionEstado(tipoOperacion: 'alquiler' | 'venta'): ClienteGestionEstado;
 export declare function isClienteGestionEstadoForTipo(value: string, tipoOperacion: 'alquiler' | 'venta'): value is ClienteGestionEstado;
+export declare function isClienteVisitaGestionEstado(value: string | null | undefined): value is 'visita_concertada' | 'videollamada';

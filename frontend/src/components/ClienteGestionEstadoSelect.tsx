@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2 } from 'lucide-react';
@@ -11,6 +11,9 @@ import {
 } from '@/components/GestionCalendarEventDialog';
 import {
   ClienteGestionEstado,
+  estimateGestionSelectWidthPx,
+  GESTION_SELECT_CHROME_PX,
+  GESTION_SELECT_LABEL_CLASS,
   getClienteGestionEstadoOption,
   getClienteGestionEstadoOptions,
   getGestionOptionStyle,
@@ -76,13 +79,31 @@ export function ClienteGestionEstadoSelect({
 
   const options = getClienteGestionEstadoOptions(tipoOperacion);
   const current = getClienteGestionEstadoOption(value, tipoOperacion);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+
+  const contentWidth =
+    measuredWidth ?? estimateGestionSelectWidthPx(tipoOperacion);
+
+  useLayoutEffect(() => {
+    if (!tableLayout || !measureRef.current) return;
+    const labels = measureRef.current.querySelectorAll('[data-gestion-label]');
+    let maxText = 0;
+    labels.forEach((node) => {
+      maxText = Math.max(maxText, node.getBoundingClientRect().width);
+    });
+    if (maxText > 0) {
+      setMeasuredWidth(Math.ceil(maxText) + GESTION_SELECT_CHROME_PX);
+    }
+  }, [options, tableLayout, tipoOperacion]);
+
   const position = useFloatingPanelPosition({
     open,
     triggerRef,
     panelRef,
-    minPanelWidth: 256,
+    minPanelWidth: tableLayout ? contentWidth : 256,
     estimatedHeight: options.length * 32 + 8,
-    deps: [options.length],
+    deps: [options.length, contentWidth, tableLayout],
   });
 
   useEffect(() => setMounted(true), []);
@@ -184,7 +205,7 @@ export function ClienteGestionEstadoSelect({
               type="button"
               onClick={() => void handleSelect(option.value)}
               style={getGestionOptionStyle(option)}
-              className="gestion-select-option block w-full px-2 py-1.5 text-left text-[10px] font-bold uppercase leading-tight sm:text-xs"
+              className={`gestion-select-option block w-full whitespace-nowrap px-2 py-1 text-center ${GESTION_SELECT_LABEL_CLASS}`}
             >
               <span className="relative z-[1]">{option.label}</span>
             </button>
@@ -195,31 +216,57 @@ export function ClienteGestionEstadoSelect({
 
   return (
     <>
+      {tableLayout ? (
+        <div
+          ref={measureRef}
+          aria-hidden
+          className="pointer-events-none fixed -left-[9999px] top-0 opacity-0"
+        >
+          {options.map((option) => (
+            <span
+              key={option.value}
+              data-gestion-label
+              className={`block whitespace-nowrap ${GESTION_SELECT_LABEL_CLASS}`}
+            >
+              {option.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <button
         ref={triggerRef}
         type="button"
         disabled={disabled || saving}
         onClick={() => setOpen((prev) => !prev)}
-        style={getGestionOptionStyle(current)}
-        className={`gestion-select-trigger inline-flex items-center justify-between gap-1 px-2 py-1 text-left text-[10px] font-bold uppercase leading-tight sm:text-xs disabled:opacity-60 ${
+        style={{
+          ...getGestionOptionStyle(current),
+          ...(tableLayout ? { width: contentWidth } : undefined),
+        }}
+        className={`gestion-select-trigger disabled:opacity-60 ${
           open ? 'gestion-select-trigger--open' : ''
-        } ${compact || tableLayout ? 'w-full min-w-0' : 'min-w-[10rem] max-w-xs w-full'}`}
+        } ${
+          tableLayout
+            ? `gestion-select-trigger--table mx-auto inline-flex items-center justify-between gap-1 whitespace-nowrap py-1 pl-2 pr-1.5 leading-none ${GESTION_SELECT_LABEL_CLASS}`
+            : `inline-flex items-center justify-between gap-1 px-2 py-1 text-left ${GESTION_SELECT_LABEL_CLASS} ${
+                compact ? 'w-full min-w-0' : 'min-w-[10rem] max-w-xs w-full'
+              }`
+        }`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
         <span
           className={
             tableLayout
-              ? 'relative z-[1] min-w-0 flex-1 line-clamp-2 break-words whitespace-normal leading-tight'
+              ? 'relative z-[1] min-w-0 flex-1 text-center leading-none'
               : 'relative z-[1] min-w-0 flex-1 truncate'
           }
         >
           {current.label}
         </span>
         {saving ? (
-          <Loader2 className="relative z-[1] h-3.5 w-3.5 shrink-0 animate-spin" />
+          <Loader2 className="relative z-[1] h-3 w-3 shrink-0 animate-spin self-center opacity-80" />
         ) : (
-          <ChevronDown className="relative z-[1] h-3.5 w-3.5 shrink-0 opacity-70" />
+          <ChevronDown className="relative z-[1] h-3 w-3 shrink-0 self-center opacity-80" />
         )}
       </button>
       {dropdown ? createPortal(dropdown, document.body) : null}

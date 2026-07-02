@@ -30,6 +30,7 @@ const SELECT_FIELDS = `
   barrio,
   distrito,
   tipo_nomina,
+  tipo_ingreso,
   tipo_cliente,
   estado,
   origen,
@@ -51,7 +52,7 @@ const RELATIONS_SELECT = `
   ${SELECT_FIELDS},
   cliente_inmuebles(inmueble_id, inmuebles(*)),
   cliente_workers(worker_id, workers(*)),
-  cliente_perfiles(id, cliente_id, orden, nombre, telefono, tipo_nomina, tipo_ingreso, ingreso_monto, pais, notas, created_at, updated_at)
+  cliente_perfiles(id, cliente_id, orden, nombre, telefono, tipo_nomina, tipo_ingreso, ingreso_monto, banos, pais, notas, created_at, updated_at)
 `;
 const PERFIL_SELECT = `
   id,
@@ -62,6 +63,7 @@ const PERFIL_SELECT = `
   tipo_nomina,
   tipo_ingreso,
   ingreso_monto,
+  banos,
   pais,
   notas,
   created_at,
@@ -192,6 +194,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
             tipo_nomina: dto.tipo_nomina ?? null,
             tipo_ingreso: dto.tipo_ingreso ?? null,
             ingreso_monto: dto.ingreso_monto ?? null,
+            banos: dto.banos ?? null,
             pais: dto.pais ?? null,
             notas: dto.notas ?? null,
         })
@@ -421,8 +424,10 @@ let ClientesService = ClientesService_1 = class ClientesService {
         if (!inmuebleId) {
             throw new common_1.BadRequestException('inmueble_id es obligatorio');
         }
-        const clienteIds = [...new Set((rawClienteIds ?? []).filter(Boolean))];
-        if (clienteIds.length === 0) {
+        const requestedClienteIds = [
+            ...new Set((rawClienteIds ?? []).filter(Boolean)),
+        ];
+        if (requestedClienteIds.length === 0) {
             throw new common_1.BadRequestException('Debes indicar al menos un cliente');
         }
         const admin = this.supabase.getAdmin();
@@ -444,14 +449,18 @@ let ClientesService = ClientesService_1 = class ClientesService {
         }
         const { data: existingClientes, error: clientesError } = await admin
             .from('clientes')
-            .select('id')
-            .in('id', clienteIds);
+            .select('id, telefono')
+            .in('id', requestedClienteIds);
         if (clientesError) {
             this.logger.error(`Error al validar clientes: ${clientesError.message}`);
             throw new common_1.InternalServerErrorException('No se pudieron validar los clientes');
         }
-        const foundClienteIds = new Set((existingClientes ?? []).map((row) => row.id));
-        const missingClienteIds = clienteIds.filter((id) => !foundClienteIds.has(id));
+        const clienteRows = (existingClientes ?? []).map((row) => ({
+            id: row.id,
+            telefono: row.telefono,
+        }));
+        const foundClienteIds = new Set(clienteRows.map((row) => row.id));
+        const missingClienteIds = requestedClienteIds.filter((id) => !foundClienteIds.has(id));
         if (missingClienteIds.length > 0) {
             throw new common_1.NotFoundException(`Cliente(s) no encontrado(s): ${missingClienteIds.join(', ')}`);
         }
@@ -459,12 +468,17 @@ let ClientesService = ClientesService_1 = class ClientesService {
             .from('cliente_inmuebles')
             .select('cliente_id')
             .eq('inmueble_id', inmuebleId)
-            .in('cliente_id', clienteIds);
+            .in('cliente_id', requestedClienteIds);
         if (linksError) {
             this.logger.error(`Error al leer relaciones cliente-inmueble: ${linksError.message}`);
             throw new common_1.InternalServerErrorException('No se pudieron leer las relaciones de inmuebles');
         }
-        const alreadyLinked = new Set((existingLinks ?? []).map((row) => row.cliente_id));
+        const preferLinkedClienteIds = (existingLinks ?? []).map((row) => row.cliente_id);
+        const clienteIds = (0, cliente_duplicate_util_1.pickUniqueClienteIdsByTelefono)(clienteRows, {
+            preferClienteIds: preferLinkedClienteIds,
+        });
+        const phoneDuplicatesSkipped = requestedClienteIds.length - clienteIds.length;
+        const alreadyLinked = new Set(preferLinkedClienteIds);
         const toAssign = clienteIds.filter((id) => !alreadyLinked.has(id));
         const defaultGestion = (0, cliente_gestion_estado_1.getDefaultClienteGestionEstado)(inmueble.tipo_operacion === 'venta' ? 'venta' : 'alquiler');
         if (toAssign.length > 0) {
@@ -490,6 +504,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
         return {
             assigned: toAssign.length,
             skipped: clienteIds.length - toAssign.length,
+            phone_duplicates_skipped: phoneDuplicatesSkipped,
         };
     }
     async bulkImport(dto) {
@@ -854,6 +869,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
             barrio: (0, cliente_zonas_util_1.normalizeClienteZonas)(raw.barrio),
             distrito: (0, cliente_zonas_util_1.normalizeClienteZonas)(raw.distrito),
             tipo_nomina: raw.tipo_nomina ?? null,
+            tipo_ingreso: raw.tipo_ingreso ?? null,
             tipo_cliente: raw.tipo_cliente ?? null,
             estado: raw.estado ?? 'pendiente',
             origen: raw.origen ?? null,
@@ -908,6 +924,7 @@ let ClientesService = ClientesService_1 = class ClientesService {
             tipo_nomina: row.tipo_nomina ?? null,
             tipo_ingreso: row.tipo_ingreso ?? null,
             ingreso_monto: row.ingreso_monto == null ? null : Number(row.ingreso_monto),
+            banos: row.banos == null ? null : Number(row.banos),
             pais: row.pais ?? null,
             notas: row.notas ?? null,
             created_at: String(row.created_at),

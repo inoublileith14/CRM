@@ -30,6 +30,7 @@ export declare class ClientesService {
     bulkAssignInmueble(dto: BulkAssignInmuebleDto): Promise<{
         assigned: number;
         skipped: number;
+        phone_duplicates_skipped: number;
     }>;
     bulkImport(dto: BulkImportClientesDto): Promise<{
         created: number;

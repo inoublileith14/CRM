@@ -36,6 +36,7 @@ export interface Cliente {
   barrio: string[];
   distrito: string[];
   tipo_nomina: string | null;
+  tipo_ingreso: string | null;
   tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
   origen: ClienteOrigen | null;
@@ -60,10 +61,12 @@ export interface Cliente {
   workers?: Worker[];
   /** Per inmueble link; present when cliente is loaded from an inmueble detail */
   gestion_estado?: ClienteGestionEstado | null;
+  visita_no_realizada?: boolean;
   inmueble_gestion_links?: Array<{
     inmueble_id: string;
     gestion_estado: ClienteGestionEstado | null;
     fecha_ultima_gestion?: string | null;
+    visita_no_realizada?: boolean;
   }>;
   perfiles?: ClientePerfil[];
 }

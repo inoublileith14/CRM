@@ -8,6 +8,7 @@ class UpdateClientePerfilDto {
     tipo_nomina;
     tipo_ingreso;
     ingreso_monto;
+    banos;
     pais;
     notas;
 }

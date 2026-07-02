@@ -217,6 +217,21 @@ export function updateClienteFechaUltimaGestion(
   );
 }
 
+export function updateClienteVisitaNoRealizada(
+  inmuebleId: string,
+  clienteId: string,
+  visita_no_realizada: boolean,
+): Promise<{ visita_no_realizada: boolean }> {
+  return request<{ visita_no_realizada: boolean }>(
+    `/api/inmuebles/${inmuebleId}/clientes/${clienteId}/visita-no-realizada`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visita_no_realizada }),
+    },
+  );
+}
+
 export function deleteInmueble(id: string): Promise<{ mensaje: string }> {
   return request<{ mensaje: string }>(`/api/inmuebles/${id}`, {
     method: 'DELETE',

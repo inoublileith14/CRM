@@ -9,6 +9,7 @@ import {
   ClienteGestionEstado,
   getDefaultClienteGestionEstado,
   isClienteGestionEstadoForTipo,
+  isClienteVisitaGestionEstado,
 } from '../clientes/cliente-gestion-estado';
 import { Cliente } from '../clientes/interfaces/cliente.interface';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -26,7 +27,7 @@ import {
 } from '../clientes/cliente-entrada-prevista';
 import { getClienteEntradaSortKey } from './cliente-entrada-sort.util';
 import { Inmueble } from './interfaces/inmueble.interface';
-import { parseRefCliente } from '../clientes/parse-ref-cliente.util';
+import { parseRefCliente, resolveClienteBanos } from '../clientes/parse-ref-cliente.util';
 import { normalizeClienteZonas } from '../clientes/cliente-zonas.util';
 
 import { normalizeInmuebleSplitFields } from './inmueble-split-fields';
@@ -34,7 +35,7 @@ const SELECT_FIELDS =
   'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, distrito_ciudad, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista, link_espejo, link_idealista_espejo, fecha_visitas, fecha_visitas_entrada, observaciones, requisitos_propietario, amueblado, captador, alquilado_por, captador_alquilado_por, status, activo, alquilado_codigo, vendido_codigo, row_color, tipo_operacion, created_at, updated_at';
 
 const SELECT_DETAIL =
-  `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, telefonos_extra, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))` as const;
+  `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, visita_no_realizada, clientes(id, nombre, email, telefono, telefonos_extra, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))` as const;
 
 const CLIENTE_GLOBAL_FIELDS = `
   id,
@@ -46,6 +47,7 @@ const CLIENTE_GLOBAL_FIELDS = `
   barrio,
   distrito,
   tipo_nomina,
+  tipo_ingreso,
   tipo_cliente,
   estado,
   origen,
@@ -67,6 +69,7 @@ const CLIENTE_INMUEBLE_LINK_SELECT = `
   inmueble_id,
   gestion_estado,
   fecha_ultima_gestion,
+  visita_no_realizada,
   clientes(${CLIENTE_GLOBAL_FIELDS}),
   inmuebles!inner(id, ref, direccion_piso_real, barrio_distrito, tipo_operacion)
 `;
@@ -186,7 +189,7 @@ function readIndexClienteFields(
     presupuesto_peticion_num: presupuestoPeticion,
     habitaciones: parsedRef.habitaciones,
     metros: parsedRef.metros,
-    banos: raw?.banos ?? parsedRef.banos ?? null,
+    banos: resolveClienteBanos(raw?.banos, refCliente),
     barrio_text: barrioText,
     distrito_text: distritoText,
   };
@@ -368,7 +371,7 @@ const CLIENTE_SELECT = `
   tipo_operacion,
   created_at,
   updated_at,
-  cliente_inmuebles(inmueble_id, gestion_estado, fecha_ultima_gestion),
+  cliente_inmuebles(inmueble_id, gestion_estado, fecha_ultima_gestion, visita_no_realizada),
   cliente_workers(worker_id, workers(id, nombre, rol))
 `;
 
@@ -859,6 +862,7 @@ export class InmueblesService {
         null,
       gestion_estado:
         (linkRow.gestion_estado as ClienteGestionEstado | null) ?? defaultGestion,
+      visita_no_realizada: Boolean(linkRow.visita_no_realizada),
       inmueble_ids: [inmueble.id],
       worker_ids: [],
       inmuebles_count: 1,
@@ -1057,6 +1061,9 @@ export class InmueblesService {
       .update({
         gestion_estado: gestionEstado,
         fecha_ultima_gestion: resolvedFechaUltimaGestion,
+        ...(isClienteVisitaGestionEstado(gestionEstado)
+          ? {}
+          : { visita_no_realizada: false }),
       })
       .eq('inmueble_id', inmuebleId)
       .eq('cliente_id', clienteId)
@@ -1139,6 +1146,54 @@ export class InmueblesService {
     };
   }
 
+  async updateClienteVisitaNoRealizada(
+    inmuebleId: string,
+    clienteId: string,
+    visitaNoRealizada: boolean,
+  ): Promise<{ visita_no_realizada: boolean }> {
+    const inmueble = await this.findOne(inmuebleId);
+    const cliente = inmueble.clientes?.find((c) => c.id === clienteId);
+    if (!cliente) {
+      throw new NotFoundException(
+        'El cliente no está vinculado a este inmueble',
+      );
+    }
+
+    if (!isClienteVisitaGestionEstado(cliente.gestion_estado)) {
+      throw new BadRequestException(
+        'Solo se puede marcar si la gestión es visita concertada o videollamada',
+      );
+    }
+
+    const { data, error } = await this.supabase
+      .getAdmin()
+      .from('cliente_inmuebles')
+      .update({ visita_no_realizada: visitaNoRealizada })
+      .eq('inmueble_id', inmuebleId)
+      .eq('cliente_id', clienteId)
+      .select('visita_no_realizada')
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        `Error al actualizar visita no realizada cliente ${clienteId} en inmueble ${inmuebleId}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'No se pudo actualizar si el cliente asistió a la visita',
+      );
+    }
+
+    if (!data) {
+      throw new NotFoundException(
+        'No se encontró la relación cliente–inmueble',
+      );
+    }
+
+    return {
+      visita_no_realizada: Boolean(data.visita_no_realizada),
+    };
+  }
+
   async remove(id: string): Promise<{ mensaje: string }> {
     await this.findOne(id);
 
@@ -1162,6 +1217,7 @@ export class InmueblesService {
           cliente_id: string;
           gestion_estado?: string | null;
           fecha_ultima_gestion?: string | null;
+          visita_no_realizada?: boolean | null;
           clientes: Cliente | null;
         }[]
       | undefined;
@@ -1198,6 +1254,7 @@ export class InmueblesService {
         return {
           ...rest,
           gestion_estado: link.gestion_estado ?? defaultGestion,
+          visita_no_realizada: Boolean(link.visita_no_realizada),
           fecha_ultima_gestion:
             (rest as Cliente).fecha_ultima_gestion ??
             link.fecha_ultima_gestion ??

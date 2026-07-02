@@ -1,5 +1,5 @@
 import { clienteZonasMatchQuery } from '@/lib/cliente-zonas';
-import { parseRefCliente } from '@/lib/parse-ref-cliente';
+import { parseRefCliente, resolveClienteBanos } from '@/lib/parse-ref-cliente';
 import { Cliente } from '@/types/cliente';
 import { InmuebleClienteLinkRow } from '@/types/inmueble-cliente-link';
 
@@ -150,7 +150,11 @@ export function filterRowsByVentaRange(
     }
 
     if (
-      !matchesRange(cliente.banos, filters.banos_min, filters.banos_max)
+      !matchesRange(
+        resolveClienteBanos(cliente.banos, cliente.ref_cliente),
+        filters.banos_min,
+        filters.banos_max,
+      )
     ) {
       return false;
     }
@@ -219,7 +223,11 @@ export function filterClientesByVentaRange(
     }
 
     if (
-      !matchesRange(cliente.banos, filters.banos_min, filters.banos_max)
+      !matchesRange(
+        resolveClienteBanos(cliente.banos, cliente.ref_cliente),
+        filters.banos_min,
+        filters.banos_max,
+      )
     ) {
       return false;
     }

@@ -12,6 +12,7 @@ export interface ClientePerfil {
   tipo_nomina: string | null;
   tipo_ingreso: string | null;
   ingreso_monto: number | null;
+  banos: number | null;
   pais: string | null;
   notas: string | null;
   created_at: string;
@@ -37,6 +38,7 @@ export interface Cliente {
   barrio: string[];
   distrito: string[];
   tipo_nomina: string | null;
+  tipo_ingreso: string | null;
   tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
   origen: ClienteOrigen | null;
@@ -60,10 +62,13 @@ export interface Cliente {
   inmuebles?: Inmueble[];
   workers?: Worker[];
   gestion_estado?: ClienteGestionEstado | null;
+  /** True when the client did not attend a scheduled visit / videollamada (per inmueble link). */
+  visita_no_realizada?: boolean;
   inmueble_gestion_links?: Array<{
     inmueble_id: string;
     gestion_estado: ClienteGestionEstado | null;
     fecha_ultima_gestion?: string | null;
+    visita_no_realizada?: boolean;
   }>;
   perfiles?: ClientePerfil[];
 }
@@ -77,6 +82,7 @@ export type ClienteFormData = {
   barrio: string[];
   distrito: string[];
   tipo_nomina: string | null;
+  tipo_ingreso: string | null;
   tipo_cliente: ClienteTipoCliente | null;
   estado: ClienteEstado;
   origen: ClienteOrigen | null;
@@ -135,6 +141,7 @@ export const emptyClienteForm = (): ClienteFormData => ({
   barrio: [],
   distrito: [],
   tipo_nomina: null,
+  tipo_ingreso: null,
   tipo_cliente: null,
   estado: 'pendiente',
   origen: null,

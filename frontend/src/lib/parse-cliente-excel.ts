@@ -136,6 +136,7 @@ export function parseClienteExcel(buffer: ArrayBuffer): ClienteFormData[] {
       barrio: normalizeClienteZonas(cellStr(get('barrio'))),
       distrito: normalizeClienteZonas(cellStr(get('distrito'))),
       tipo_nomina: null,
+      tipo_ingreso: null,
       tipo_cliente: null,
       estado: 'pendiente',
       origen: parseOrigen(origenRaw ?? ''),

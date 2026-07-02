@@ -52,7 +52,15 @@ export function parseRefCliente(
   const hMatches = [...rest.matchAll(/\b(\d+)\s*[hH]\b/g)];
   const habitaciones =
     hMatches[0] != null ? Number(hMatches[0][1]) : null;
-  const banos = hMatches[1] != null ? Number(hMatches[1][1]) : null;
+
+  const bMatch = rest.match(/\b(\d+)\s*[bB]\b/);
+  let banos: number | null = null;
+  if (bMatch) {
+    banos = Number(bMatch[1]);
+    rest = rest.replace(bMatch[0], ' ').trim();
+  } else if (hMatches[1] != null) {
+    banos = Number(hMatches[1][1]);
+  }
 
   for (const match of hMatches) {
     rest = rest.replace(match[0], ' ').trim();
@@ -70,6 +78,14 @@ export function parseRefCliente(
   return { presupuesto, habitaciones, banos, metros, zona };
 }
 
+export function resolveClienteBanos(
+  banos: number | null | undefined,
+  refCliente: string | null | undefined,
+): number | null {
+  if (banos != null && Number.isFinite(banos)) return banos;
+  return parseRefCliente(refCliente).banos;
+}
+
 export function buildRefCliente(parts: ParsedRefCliente): string | null {
   const segments: string[] = [];
 
@@ -80,7 +96,7 @@ export function buildRefCliente(parts: ParsedRefCliente): string | null {
     segments.push(`${parts.habitaciones}h`);
   }
   if (parts.banos != null && Number.isFinite(parts.banos)) {
-    segments.push(`${parts.banos}h`);
+    segments.push(`${parts.banos}b`);
   }
   if (parts.metros != null && Number.isFinite(parts.metros)) {
     segments.push(`${parts.metros}m`);

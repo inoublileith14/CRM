@@ -11,6 +11,7 @@ import {
   buildClienteDuplicateKey,
   clienteContactDateKey,
   normalizeClienteTelefono,
+  pickUniqueClienteIdsByTelefono,
 } from './cliente-duplicate.util';
 import { getDefaultClienteGestionEstado } from './cliente-gestion-estado';
 import { parseClienteEntradaPrevistaInput, normalizeClienteEntradaPrevista } from './cliente-entrada-prevista';
@@ -41,6 +42,7 @@ const SELECT_FIELDS = `
   barrio,
   distrito,
   tipo_nomina,
+  tipo_ingreso,
   tipo_cliente,
   estado,
   origen,
@@ -63,7 +65,7 @@ const RELATIONS_SELECT = `
   ${SELECT_FIELDS},
   cliente_inmuebles(inmueble_id, inmuebles(*)),
   cliente_workers(worker_id, workers(*)),
-  cliente_perfiles(id, cliente_id, orden, nombre, telefono, tipo_nomina, tipo_ingreso, ingreso_monto, pais, notas, created_at, updated_at)
+  cliente_perfiles(id, cliente_id, orden, nombre, telefono, tipo_nomina, tipo_ingreso, ingreso_monto, banos, pais, notas, created_at, updated_at)
 `;
 
 const PERFIL_SELECT = `
@@ -75,6 +77,7 @@ const PERFIL_SELECT = `
   tipo_nomina,
   tipo_ingreso,
   ingreso_monto,
+  banos,
   pais,
   notas,
   created_at,
@@ -253,6 +256,7 @@ export class ClientesService {
         tipo_nomina: dto.tipo_nomina ?? null,
         tipo_ingreso: dto.tipo_ingreso ?? null,
         ingreso_monto: dto.ingreso_monto ?? null,
+        banos: dto.banos ?? null,
         pais: dto.pais ?? null,
         notas: dto.notas ?? null,
       })
@@ -630,15 +634,21 @@ export class ClientesService {
 
   async bulkAssignInmueble(
     dto: BulkAssignInmuebleDto,
-  ): Promise<{ assigned: number; skipped: number }> {
+  ): Promise<{
+    assigned: number;
+    skipped: number;
+    phone_duplicates_skipped: number;
+  }> {
     const { inmueble_id: inmuebleId, cliente_ids: rawClienteIds } = dto;
 
     if (!inmuebleId) {
       throw new BadRequestException('inmueble_id es obligatorio');
     }
 
-    const clienteIds = [...new Set((rawClienteIds ?? []).filter(Boolean))];
-    if (clienteIds.length === 0) {
+    const requestedClienteIds = [
+      ...new Set((rawClienteIds ?? []).filter(Boolean)),
+    ];
+    if (requestedClienteIds.length === 0) {
       throw new BadRequestException('Debes indicar al menos un cliente');
     }
 
@@ -670,8 +680,8 @@ export class ClientesService {
 
     const { data: existingClientes, error: clientesError } = await admin
       .from('clientes')
-      .select('id')
-      .in('id', clienteIds);
+      .select('id, telefono')
+      .in('id', requestedClienteIds);
 
     if (clientesError) {
       this.logger.error(
@@ -682,10 +692,14 @@ export class ClientesService {
       );
     }
 
-    const foundClienteIds = new Set(
-      (existingClientes ?? []).map((row) => row.id as string),
+    const clienteRows = (existingClientes ?? []).map((row) => ({
+      id: row.id as string,
+      telefono: row.telefono as string | null,
+    }));
+    const foundClienteIds = new Set(clienteRows.map((row) => row.id));
+    const missingClienteIds = requestedClienteIds.filter(
+      (id) => !foundClienteIds.has(id),
     );
-    const missingClienteIds = clienteIds.filter((id) => !foundClienteIds.has(id));
     if (missingClienteIds.length > 0) {
       throw new NotFoundException(
         `Cliente(s) no encontrado(s): ${missingClienteIds.join(', ')}`,
@@ -696,7 +710,7 @@ export class ClientesService {
       .from('cliente_inmuebles')
       .select('cliente_id')
       .eq('inmueble_id', inmuebleId)
-      .in('cliente_id', clienteIds);
+      .in('cliente_id', requestedClienteIds);
 
     if (linksError) {
       this.logger.error(
@@ -707,9 +721,16 @@ export class ClientesService {
       );
     }
 
-    const alreadyLinked = new Set(
-      (existingLinks ?? []).map((row) => row.cliente_id as string),
+    const preferLinkedClienteIds = (existingLinks ?? []).map(
+      (row) => row.cliente_id as string,
     );
+    const clienteIds = pickUniqueClienteIdsByTelefono(clienteRows, {
+      preferClienteIds: preferLinkedClienteIds,
+    });
+    const phoneDuplicatesSkipped =
+      requestedClienteIds.length - clienteIds.length;
+
+    const alreadyLinked = new Set(preferLinkedClienteIds);
     const toAssign = clienteIds.filter((id) => !alreadyLinked.has(id));
 
     const defaultGestion = getDefaultClienteGestionEstado(
@@ -753,6 +774,7 @@ export class ClientesService {
     return {
       assigned: toAssign.length,
       skipped: clienteIds.length - toAssign.length,
+      phone_duplicates_skipped: phoneDuplicatesSkipped,
     };
   }
 
@@ -1339,6 +1361,7 @@ export class ClientesService {
       barrio: normalizeClienteZonas(raw.barrio),
       distrito: normalizeClienteZonas(raw.distrito),
       tipo_nomina: raw.tipo_nomina ?? null,
+      tipo_ingreso: raw.tipo_ingreso ?? null,
       tipo_cliente: raw.tipo_cliente ?? null,
       estado: raw.estado ?? 'pendiente',
       origen: raw.origen ?? null,
@@ -1417,6 +1440,7 @@ export class ClientesService {
       tipo_ingreso: (row.tipo_ingreso as string | null) ?? null,
       ingreso_monto:
         row.ingreso_monto == null ? null : Number(row.ingreso_monto),
+      banos: row.banos == null ? null : Number(row.banos),
       pais: (row.pais as string | null) ?? null,
       notas: (row.notas as string | null) ?? null,
       created_at: String(row.created_at),
