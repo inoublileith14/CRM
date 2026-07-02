@@ -92,6 +92,18 @@ export function getInmuebleClientesByTipo(
   if (params.entrada_prevista !== undefined) {
     search.set('entrada_prevista', params.entrada_prevista);
   }
+  if (params.presupuesto_maximo_min) search.set('presupuesto_maximo_min', params.presupuesto_maximo_min);
+  if (params.presupuesto_maximo_max) search.set('presupuesto_maximo_max', params.presupuesto_maximo_max);
+  if (params.presupuesto_peticion_min) search.set('presupuesto_peticion_min', params.presupuesto_peticion_min);
+  if (params.presupuesto_peticion_max) search.set('presupuesto_peticion_max', params.presupuesto_peticion_max);
+  if (params.habitaciones_min) search.set('habitaciones_min', params.habitaciones_min);
+  if (params.habitaciones_max) search.set('habitaciones_max', params.habitaciones_max);
+  if (params.banos_min) search.set('banos_min', params.banos_min);
+  if (params.banos_max) search.set('banos_max', params.banos_max);
+  if (params.metros_min) search.set('metros_min', params.metros_min);
+  if (params.metros_max) search.set('metros_max', params.metros_max);
+  if (params.barrio) search.set('barrio', params.barrio);
+  if (params.distrito) search.set('distrito', params.distrito);
   return request<ClientesByTipoPageResult>(
     `/api/inmuebles/clientes/by-tipo?${search.toString()}`,
   );

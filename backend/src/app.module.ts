@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { AuditLogsInterceptor } from './audit-logs/audit-logs.interceptor';
 import { AuthModule } from './auth/auth.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { ChatModule } from './chat/chat.module';
@@ -17,6 +20,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     SupabaseModule,
+    AuditLogsModule,
     AuthModule,
     CalendarModule,
     ChatModule,
@@ -28,6 +32,9 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     WhatsAppModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_INTERCEPTOR, useClass: AuditLogsInterceptor },
+  ],
 })
 export class AppModule {}

@@ -508,6 +508,7 @@ export class WorkersService {
       reservado: 95,
       visita_concertada: 90,
       pendiente_cuadrar_docs: 75,
+      int_pendiente_docs: 75,
       pendiente_cuadrar_visita: 75,
       videollamada: 70,
       gestionando: 60,

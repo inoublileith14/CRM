@@ -182,6 +182,8 @@ export function InmuebleClientesGeneralPageContent({
     ...EMPTY_VENTA_RANGE_FILTERS,
     ...(listState.ventaRangeFilters ?? {}),
   };
+  const [debouncedVentaRangeFilters, setDebouncedVentaRangeFilters] =
+    useState(ventaRangeFilters);
   const textFilters = {
     ...EMPTY_CLIENTE_GLOBAL_TEXT_FILTERS,
     ...(listState.textFilters ?? {}),
@@ -257,9 +259,16 @@ export function InmuebleClientesGeneralPageContent({
   );
   const serverColumnFiltersActive =
     textFiltersActive || entradaPrevistaFilterActive;
-  const needsFullDataset = ventaRangeFiltersActive;
   const columnFiltersActive =
     ventaRangeFiltersActive || serverColumnFiltersActive;
+
+  // Debounce range filter changes so typing doesn't refetch repeatedly.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedVentaRangeFilters(ventaRangeFilters);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [ventaRangeFilters]);
 
   const apiListParams = useMemo((): ClientesByTipoListParams => {
     const params: ClientesByTipoListParams = {
@@ -268,19 +277,55 @@ export function InmuebleClientesGeneralPageContent({
       ...sortListParams,
     };
 
-    if (!needsFullDataset) {
-      const nombre = textFilters.nombre.trim();
-      const telefono = textFilters.telefono.trim();
-      const refCliente = textFilters.ref_cliente.trim();
-      if (nombre) params.nombre = nombre;
-      if (telefono) params.telefono = telefono;
-      if (refCliente) params.ref_cliente = refCliente;
-      const entradaPrevista = buildClienteEntradaPrevistaApiParam(
-        entradaPrevistaFilter,
-      );
-      if (entradaPrevista !== undefined) {
-        params.entrada_prevista = entradaPrevista;
-      }
+    const nombre = textFilters.nombre.trim();
+    const telefono = textFilters.telefono.trim();
+    const refCliente = textFilters.ref_cliente.trim();
+    if (nombre) params.nombre = nombre;
+    if (telefono) params.telefono = telefono;
+    if (refCliente) params.ref_cliente = refCliente;
+    const entradaPrevista = buildClienteEntradaPrevistaApiParam(
+      entradaPrevistaFilter,
+    );
+    if (entradaPrevista !== undefined) {
+      params.entrada_prevista = entradaPrevista;
+    }
+
+    // Range filters are now handled server-side (fast, no full dataset download)
+    if (debouncedVentaRangeFilters.presupuesto_maximo_min.trim()) {
+      params.presupuesto_maximo_min = debouncedVentaRangeFilters.presupuesto_maximo_min.trim();
+    }
+    if (debouncedVentaRangeFilters.presupuesto_maximo_max.trim()) {
+      params.presupuesto_maximo_max = debouncedVentaRangeFilters.presupuesto_maximo_max.trim();
+    }
+    if (debouncedVentaRangeFilters.presupuesto_peticion_min.trim()) {
+      params.presupuesto_peticion_min = debouncedVentaRangeFilters.presupuesto_peticion_min.trim();
+    }
+    if (debouncedVentaRangeFilters.presupuesto_peticion_max.trim()) {
+      params.presupuesto_peticion_max = debouncedVentaRangeFilters.presupuesto_peticion_max.trim();
+    }
+    if (debouncedVentaRangeFilters.habitaciones_min.trim()) {
+      params.habitaciones_min = debouncedVentaRangeFilters.habitaciones_min.trim();
+    }
+    if (debouncedVentaRangeFilters.habitaciones_max.trim()) {
+      params.habitaciones_max = debouncedVentaRangeFilters.habitaciones_max.trim();
+    }
+    if (debouncedVentaRangeFilters.banos_min.trim()) {
+      params.banos_min = debouncedVentaRangeFilters.banos_min.trim();
+    }
+    if (debouncedVentaRangeFilters.banos_max.trim()) {
+      params.banos_max = debouncedVentaRangeFilters.banos_max.trim();
+    }
+    if (debouncedVentaRangeFilters.metros_min.trim()) {
+      params.metros_min = debouncedVentaRangeFilters.metros_min.trim();
+    }
+    if (debouncedVentaRangeFilters.metros_max.trim()) {
+      params.metros_max = debouncedVentaRangeFilters.metros_max.trim();
+    }
+    if (debouncedVentaRangeFilters.barrio.trim()) {
+      params.barrio = debouncedVentaRangeFilters.barrio.trim();
+    }
+    if (debouncedVentaRangeFilters.distrito.trim()) {
+      params.distrito = debouncedVentaRangeFilters.distrito.trim();
     }
 
     return params;
@@ -288,36 +333,38 @@ export function InmuebleClientesGeneralPageContent({
     page,
     effectiveLimit,
     sortListParams,
-    needsFullDataset,
     textFilters,
     entradaPrevistaFilter,
+    debouncedVentaRangeFilters,
   ]);
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
   const [wantFullSelectionDataset, setWantFullSelectionDataset] = useState(false);
   const [pendingSelectAll, setPendingSelectAll] = useState(false);
 
+  const catalogCountParams = useMemo(
+    (): ClientesByTipoListParams => ({ page: 1, limit: 1 }),
+    [],
+  );
   const rowsQuery = useClientesByTipoQuery(expectedTipo, apiListParams, {
     enabled: isListStateHydrated,
   });
+  const catalogCountQuery = useClientesByTipoQuery(
+    expectedTipo,
+    catalogCountParams,
+    { enabled: isListStateHydrated },
+  );
   const allRowsQuery = useClientesByTipoAllQuery(expectedTipo, sortListParams, {
-    enabled:
-      isListStateHydrated &&
-      (needsFullDataset || wantFullSelectionDataset),
+    enabled: isListStateHydrated && wantFullSelectionDataset,
   });
   useClientesByTipoRealtime(expectedTipo);
   const workersQuery = useWorkersQuery(true);
   const inmueblesQuery = useInmueblesQuery({ tipo_operacion: expectedTipo });
   const pageData = rowsQuery.data;
   const allRowsData = allRowsQuery.data;
-  const catalogTotal = allRowsData?.total ?? pageData?.total ?? 0;
-  const isLoadingFullDataset =
-    needsFullDataset && !allRowsData && allRowsQuery.isFetching;
-
-  const sourceRows =
-    needsFullDataset && allRowsData?.rows
-      ? allRowsData.rows
-      : (pageData?.rows ?? []);
+  const catalogTotal = catalogCountQuery.data?.total ?? 0;
+  const isLoadingFullDataset = false;
+  const sourceRows = pageData?.rows ?? [];
 
   const {
     showInitialLoading: showPageInitialLoading,
@@ -325,62 +372,22 @@ export function InmuebleClientesGeneralPageContent({
     showError: showPageError,
   } = useQueryUiState(rowsQuery);
   const showInitialLoading = showPageInitialLoading && !pageData;
-  const isRefreshing =
-    isPageRefreshing || (needsFullDataset && allRowsQuery.isFetching);
+  const isRefreshing = isPageRefreshing;
   const showError = showPageError;
 
-  const rowsAfterRangeFilters = useMemo(() => {
-    if (!needsFullDataset) return sourceRows;
-    return filterRowsByVentaRange(sourceRows, ventaRangeFilters);
-  }, [sourceRows, ventaRangeFilters, needsFullDataset]);
+  const filteredRows = sourceRows;
 
-  const filteredRows = useMemo(() => {
-    if (!needsFullDataset) return rowsAfterRangeFilters;
-    return filterClienteLinkRowsByEntradaPrevista(
-      filterClienteLinkRowsByText(rowsAfterRangeFilters, textFilters),
-      entradaPrevistaFilter,
-    );
-  }, [
-    rowsAfterRangeFilters,
-    textFilters,
-    entradaPrevistaFilter,
-    needsFullDataset,
-  ]);
+  const filteredTotal = pageData?.total ?? catalogTotal;
+  const totalItems = filteredTotal;
+  const totalPages = Math.max(1, Math.ceil(totalItems / effectiveLimit));
+  const showCatalogChrome = catalogTotal > 0 || columnFiltersActive;
 
-  const totalItems = needsFullDataset
-    ? filteredRows.length
-    : (pageData?.total ?? catalogTotal);
-  const totalPages = needsFullDataset
-    ? Math.max(1, Math.ceil(totalItems / effectiveLimit))
-    : Math.max(1, Math.ceil(totalItems / effectiveLimit));
-
-  const displayRows = useMemo(() => {
-    if (!needsFullDataset) return filteredRows;
-    if (!allRowsData) return filteredRows;
-    const start = (page - 1) * effectiveLimit;
-    return filteredRows.slice(start, start + effectiveLimit);
-  }, [needsFullDataset, filteredRows, allRowsData, page, effectiveLimit]);
+  const displayRows = filteredRows;
 
   const rowsForSelection = useMemo(() => {
-    const base = allRowsData?.rows ?? sourceRows;
-    if (!needsFullDataset) {
-      return base;
-    }
-    return filterClienteLinkRowsByEntradaPrevista(
-      filterClienteLinkRowsByText(
-        filterRowsByVentaRange(base, ventaRangeFilters),
-        textFilters,
-      ),
-      entradaPrevistaFilter,
-    );
-  }, [
-    allRowsData,
-    sourceRows,
-    ventaRangeFilters,
-    textFilters,
-    entradaPrevistaFilter,
-    needsFullDataset,
-  ]);
+    // For bulk selection operations, keep existing "fetch all" behaviour when explicitly requested.
+    return allRowsData?.rows ?? sourceRows;
+  }, [allRowsData, sourceRows]);
   const workers = workersQuery.data ?? [];
   const inmuebles = inmueblesQuery.data ?? [];
   const assignableInmuebles = useMemo(
@@ -1078,7 +1085,7 @@ export function InmuebleClientesGeneralPageContent({
           </div>
         </div>
 
-        {catalogTotal > 0 && (
+        {showCatalogChrome && (
           <ClienteVentaRangeFiltersBar
             filters={ventaRangeFilters}
             onChange={setVentaRangeFilters}
@@ -1089,7 +1096,7 @@ export function InmuebleClientesGeneralPageContent({
           />
         )}
 
-        {catalogTotal > 0 && (
+        {showCatalogChrome && (
           <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:px-6">
             <span className="text-sm text-slate-600">
               {selectedRowKeys.size > 0
@@ -1164,20 +1171,31 @@ export function InmuebleClientesGeneralPageContent({
 
         {showInitialLoading ? (
           <p className="py-10 text-center text-slate-500">Cargando clientes…</p>
-        ) : catalogTotal === 0 ? (
+        ) : catalogTotal === 0 && !columnFiltersActive ? (
           <p className="py-10 text-center text-slate-500">
             No hay clientes vinculados a inmuebles de{' '}
             {expectedTipo === 'alquiler' ? 'alquiler' : 'venta'}.
           </p>
         ) : displayRows.length === 0 && !isLoadingFullDataset ? (
-          <TableFilterEmptyState
-            onClear={columnFiltersActive ? clearAllFilters : clearSort}
-          />
+          <>
+            {columnFiltersActive && catalogTotal > 0 && (
+              <TableFilterBar
+                filteredCount={filteredTotal}
+                totalCount={catalogTotal}
+                entityLabel="clientes"
+                hasSort={!!tableSort}
+                onClear={clearAllFilters}
+              />
+            )}
+            <TableFilterEmptyState
+              onClear={columnFiltersActive ? clearAllFilters : clearSort}
+            />
+          </>
         ) : (
           <>
-            {columnFiltersActive && (
+            {columnFiltersActive && catalogTotal > 0 && (
               <TableFilterBar
-                filteredCount={totalItems}
+                filteredCount={filteredTotal}
                 totalCount={catalogTotal}
                 entityLabel="clientes"
                 hasSort={!!tableSort}

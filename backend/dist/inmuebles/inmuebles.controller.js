@@ -42,7 +42,7 @@ let InmueblesController = class InmueblesController {
         }
         return this.inmueblesService.findClientesByTipoRefs(tipo_operacion, q);
     }
-    findClientesByTipo(tipo_operacion, page, limit, sort, dir, nombre, telefono, ref_cliente, entrada_prevista) {
+    findClientesByTipo(tipo_operacion, page, limit, sort, dir, nombre, telefono, ref_cliente, entrada_prevista, presupuesto_maximo_min, presupuesto_maximo_max, presupuesto_peticion_min, presupuesto_peticion_max, habitaciones_min, habitaciones_max, banos_min, banos_max, metros_min, metros_max, barrio, distrito) {
         if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
             throw new common_1.BadRequestException('tipo_operacion debe ser alquiler o venta');
         }
@@ -58,6 +58,18 @@ let InmueblesController = class InmueblesController {
             telefono: telefono?.trim() || undefined,
             ref_cliente: ref_cliente?.trim() || undefined,
             entrada_prevista: entrada_prevista?.trim() || undefined,
+            presupuesto_maximo_min: presupuesto_maximo_min?.trim() || undefined,
+            presupuesto_maximo_max: presupuesto_maximo_max?.trim() || undefined,
+            presupuesto_peticion_min: presupuesto_peticion_min?.trim() || undefined,
+            presupuesto_peticion_max: presupuesto_peticion_max?.trim() || undefined,
+            habitaciones_min: habitaciones_min?.trim() || undefined,
+            habitaciones_max: habitaciones_max?.trim() || undefined,
+            banos_min: banos_min?.trim() || undefined,
+            banos_max: banos_max?.trim() || undefined,
+            metros_min: metros_min?.trim() || undefined,
+            metros_max: metros_max?.trim() || undefined,
+            barrio: barrio?.trim() || undefined,
+            distrito: distrito?.trim() || undefined,
         });
     }
     updateClienteGestionEstado(inmuebleId, clienteId, dto) {
@@ -121,8 +133,20 @@ __decorate([
     __param(6, (0, common_1.Query)('telefono')),
     __param(7, (0, common_1.Query)('ref_cliente')),
     __param(8, (0, common_1.Query)('entrada_prevista')),
+    __param(9, (0, common_1.Query)('presupuesto_maximo_min')),
+    __param(10, (0, common_1.Query)('presupuesto_maximo_max')),
+    __param(11, (0, common_1.Query)('presupuesto_peticion_min')),
+    __param(12, (0, common_1.Query)('presupuesto_peticion_max')),
+    __param(13, (0, common_1.Query)('habitaciones_min')),
+    __param(14, (0, common_1.Query)('habitaciones_max')),
+    __param(15, (0, common_1.Query)('banos_min')),
+    __param(16, (0, common_1.Query)('banos_max')),
+    __param(17, (0, common_1.Query)('metros_min')),
+    __param(18, (0, common_1.Query)('metros_max')),
+    __param(19, (0, common_1.Query)('barrio')),
+    __param(20, (0, common_1.Query)('distrito')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], InmueblesController.prototype, "findClientesByTipo", null);
 __decorate([

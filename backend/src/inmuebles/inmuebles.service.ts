@@ -26,6 +26,8 @@ import {
 } from '../clientes/cliente-entrada-prevista';
 import { getClienteEntradaSortKey } from './cliente-entrada-sort.util';
 import { Inmueble } from './interfaces/inmueble.interface';
+import { parseRefCliente } from '../clientes/parse-ref-cliente.util';
+import { normalizeClienteZonas } from '../clientes/cliente-zonas.util';
 
 import { normalizeInmuebleSplitFields } from './inmueble-split-fields';
 const SELECT_FIELDS =
@@ -82,7 +84,11 @@ const LINK_INDEX_SELECT = `
     nombre,
     telefono,
     ref_cliente,
-    fecha_entrada_inmueble
+    fecha_entrada_inmueble,
+    presupuesto_maximo,
+    banos,
+    barrio,
+    distrito
   ),
   inmuebles!inner(tipo_operacion)
 `;
@@ -94,6 +100,10 @@ const UNLINKED_INDEX_SELECT = `
   telefono,
   ref_cliente,
   fecha_entrada_inmueble,
+  presupuesto_maximo,
+  banos,
+  barrio,
+  distrito,
   cliente_inmuebles(inmueble_id)
 `;
 
@@ -108,6 +118,13 @@ interface ClientesByTipoIndexItem {
   telefono: string;
   ref_cliente: string;
   fecha_entrada_inmueble: string | null;
+  presupuesto_maximo_num: number | null;
+  presupuesto_peticion_num: number | null;
+  habitaciones: number | null;
+  metros: number | null;
+  banos: number | null;
+  barrio_text: string;
+  distrito_text: string;
 }
 
 type IndexClienteFields = {
@@ -115,19 +132,63 @@ type IndexClienteFields = {
   telefono?: string | null;
   ref_cliente?: string | null;
   fecha_entrada_inmueble?: string | null;
+  presupuesto_maximo?: string | null;
+  banos?: number | null;
+  barrio?: unknown;
+  distrito?: unknown;
 };
+
+function parseBudgetAmount(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  const raw = value.trim().toLowerCase().replace(/\s/g, '');
+  const kMatch = raw.match(/^(\d+(?:[.,]\d+)?)k$/);
+  if (kMatch) {
+    const n = Number(kMatch[1].replace(',', '.'));
+    return Number.isFinite(n) ? n * 1000 : null;
+  }
+  const digits = raw.replace(/[^\d.,-]/g, '').replace(',', '.');
+  if (!digits) return null;
+  const n = Number(digits);
+  if (!Number.isFinite(n)) return null;
+  if (n > 0 && n < 10000) return n * 1000;
+  return n;
+}
 
 function readIndexClienteFields(
   raw: IndexClienteFields | null | undefined,
 ): Pick<
   ClientesByTipoIndexItem,
-  'nombre' | 'telefono' | 'ref_cliente' | 'fecha_entrada_inmueble'
+  | 'nombre'
+  | 'telefono'
+  | 'ref_cliente'
+  | 'fecha_entrada_inmueble'
+  | 'presupuesto_maximo_num'
+  | 'presupuesto_peticion_num'
+  | 'habitaciones'
+  | 'metros'
+  | 'banos'
+  | 'barrio_text'
+  | 'distrito_text'
 > {
+  const refCliente = String(raw?.ref_cliente ?? '');
+  const parsedRef = parseRefCliente(refCliente);
+  const presupuestoPeticion = parseBudgetAmount(parsedRef.presupuesto);
+  const presupuestoMaximo = parseBudgetAmount(raw?.presupuesto_maximo ?? null);
+  const barrioText = normalizeClienteZonas(raw?.barrio).join(' ').toLowerCase();
+  const distritoText = normalizeClienteZonas(raw?.distrito).join(' ').toLowerCase();
+
   return {
     nombre: String(raw?.nombre ?? ''),
     telefono: String(raw?.telefono ?? ''),
-    ref_cliente: String(raw?.ref_cliente ?? ''),
+    ref_cliente: refCliente,
     fecha_entrada_inmueble: raw?.fecha_entrada_inmueble ?? null,
+    presupuesto_maximo_num: presupuestoMaximo,
+    presupuesto_peticion_num: presupuestoPeticion,
+    habitaciones: parsedRef.habitaciones,
+    metros: parsedRef.metros,
+    banos: raw?.banos ?? parsedRef.banos ?? null,
+    barrio_text: barrioText,
+    distrito_text: distritoText,
   };
 }
 
@@ -185,6 +246,103 @@ function applyClientesByTipoIndexFilters(
         return allowed.has(value);
       });
     }
+  }
+
+  function parseNumberInput(value: string | undefined): number | null {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed.replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function matchesRange(
+    value: number | null,
+    minRaw: string | undefined,
+    maxRaw: string | undefined,
+  ): boolean {
+    const min = parseNumberInput(minRaw);
+    const max = parseNumberInput(maxRaw);
+    if (min === null && max === null) return true;
+    if (value === null) return false;
+    if (min !== null && value < min) return false;
+    if (max !== null && value > max) return false;
+    return true;
+  }
+
+  function matchesBudgetRange(
+    value: number | null,
+    minRaw: string | undefined,
+    maxRaw: string | undefined,
+  ): boolean {
+    const min = parseBudgetAmount(minRaw ?? null);
+    const max = parseBudgetAmount(maxRaw ?? null);
+    if (min === null && max === null) return true;
+    if (value === null) return false;
+    if (min !== null && value < min) return false;
+    if (max !== null && value > max) return false;
+    return true;
+  }
+
+  if (
+    query.presupuesto_maximo_min ||
+    query.presupuesto_maximo_max ||
+    query.presupuesto_peticion_min ||
+    query.presupuesto_peticion_max ||
+    query.habitaciones_min ||
+    query.habitaciones_max ||
+    query.banos_min ||
+    query.banos_max ||
+    query.metros_min ||
+    query.metros_max ||
+    query.barrio ||
+    query.distrito
+  ) {
+    const barrioQ = query.barrio?.trim().toLowerCase() ?? '';
+    const distritoQ = query.distrito?.trim().toLowerCase() ?? '';
+
+    result = result.filter((item) => {
+      if (
+        !matchesBudgetRange(
+          item.presupuesto_maximo_num,
+          query.presupuesto_maximo_min,
+          query.presupuesto_maximo_max,
+        )
+      ) {
+        return false;
+      }
+      if (
+        !matchesBudgetRange(
+          item.presupuesto_peticion_num,
+          query.presupuesto_peticion_min,
+          query.presupuesto_peticion_max,
+        )
+      ) {
+        return false;
+      }
+      if (
+        !matchesRange(item.habitaciones, query.habitaciones_min, query.habitaciones_max)
+      ) {
+        return false;
+      }
+      if (!matchesRange(item.banos, query.banos_min, query.banos_max)) {
+        return false;
+      }
+      if (!matchesRange(item.metros, query.metros_min, query.metros_max)) {
+        return false;
+      }
+      if (barrioQ) {
+        if (!item.barrio_text.includes(barrioQ)) {
+          // fallback: try zona parsed from ref
+          const parsed = parseRefCliente(item.ref_cliente);
+          const zona = (parsed.zona ?? '').toLowerCase();
+          if (!zona.includes(barrioQ)) return false;
+        }
+      }
+      if (distritoQ) {
+        if (!item.distrito_text.includes(distritoQ)) return false;
+      }
+      return true;
+    });
   }
 
   return result;

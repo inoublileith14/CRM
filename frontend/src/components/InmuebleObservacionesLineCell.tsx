@@ -18,6 +18,8 @@ interface InmuebleObservacionesLineCellProps {
   onUpdated: (value: string | null) => void;
   /** Dense excel table: centered preview + branded popup editor. */
   fillCell?: boolean;
+  /** Info card: single-line truncate + branded popup. */
+  variant?: 'table' | 'info';
   expanded?: boolean;
   onToggleExpanded?: () => void;
 }
@@ -32,6 +34,7 @@ export function InmuebleObservacionesLineCell({
   disabled,
   onUpdated,
   fillCell = false,
+  variant = 'table',
   expanded = true,
   onToggleExpanded,
 }: InmuebleObservacionesLineCellProps) {
@@ -132,6 +135,47 @@ export function InmuebleObservacionesLineCell({
       )}
     </button>
   ) : null;
+
+  if (variant === 'info') {
+    const previewText = (value ?? '').trim();
+
+    return (
+      <>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={(event) => {
+            event.stopPropagation();
+            openDialog();
+          }}
+          className="w-full min-w-0 text-left transition hover:opacity-80 disabled:cursor-wait disabled:opacity-60"
+          title={
+            previewText
+              ? `${previewText} — clic para ${disabled ? 'ver' : 'editar'}`
+              : disabled
+                ? `Sin ${fieldMeta.visibilityEntity}`
+                : 'Clic para añadir'
+          }
+        >
+          <span className="block truncate text-sm text-slate-900">
+            {previewText || '—'}
+          </span>
+        </button>
+
+        <InmuebleObservacionesEditDialog
+          open={dialogOpen}
+          subtitle={fieldMeta.shortLabel}
+          title={fieldMeta.label}
+          value={draft}
+          saving={saving}
+          readOnly={disabled}
+          onChange={setDraft}
+          onSave={() => void handleDialogSave()}
+          onClose={closeDialog}
+        />
+      </>
+    );
+  }
 
   if (fillCell) {
     const previewText = draft.trim();

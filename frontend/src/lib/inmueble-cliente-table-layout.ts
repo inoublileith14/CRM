@@ -48,7 +48,7 @@ export function inmuebleClienteBodyClass(columnKey: string): string {
     case 'telefono':
       return `${BORDER} px-1 py-2`;
     case 'gestion_estado':
-      return `${BORDER} px-2 py-2`;
+      return `${BORDER} overflow-visible px-2 py-2`;
     case 'nombre':
       return `${BORDER} px-2 py-2`;
     case 'ref_cliente':

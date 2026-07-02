@@ -68,6 +68,18 @@ export class InmueblesController {
     @Query('telefono') telefono?: string,
     @Query('ref_cliente') ref_cliente?: string,
     @Query('entrada_prevista') entrada_prevista?: string,
+    @Query('presupuesto_maximo_min') presupuesto_maximo_min?: string,
+    @Query('presupuesto_maximo_max') presupuesto_maximo_max?: string,
+    @Query('presupuesto_peticion_min') presupuesto_peticion_min?: string,
+    @Query('presupuesto_peticion_max') presupuesto_peticion_max?: string,
+    @Query('habitaciones_min') habitaciones_min?: string,
+    @Query('habitaciones_max') habitaciones_max?: string,
+    @Query('banos_min') banos_min?: string,
+    @Query('banos_max') banos_max?: string,
+    @Query('metros_min') metros_min?: string,
+    @Query('metros_max') metros_max?: string,
+    @Query('barrio') barrio?: string,
+    @Query('distrito') distrito?: string,
   ) {
     if (tipo_operacion !== 'alquiler' && tipo_operacion !== 'venta') {
       throw new BadRequestException(
@@ -93,6 +105,18 @@ export class InmueblesController {
         telefono: telefono?.trim() || undefined,
         ref_cliente: ref_cliente?.trim() || undefined,
         entrada_prevista: entrada_prevista?.trim() || undefined,
+        presupuesto_maximo_min: presupuesto_maximo_min?.trim() || undefined,
+        presupuesto_maximo_max: presupuesto_maximo_max?.trim() || undefined,
+        presupuesto_peticion_min: presupuesto_peticion_min?.trim() || undefined,
+        presupuesto_peticion_max: presupuesto_peticion_max?.trim() || undefined,
+        habitaciones_min: habitaciones_min?.trim() || undefined,
+        habitaciones_max: habitaciones_max?.trim() || undefined,
+        banos_min: banos_min?.trim() || undefined,
+        banos_max: banos_max?.trim() || undefined,
+        metros_min: metros_min?.trim() || undefined,
+        metros_max: metros_max?.trim() || undefined,
+        barrio: barrio?.trim() || undefined,
+        distrito: distrito?.trim() || undefined,
       },
     );
   }

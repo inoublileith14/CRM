@@ -7,6 +7,7 @@ export type ClienteGestionEstadoAlquiler =
   | 'reservado'
   | 'nc'
   | 'pendiente_cuadrar_docs'
+  | 'int_pendiente_docs'
   | 'perfil_no_encaja'
   | 'videollamada'
   | 'ya_encontro_piso'
@@ -35,6 +36,8 @@ export type GestionOption = {
 };
 
 const VISITA_CONCERTADA_BG = '#39ff14';
+const INT_PENDIENTE_DOCS_BG = '#5b9bd5';
+const INT_PENDIENTE_DOCS_TEXT = '#ffffff';
 
 export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
   {
@@ -68,9 +71,27 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
     textColor: '#000000',
   },
   {
+    value: 'cliente_no_interesado',
+    label: 'CLIENTE NO INTERESADO',
+    backgroundColor: '#a0a0a0',
+    textColor: '#000000',
+  },
+  {
     value: 'pendiente_cuadrar_docs',
-    label: 'PENDIENTE DOCS',
-    backgroundColor: '#5b9bd5',
+    label: 'INT. DOCS RECIBIDO',
+    backgroundColor: INT_PENDIENTE_DOCS_BG,
+    textColor: INT_PENDIENTE_DOCS_TEXT,
+  },
+  {
+    value: 'int_pendiente_docs',
+    label: 'INT.Pendiente Docs',
+    backgroundColor: INT_PENDIENTE_DOCS_BG,
+    textColor: INT_PENDIENTE_DOCS_TEXT,
+  },
+  {
+    value: 'videollamada',
+    label: 'VIDEOLLAMADA',
+    backgroundColor: '#7030a0',
     textColor: '#ffffff',
   },
   {
@@ -80,21 +101,9 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
     textColor: '#ffffff',
   },
   {
-    value: 'videollamada',
-    label: 'VIDEOLLAMADA',
-    backgroundColor: '#7030a0',
-    textColor: '#ffffff',
-  },
-  {
     value: 'ya_encontro_piso',
     label: 'YA ENCONTRÓ PISO',
     backgroundColor: '#ff0000',
-    textColor: '#000000',
-  },
-  {
-    value: 'cliente_no_interesado',
-    label: 'CLIENTE NO INTERESADO',
-    backgroundColor: '#a0a0a0',
     textColor: '#000000',
   },
 ];
@@ -125,6 +134,12 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_VENTA: GestionOption[] = [
     textColor: '#000000',
   },
   {
+    value: 'cliente_no_interesado',
+    label: 'CLIENTE NO INTERESADO',
+    backgroundColor: '#a0a0a0',
+    textColor: '#000000',
+  },
+  {
     value: 'pendiente_cuadrar_visita',
     label: 'PENDIENTE CUADRAR VISITA',
     backgroundColor: '#5b9bd5',
@@ -137,21 +152,15 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_VENTA: GestionOption[] = [
     textColor: '#ffffff',
   },
   {
-    value: 'perfil_no_encaja',
-    label: 'PERFIL NO ENCAJA',
-    backgroundColor: '#ff0000',
-    textColor: '#ffffff',
-  },
-  {
-    value: 'cliente_no_interesado',
-    label: 'CLIENTE NO INTERESADO',
-    backgroundColor: '#a0a0a0',
-    textColor: '#000000',
-  },
-  {
     value: 'videollamada',
     label: 'VIDEOLLAMADA',
     backgroundColor: '#7030a0',
+    textColor: '#ffffff',
+  },
+  {
+    value: 'perfil_no_encaja',
+    label: 'PERFIL NO ENCAJA',
+    backgroundColor: '#ff0000',
     textColor: '#ffffff',
   },
 ];
@@ -165,22 +174,12 @@ const optionMaps = {
   ),
 } as const;
 
-const VIDEOLLAMADA_VALUE = 'videollamada' as const;
-
-function withVideollamadaLast(options: GestionOption[]): GestionOption[] {
-  const rest = options.filter((o) => o.value !== VIDEOLLAMADA_VALUE);
-  const videollamada = options.find((o) => o.value === VIDEOLLAMADA_VALUE);
-  return videollamada ? [...rest, videollamada] : rest;
-}
-
 export function getClienteGestionEstadoOptions(
   tipo: TipoOperacion,
 ): GestionOption[] {
-  const options =
-    tipo === 'alquiler'
-      ? CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER
-      : CLIENTE_GESTION_ESTADO_OPTIONS_VENTA;
-  return withVideollamadaLast(options);
+  return tipo === 'alquiler'
+    ? CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER
+    : CLIENTE_GESTION_ESTADO_OPTIONS_VENTA;
 }
 
 export function getDefaultClienteGestionEstado(

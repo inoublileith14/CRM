@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Copy, ExternalLink, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { InmuebleDenseImageCell } from '@/components/InmuebleDenseImageCell';
+import { InmuebleObservacionesLineCell } from '@/components/InmuebleObservacionesLineCell';
 import { QueryRefreshingBadge } from '@/components/QueryRefreshingBadge';
 import { getInmueblePropietarios } from '@/lib/inmueble-propietarios';
 import {
@@ -19,7 +20,7 @@ import { formatInmuebleStatusDisplay } from '@/lib/inmueble-status';
 import { getInmuebleAmuebladoLabel } from '@/lib/inmueble-amueblado';
 import { hydrateInmuebleSplitFields } from '@/lib/inmueble-split-fields';
 import { updateInmueble } from '@/lib/inmuebles-api';
-import { INMUEBLE_FIELDS, Inmueble, InmuebleFormData, TIPO_OPERACION_LABELS } from '@/types/inmueble';
+import { INMUEBLE_FIELDS, Inmueble, InmuebleFormData } from '@/types/inmueble';
 
 const HIDDEN_KEYS = new Set<keyof InmuebleFormData>([
   'imagen_real',
@@ -32,30 +33,27 @@ const HIDDEN_KEYS = new Set<keyof InmuebleFormData>([
   'tipo_operacion',
 ]);
 
-const REAL_INLINE_ROW_ORDER: (keyof InmuebleFormData)[] = [
+const INFO_CARD_ROW1_ORDER: (keyof InmuebleFormData)[] = [
   'precio',
   'hab',
   'banos',
   'metros',
   'larga_estancia_temporada',
+];
+
+const INFO_CARD_ROW2_ORDER: (keyof InmuebleFormData)[] = [
+  'status',
+  'direccion_piso_real',
+  'observaciones',
+  'requisitos_propietario',
   'amueblado',
   'captador',
   'alquilado_por',
 ];
 
-const REAL_GRID_FIELD_ORDER: (keyof InmuebleFormData)[] = [
-  'status',
-  'direccion_piso_real',
-  'barrio_distrito',
-  'distrito_ciudad',
-  'observaciones',
-  'requisitos_propietario',
-];
-
-const GRID_FIELD_LABEL_OVERRIDES: Partial<
-  Record<keyof InmuebleFormData, string>
-> = {
-  barrio_distrito: 'Barrio',
+const INFO_CARD_LABEL_OVERRIDES: Partial<Record<keyof InmuebleFormData, string>> = {
+  direccion_piso_real: 'Dirección',
+  requisitos_propietario: 'Requisitos del propietario',
 };
 
 const INLINE_FIELD_SHORT_LABELS: Partial<
@@ -79,26 +77,6 @@ const ESPEJO_INFO_FIELD_ORDER: (keyof InmuebleFormData)[] = [
   'espejo_direccion',
 ];
 
-const REAL_ALWAYS_VISIBLE_KEYS = new Set<keyof InmuebleFormData>([
-  'direccion_piso_real',
-  'barrio_distrito',
-  'distrito_ciudad',
-  'precio',
-  'status',
-  'hab',
-  'banos',
-  'metros',
-  'fecha_entrada_inmueble',
-  'fecha_visitas',
-  'fecha_visitas_entrada',
-  'larga_estancia_temporada',
-  'amueblado',
-  'captador',
-  'alquilado_por',
-  'observaciones',
-  'requisitos_propietario',
-]);
-
 const ESPEJO_ALWAYS_VISIBLE_KEYS = new Set<keyof InmuebleFormData>([
   'precio_espejo',
   'espejo_direccion',
@@ -110,6 +88,9 @@ const EMPHASIZED_KEYS = new Set<keyof InmuebleFormData>([
   'precio_espejo',
   'status',
 ]);
+
+const INFO_CARD_GRID_CLASS =
+  'grid w-full min-w-[48rem] grid-cols-7 gap-x-1.5 gap-y-3';
 
 const actionButtonClass =
   'inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
@@ -211,19 +192,7 @@ export function InmuebleInfoCard({
       });
   }
 
-  const realInlineFields = buildVisibleFields(
-    REAL_INLINE_ROW_ORDER,
-    REAL_ALWAYS_VISIBLE_KEYS,
-  );
-  const realGridFields = buildVisibleFields(
-    REAL_GRID_FIELD_ORDER,
-    REAL_ALWAYS_VISIBLE_KEYS,
-  );
   const espejoFields = buildVisibleFields(ESPEJO_INFO_FIELD_ORDER, ESPEJO_ALWAYS_VISIBLE_KEYS);
-
-  const tipoLabel = detail.tipo_operacion
-    ? TIPO_OPERACION_LABELS[detail.tipo_operacion]
-    : '—';
 
   const propietarios = getInmueblePropietarios(detail);
 
@@ -240,11 +209,9 @@ export function InmuebleInfoCard({
     Boolean(detail.espejo_direccion?.trim());
   const showEspejoSection = hasEspejoImage || Boolean(espejoLink) || hasEspejoFields;
 
-  const realImageOverlays = {
-    top: '',
-    bottom: detail.ref?.trim() || '—',
-  };
+  const realImageOverlays = buildInmuebleDenseImageOverlays(inmueble, 'entrada');
   const espejoImageOverlays = buildInmuebleDenseImageOverlays(inmueble, 'espejo');
+  const refLabel = detail.ref?.trim() || '—';
 
   function resolveInmuebleVisitasDate(): string | number | null {
     return detail.fecha_visitas ?? null;
@@ -327,7 +294,7 @@ export function InmuebleInfoCard({
             }
           }}
           disabled={saving}
-          className="w-full min-w-0 rounded border border-slate-300 bg-white px-1 py-0.5 text-center text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+          className="w-full min-w-0 rounded border border-slate-300 bg-white px-1 py-0.5 text-left text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
           aria-label={title}
         />
       );
@@ -338,7 +305,7 @@ export function InmuebleInfoCard({
 
     if (readOnly) {
       return (
-        <span className="w-full min-w-0 px-1 py-0.5 text-center text-sm font-bold text-slate-900">
+        <span className="w-full min-w-0 px-1 py-0.5 text-left text-sm font-bold text-slate-900">
           {displayOrFallback}
         </span>
       );
@@ -348,7 +315,7 @@ export function InmuebleInfoCard({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="w-full min-w-0 rounded px-1 py-0.5 text-center text-sm font-bold text-slate-900 transition hover:bg-white/60"
+        className="w-full min-w-0 rounded px-1 py-0.5 text-left text-sm font-bold text-slate-900 transition hover:bg-white/60"
         title={`${title} — clic para editar`}
       >
         {displayOrFallback}
@@ -404,6 +371,20 @@ export function InmuebleInfoCard({
       return (
         <span className="whitespace-pre-wrap text-sm text-slate-900">
           {text}
+        </span>
+      );
+    }
+
+    if (key === 'amueblado') {
+      const display = getInmuebleAmuebladoLabel(
+        typeof raw === 'string' ? raw : null,
+      );
+      return (
+        <span
+          className="block truncate text-sm font-bold text-slate-900"
+          title={display !== '—' ? display : undefined}
+        >
+          {display}
         </span>
       );
     }
@@ -488,29 +469,84 @@ export function InmuebleInfoCard({
     return renderValue(key);
   }
 
-  function renderInlineFieldRow(
-    fields: (typeof INMUEBLE_FIELDS)[number][],
+  function renderGridCell(
+    key: string,
+    label: string,
+    colSpan: number,
+    content: ReactNode,
   ) {
-    if (fields.length === 0) return null;
+    const spanClass =
+      colSpan === 2
+        ? 'col-span-2'
+        : colSpan === 3
+          ? 'col-span-3'
+          : colSpan === 4
+            ? 'col-span-4'
+            : '';
 
     return (
-      <dl className="flex w-full flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        {fields.map(({ key, label }) => (
-          <div key={key} className="min-w-[4.25rem] flex-1">
-            <dt
-              className={`whitespace-nowrap leading-tight ${FIELD_TITLE_INLINE_CLASS}`}
-              title={label}
-            >
-              {INLINE_FIELD_SHORT_LABELS[key] ?? label}
-            </dt>
-            <dd className="mt-0.5 leading-none">{renderInlineValue(key)}</dd>
-          </div>
-        ))}
-      </dl>
+      <div key={key} className={`min-w-0 ${spanClass}`}>
+        <dt
+          className={`leading-tight ${FIELD_TITLE_INLINE_CLASS}`}
+          title={label}
+        >
+          {label}
+        </dt>
+        <dd className="mt-0.5 min-w-0 leading-snug">{content}</dd>
+      </div>
     );
   }
 
-  function renderOwnerDatesRow() {
+  function renderInfoCardFieldValue(key: keyof InmuebleFormData) {
+    if (key === 'observaciones' || key === 'requisitos_propietario') {
+      return (
+        <InmuebleObservacionesLineCell
+          inmuebleId={inmueble.id}
+          value={(detail[key] as string | null) ?? null}
+          fieldKey={key}
+          disabled={readOnly}
+          variant="info"
+          onUpdated={(next) =>
+            onUpdated?.({
+              ...inmueble,
+              [key]: next,
+            })
+          }
+        />
+      );
+    }
+
+    if (INFO_CARD_ROW1_ORDER.includes(key)) {
+      return renderInlineValue(key);
+    }
+
+    return renderValue(key);
+  }
+
+  function renderInfoCardRow(
+    keys: (keyof InmuebleFormData)[],
+    emptyTrailing = 0,
+  ) {
+    return (
+      <>
+        {keys.map((key) => {
+          const field = fieldByKey.get(key);
+          if (!field || HIDDEN_KEYS.has(key)) return null;
+          const label = (
+            INFO_CARD_LABEL_OVERRIDES[key] ??
+            INLINE_FIELD_SHORT_LABELS[key] ??
+            field.label
+          ).toUpperCase();
+          return renderGridCell(key, label, 1, renderInfoCardFieldValue(key));
+        })}
+        {Array.from({ length: emptyTrailing }, (_, index) => (
+          <div key={`empty-${index}`} className="min-w-0" aria-hidden />
+        ))}
+      </>
+    );
+  }
+
+  function renderRealInfoGrid() {
     const names = propietarios.map((p) => p.nombre.trim()).filter(Boolean);
     const phones = propietarios
       .map((p) => (p.telf ?? '').trim())
@@ -527,53 +563,61 @@ export function InmuebleInfoCard({
       toDateInput(new Date().toISOString());
 
     return (
-      <div className="flex w-full flex-nowrap items-center gap-x-10 overflow-x-auto">
-        <div className="inline-flex shrink-0 items-center gap-2">
-          <span className={FIELD_TITLE_INLINE_CLASS}>ENTRADA CRM:</span>
-          <span className="whitespace-nowrap">
-            <EditableDateInline
-              title="Fecha entrada al CRM"
-              fieldKey="fecha_entrada_inmueble"
-              value={detail.fecha_entrada_inmueble ?? null}
-              defaultIso={entradaCrmDefault}
-            />
-          </span>
-        </div>
-        <div className="inline-flex shrink-0 items-center gap-2">
-          <span className={FIELD_TITLE_INLINE_CLASS}>FECHA VISITAS:</span>
-          <span className="whitespace-nowrap">
-            <EditableDateInline
-              title="Fecha de visitas"
-              fieldKey="fecha_visitas"
-              value={detail.fecha_visitas ?? null}
-              defaultIso={visitasDefault}
-            />
-          </span>
-        </div>
-        <div className="inline-flex shrink-0 items-center gap-2">
-          <span className={FIELD_TITLE_INLINE_CLASS}>ENTRADA PISO:</span>
-          <span className="whitespace-nowrap">
-            <EditableDateInline
-              title="Fecha entrada al piso"
-              fieldKey="fecha_visitas_entrada"
-              value={detail.fecha_visitas_entrada ?? null}
-              defaultIso={entradaPisoDefault}
-            />
-          </span>
-        </div>
-        <div className="inline-flex shrink-0 items-center gap-2">
-          <span className={FIELD_TITLE_INLINE_CLASS}>PROPI:</span>
-          <span className="whitespace-nowrap text-sm font-bold text-slate-900">
+      <dl className={INFO_CARD_GRID_CLASS}>
+        {renderInfoCardRow(INFO_CARD_ROW1_ORDER, 2)}
+        {renderInfoCardRow(INFO_CARD_ROW2_ORDER)}
+        {renderGridCell(
+          'fecha_entrada_inmueble',
+          'ENTRADA CRM',
+          1,
+          <EditableDateInline
+            title="Fecha entrada al CRM"
+            fieldKey="fecha_entrada_inmueble"
+            value={detail.fecha_entrada_inmueble ?? null}
+            defaultIso={entradaCrmDefault}
+          />,
+        )}
+        {renderGridCell(
+          'fecha_visitas',
+          'FECHA VISITAS',
+          1,
+          <EditableDateInline
+            title="Fecha de visitas"
+            fieldKey="fecha_visitas"
+            value={detail.fecha_visitas ?? null}
+            defaultIso={visitasDefault}
+          />,
+        )}
+        {renderGridCell(
+          'fecha_visitas_entrada',
+          'ENTRADA PISO',
+          1,
+          <EditableDateInline
+            title="Fecha entrada al piso"
+            fieldKey="fecha_visitas_entrada"
+            value={detail.fecha_visitas_entrada ?? null}
+            defaultIso={entradaPisoDefault}
+          />,
+        )}
+        {renderGridCell(
+          'propietario',
+          'PROPI',
+          1,
+          <span className="text-sm font-bold text-slate-900">
             {names.length ? names.join(' / ') : '—'}
-          </span>
-        </div>
-        <div className="inline-flex shrink-0 items-center gap-2">
-          <span className={FIELD_TITLE_INLINE_CLASS}>TLF:</span>
-          <span className="whitespace-nowrap text-sm font-bold text-slate-900">
+          </span>,
+        )}
+        {renderGridCell(
+          'telefono_propietario',
+          'TLF',
+          1,
+          <span className="text-sm font-bold tabular-nums text-slate-900">
             {phones.length ? phones.join(' / ') : '—'}
-          </span>
-        </div>
-      </div>
+          </span>,
+        )}
+        <div className="min-w-0" aria-hidden />
+        <div className="min-w-0" aria-hidden />
+      </dl>
     );
   }
 
@@ -594,30 +638,6 @@ export function InmuebleInfoCard({
           >
             <dt className={`mb-0.5 leading-tight ${FIELD_TITLE_CLASS}`}>
               {label}
-            </dt>
-            <dd className="leading-snug">{renderValue(key)}</dd>
-          </div>
-        ))}
-      </dl>
-    );
-  }
-
-  function renderFieldRow(fields: (typeof INMUEBLE_FIELDS)[number][]) {
-    if (fields.length === 0) return null;
-
-    return (
-      <dl className="flex w-full flex-wrap items-start justify-between gap-x-10 gap-y-2">
-        {fields.map(({ key, label }) => (
-          <div
-            key={key}
-            className={
-              key === 'observaciones' || key === 'requisitos_propietario'
-                ? 'min-w-[12rem] flex-[2_1_12rem]'
-                : 'min-w-[10rem] flex-1'
-            }
-          >
-            <dt className={`mb-0.5 leading-tight ${FIELD_TITLE_CLASS}`}>
-              {GRID_FIELD_LABEL_OVERRIDES[key] ?? label}
             </dt>
             <dd className="leading-snug">{renderValue(key)}</dd>
           </div>
@@ -676,15 +696,21 @@ export function InmuebleInfoCard({
   return (
     <section className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {listPath && listLabel ? (
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
           <Link
             href={listPath}
-            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-emerald-600"
+            className="inline-flex items-center gap-1 justify-self-start text-xs font-medium text-slate-500 transition hover:text-emerald-600"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             {listLabel}
           </Link>
-          <div className="flex shrink-0 items-center gap-2">
+          <p
+            className="min-w-0 truncate px-2 text-center text-xs font-semibold text-slate-800 sm:text-sm"
+            title={refLabel !== '—' ? refLabel : undefined}
+          >
+            {refLabel}
+          </p>
+          <div className="flex items-center justify-end gap-2 justify-self-end">
             {isRefreshing ? <QueryRefreshingBadge /> : null}
             {editHref ? (
               <Link
@@ -713,14 +739,8 @@ export function InmuebleInfoCard({
           )}
         </div>
 
-        <div className="min-w-0 flex-1 p-3 sm:p-4">
-          {/* 1st line: house info */}
-          {renderInlineFieldRow(realInlineFields)}
-
-          {/* 2nd line: owner + dates */}
-          <div className="mt-3">{renderFieldRow(realGridFields)}</div>
-
-          <div className="mt-3">{renderOwnerDatesRow()}</div>
+        <div className="min-w-0 flex-1 overflow-x-auto p-3 sm:p-4">
+          {renderRealInfoGrid()}
         </div>
       </div>
 

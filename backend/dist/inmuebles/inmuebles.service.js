@@ -17,6 +17,8 @@ const supabase_service_1 = require("../supabase/supabase.service");
 const inmueble_propietarios_util_1 = require("./inmueble-propietarios.util");
 const cliente_entrada_prevista_1 = require("../clientes/cliente-entrada-prevista");
 const cliente_entrada_sort_util_1 = require("./cliente-entrada-sort.util");
+const parse_ref_cliente_util_1 = require("../clientes/parse-ref-cliente.util");
+const cliente_zonas_util_1 = require("../clientes/cliente-zonas.util");
 const inmueble_split_fields_1 = require("./inmueble-split-fields");
 const SELECT_FIELDS = 'id, ref, fecha_entrada_inmueble, imagen_real, direccion_piso_real, foto_espejo, espejo_direccion, barrio_distrito, distrito_ciudad, precio, precio_espejo, hab, banos, metros, larga_estancia_temporada, propietario_id, propietarios_contactos, nombre_propi, telf, ficha_del_piso_real, link_idealista, link_espejo, link_idealista_espejo, fecha_visitas, fecha_visitas_entrada, observaciones, requisitos_propietario, amueblado, captador, alquilado_por, captador_alquilado_por, status, activo, alquilado_codigo, vendido_codigo, row_color, tipo_operacion, created_at, updated_at';
 const SELECT_DETAIL = `${SELECT_FIELDS}, cliente_inmuebles(cliente_id, gestion_estado, fecha_ultima_gestion, clientes(id, nombre, email, telefono, telefonos_extra, ciudad, estado, origen, estado_contacto, ref_cliente, fecha_contacto, fecha_ultima_gestion, presupuesto_maximo, banos, notas, created_at, updated_at, cliente_workers(worker_id, workers(id, nombre, rol))))`;
@@ -65,7 +67,11 @@ const LINK_INDEX_SELECT = `
     nombre,
     telefono,
     ref_cliente,
-    fecha_entrada_inmueble
+    fecha_entrada_inmueble,
+    presupuesto_maximo,
+    banos,
+    barrio,
+    distrito
   ),
   inmuebles!inner(tipo_operacion)
 `;
@@ -76,15 +82,51 @@ const UNLINKED_INDEX_SELECT = `
   telefono,
   ref_cliente,
   fecha_entrada_inmueble,
+  presupuesto_maximo,
+  banos,
+  barrio,
+  distrito,
   cliente_inmuebles(inmueble_id)
 `;
 const MAX_CLIENTES_BY_TIPO_LIMIT = 10_000;
+function parseBudgetAmount(value) {
+    if (!value?.trim())
+        return null;
+    const raw = value.trim().toLowerCase().replace(/\s/g, '');
+    const kMatch = raw.match(/^(\d+(?:[.,]\d+)?)k$/);
+    if (kMatch) {
+        const n = Number(kMatch[1].replace(',', '.'));
+        return Number.isFinite(n) ? n * 1000 : null;
+    }
+    const digits = raw.replace(/[^\d.,-]/g, '').replace(',', '.');
+    if (!digits)
+        return null;
+    const n = Number(digits);
+    if (!Number.isFinite(n))
+        return null;
+    if (n > 0 && n < 10000)
+        return n * 1000;
+    return n;
+}
 function readIndexClienteFields(raw) {
+    const refCliente = String(raw?.ref_cliente ?? '');
+    const parsedRef = (0, parse_ref_cliente_util_1.parseRefCliente)(refCliente);
+    const presupuestoPeticion = parseBudgetAmount(parsedRef.presupuesto);
+    const presupuestoMaximo = parseBudgetAmount(raw?.presupuesto_maximo ?? null);
+    const barrioText = (0, cliente_zonas_util_1.normalizeClienteZonas)(raw?.barrio).join(' ').toLowerCase();
+    const distritoText = (0, cliente_zonas_util_1.normalizeClienteZonas)(raw?.distrito).join(' ').toLowerCase();
     return {
         nombre: String(raw?.nombre ?? ''),
         telefono: String(raw?.telefono ?? ''),
-        ref_cliente: String(raw?.ref_cliente ?? ''),
+        ref_cliente: refCliente,
         fecha_entrada_inmueble: raw?.fecha_entrada_inmueble ?? null,
+        presupuesto_maximo_num: presupuestoMaximo,
+        presupuesto_peticion_num: presupuestoPeticion,
+        habitaciones: parsedRef.habitaciones,
+        metros: parsedRef.metros,
+        banos: raw?.banos ?? parsedRef.banos ?? null,
+        barrio_text: barrioText,
+        distrito_text: distritoText,
     };
 }
 function normalizePhoneDigits(value) {
@@ -124,6 +166,84 @@ function applyClientesByTipoIndexFilters(items, query) {
                 return allowed.has(value);
             });
         }
+    }
+    function parseNumberInput(value) {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed)
+            return null;
+        const n = Number(trimmed.replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+    }
+    function matchesRange(value, minRaw, maxRaw) {
+        const min = parseNumberInput(minRaw);
+        const max = parseNumberInput(maxRaw);
+        if (min === null && max === null)
+            return true;
+        if (value === null)
+            return false;
+        if (min !== null && value < min)
+            return false;
+        if (max !== null && value > max)
+            return false;
+        return true;
+    }
+    function matchesBudgetRange(value, minRaw, maxRaw) {
+        const min = parseBudgetAmount(minRaw ?? null);
+        const max = parseBudgetAmount(maxRaw ?? null);
+        if (min === null && max === null)
+            return true;
+        if (value === null)
+            return false;
+        if (min !== null && value < min)
+            return false;
+        if (max !== null && value > max)
+            return false;
+        return true;
+    }
+    if (query.presupuesto_maximo_min ||
+        query.presupuesto_maximo_max ||
+        query.presupuesto_peticion_min ||
+        query.presupuesto_peticion_max ||
+        query.habitaciones_min ||
+        query.habitaciones_max ||
+        query.banos_min ||
+        query.banos_max ||
+        query.metros_min ||
+        query.metros_max ||
+        query.barrio ||
+        query.distrito) {
+        const barrioQ = query.barrio?.trim().toLowerCase() ?? '';
+        const distritoQ = query.distrito?.trim().toLowerCase() ?? '';
+        result = result.filter((item) => {
+            if (!matchesBudgetRange(item.presupuesto_maximo_num, query.presupuesto_maximo_min, query.presupuesto_maximo_max)) {
+                return false;
+            }
+            if (!matchesBudgetRange(item.presupuesto_peticion_num, query.presupuesto_peticion_min, query.presupuesto_peticion_max)) {
+                return false;
+            }
+            if (!matchesRange(item.habitaciones, query.habitaciones_min, query.habitaciones_max)) {
+                return false;
+            }
+            if (!matchesRange(item.banos, query.banos_min, query.banos_max)) {
+                return false;
+            }
+            if (!matchesRange(item.metros, query.metros_min, query.metros_max)) {
+                return false;
+            }
+            if (barrioQ) {
+                if (!item.barrio_text.includes(barrioQ)) {
+                    const parsed = (0, parse_ref_cliente_util_1.parseRefCliente)(item.ref_cliente);
+                    const zona = (parsed.zona ?? '').toLowerCase();
+                    if (!zona.includes(barrioQ))
+                        return false;
+                }
+            }
+            if (distritoQ) {
+                if (!item.distrito_text.includes(distritoQ))
+                    return false;
+            }
+            return true;
+        });
     }
     return result;
 }

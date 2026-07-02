@@ -184,9 +184,9 @@ export function ClienteGestionEstadoSelect({
               type="button"
               onClick={() => void handleSelect(option.value)}
               style={getGestionOptionStyle(option)}
-              className="block w-full px-2 py-1.5 text-left text-[10px] font-bold uppercase leading-tight transition hover:brightness-95 sm:text-xs"
+              className="gestion-select-option block w-full px-2 py-1.5 text-left text-[10px] font-bold uppercase leading-tight sm:text-xs"
             >
-              {option.label}
+              <span className="relative z-[1]">{option.label}</span>
             </button>
           </li>
         ))}
@@ -201,25 +201,25 @@ export function ClienteGestionEstadoSelect({
         disabled={disabled || saving}
         onClick={() => setOpen((prev) => !prev)}
         style={getGestionOptionStyle(current)}
-        className={`inline-flex items-center justify-between gap-1 rounded px-2 py-1 text-left text-[10px] font-bold uppercase leading-tight sm:text-xs disabled:opacity-60 ${
-          compact || tableLayout ? 'w-full min-w-0' : 'min-w-[10rem] max-w-xs w-full'
-        }`}
+        className={`gestion-select-trigger inline-flex items-center justify-between gap-1 px-2 py-1 text-left text-[10px] font-bold uppercase leading-tight sm:text-xs disabled:opacity-60 ${
+          open ? 'gestion-select-trigger--open' : ''
+        } ${compact || tableLayout ? 'w-full min-w-0' : 'min-w-[10rem] max-w-xs w-full'}`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
         <span
           className={
             tableLayout
-              ? 'min-w-0 flex-1 line-clamp-2 break-words whitespace-normal leading-tight'
-              : 'min-w-0 flex-1 truncate'
+              ? 'relative z-[1] min-w-0 flex-1 line-clamp-2 break-words whitespace-normal leading-tight'
+              : 'relative z-[1] min-w-0 flex-1 truncate'
           }
         >
           {current.label}
         </span>
         {saving ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          <Loader2 className="relative z-[1] h-3.5 w-3.5 shrink-0 animate-spin" />
         ) : (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+          <ChevronDown className="relative z-[1] h-3.5 w-3.5 shrink-0 opacity-70" />
         )}
       </button>
       {dropdown ? createPortal(dropdown, document.body) : null}

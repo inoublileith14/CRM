@@ -6,6 +6,9 @@ export const queryKeys = {
   auth: {
     me: ['auth', 'me'] as const,
   },
+  auditLogs: {
+    all: ['audit-logs'] as const,
+  },
   clientes: {
     all: ['clientes'] as const,
     detail: (id: string) => ['clientes', id] as const,
@@ -21,6 +24,18 @@ export const queryKeys = {
         params?.telefono ?? '',
         params?.ref_cliente ?? '',
         params?.entrada_prevista ?? '',
+        params?.presupuesto_maximo_min ?? '',
+        params?.presupuesto_maximo_max ?? '',
+        params?.presupuesto_peticion_min ?? '',
+        params?.presupuesto_peticion_max ?? '',
+        params?.habitaciones_min ?? '',
+        params?.habitaciones_max ?? '',
+        params?.banos_min ?? '',
+        params?.banos_max ?? '',
+        params?.metros_min ?? '',
+        params?.metros_max ?? '',
+        params?.barrio ?? '',
+        params?.distrito ?? '',
       ] as const,
     refsByTipo: (tipo: TipoOperacion, search?: string) =>
       ['clientes-by-tipo', tipo, 'refs', search ?? ''] as const,

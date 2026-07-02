@@ -111,6 +111,7 @@ const ACTIVE_GESTION = new Set([
   'gestionando_w',
   'visita_concertada',
   'pendiente_cuadrar_docs',
+  'int_pendiente_docs',
   'pendiente_cuadrar_visita',
   'videollamada',
   'reservado',

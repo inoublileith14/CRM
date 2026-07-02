@@ -9,8 +9,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const core_1 = require("@nestjs/core");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const audit_logs_module_1 = require("./audit-logs/audit-logs.module");
+const audit_logs_interceptor_1 = require("./audit-logs/audit-logs.interceptor");
 const auth_module_1 = require("./auth/auth.module");
 const calendar_module_1 = require("./calendar/calendar.module");
 const chat_module_1 = require("./chat/chat.module");
@@ -29,6 +32,7 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot({ isGlobal: true }),
             supabase_module_1.SupabaseModule,
+            audit_logs_module_1.AuditLogsModule,
             auth_module_1.AuthModule,
             calendar_module_1.CalendarModule,
             chat_module_1.ChatModule,
@@ -40,7 +44,10 @@ exports.AppModule = AppModule = __decorate([
             whatsapp_module_1.WhatsAppModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [
+            app_service_1.AppService,
+            { provide: core_1.APP_INTERCEPTOR, useClass: audit_logs_interceptor_1.AuditLogsInterceptor },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

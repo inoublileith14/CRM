@@ -119,7 +119,7 @@ export function ClienteFechaUltimaGestionCell({
         disabled={saving}
         className={
           compact
-            ? 'w-full min-w-0 rounded border border-blue-400 bg-white px-1 py-0.5 text-xs text-slate-900 outline-none ring-2 ring-blue-500/20'
+            ? 'w-full min-w-0 rounded border border-blue-400 bg-white px-1 py-0.5 text-sm text-slate-900 outline-none ring-2 ring-blue-500/20'
             : 'w-full min-w-[9rem] rounded border border-blue-400 bg-white px-2 py-1 text-sm text-slate-900 outline-none ring-2 ring-blue-500/20'
         }
       />
@@ -134,7 +134,7 @@ export function ClienteFechaUltimaGestionCell({
       style={gestionStyle ? { color: gestionStyle.color } : undefined}
       className={
         compact
-          ? `group w-full min-w-0 rounded px-0.5 py-0.5 text-center text-xs transition disabled:opacity-60 ${
+          ? `group w-full min-w-0 rounded px-0.5 py-0.5 text-center text-sm transition disabled:opacity-60 ${
               gestionStyle
                 ? 'hover:brightness-95'
                 : 'text-slate-600 hover:bg-slate-100'
@@ -153,7 +153,7 @@ export function ClienteFechaUltimaGestionCell({
         />
       ) : value ? (
         <span
-          className={`block leading-tight ${compact ? 'text-center text-[11px] tabular-nums font-semibold' : 'font-semibold'}`}
+          className={`block text-sm font-bold leading-tight tabular-nums ${compact ? 'text-center' : ''}`}
         >
           {formatFecha(value)}
         </span>

@@ -4,11 +4,12 @@ export const CLIENTE_GESTION_ESTADOS_ALQUILER = [
   'visita_concertada',
   'reservado',
   'nc',
-  'pendiente_cuadrar_docs',
-  'perfil_no_encaja',
-  'videollamada',
-  'ya_encontro_piso',
   'cliente_no_interesado',
+  'pendiente_cuadrar_docs',
+  'int_pendiente_docs',
+  'videollamada',
+  'perfil_no_encaja',
+  'ya_encontro_piso',
 ] as const;
 
 export const CLIENTE_GESTION_ESTADOS_VENTA = [
@@ -16,11 +17,11 @@ export const CLIENTE_GESTION_ESTADOS_VENTA = [
   'gestionando_w',
   'visita_concertada',
   'nc',
+  'cliente_no_interesado',
   'pendiente_cuadrar_visita',
   'ya_compro',
-  'perfil_no_encaja',
   'videollamada',
-  'cliente_no_interesado',
+  'perfil_no_encaja',
 ] as const;
 
 export const CLIENTE_GESTION_ESTADOS = [
