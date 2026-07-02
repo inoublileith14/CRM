@@ -3,6 +3,7 @@ import { normalizeClienteZonas } from '@/lib/cliente-zonas';
 import { ClienteFormData, ClienteOrigen } from '@/types/cliente';
 
 const HEADER_MAP: Record<string, keyof ClienteFormData> = {
+  // Spanish (Idealista / CRM)
   origen: 'origen',
   estado: 'estado_contacto',
   'estado contacto': 'estado_contacto',
@@ -22,6 +23,28 @@ const HEADER_MAP: Record<string, keyof ClienteFormData> = {
   barrio: 'barrio',
   distrito: 'distrito',
   ciudad: 'ciudad',
+  // English (Idealista listing_stats export)
+  source: 'origen',
+  origin: 'origen',
+  state: 'estado_contacto',
+  status: 'estado_contacto',
+  'contact status': 'estado_contacto',
+  description: 'descripcion',
+  'client ref.': 'ref_cliente',
+  'client ref': 'ref_cliente',
+  'client reference': 'ref_cliente',
+  reference: 'ref_cliente',
+  'user name': 'nombre',
+  name: 'nombre',
+  user: 'nombre',
+  phone: 'telefono',
+  mobile: 'telefono',
+  message: 'mensaje',
+  date: 'fecha_contacto',
+  'contact date': 'fecha_contacto',
+  city: 'ciudad',
+  neighborhood: 'barrio',
+  district: 'distrito',
 };
 
 function normalizeHeader(value: unknown): string {

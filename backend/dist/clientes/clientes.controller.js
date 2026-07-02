@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientesController = void 0;
 const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
+const auth_roles_1 = require("../auth/auth-roles");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const cliente_import_service_1 = require("./cliente-import.service");
 const clientes_service_1 = require("./clientes.service");
@@ -35,6 +36,11 @@ let ClientesController = class ClientesController {
         this.clientesService = clientesService;
         this.clienteImportService = clienteImportService;
     }
+    assertAdmin(req) {
+        if (!(0, auth_roles_1.isAdminUser)(req.user.rol)) {
+            throw new common_1.ForbiddenException('Solo un administrador puede eliminar clientes');
+        }
+    }
     findAll() {
         return this.clientesService.findAll();
     }
@@ -47,7 +53,8 @@ let ClientesController = class ClientesController {
     bulkAssignInmueble(dto) {
         return this.clientesService.bulkAssignInmueble(dto);
     }
-    bulkRemove(dto) {
+    bulkRemove(req, dto) {
+        this.assertAdmin(req);
         return this.clientesService.bulkRemove(dto);
     }
     bulkImport(dto) {
@@ -118,9 +125,10 @@ __decorate([
 ], ClientesController.prototype, "bulkAssignInmueble", null);
 __decorate([
     (0, common_1.Post)('bulk-delete'),
-    __param(0, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [bulk_delete_clientes_dto_1.BulkDeleteClientesDto]),
+    __metadata("design:paramtypes", [Object, bulk_delete_clientes_dto_1.BulkDeleteClientesDto]),
     __metadata("design:returntype", void 0)
 ], ClientesController.prototype, "bulkRemove", null);
 __decorate([

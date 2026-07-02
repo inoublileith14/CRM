@@ -4,9 +4,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowDown, ArrowUp, ArrowUpDown, Eye, Pencil } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Eye,
+  Loader2,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { ClienteCopyContactsButton } from '@/components/ClienteCopyContactsButton';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ClienteExcelImportButton } from '@/components/ClienteExcelImportButton';
 import { InmuebleClienteManualAddButton } from '@/components/InmuebleClienteManualAddButton';
 import { ClienteWhatsAppButton } from '@/components/ClienteWhatsAppButton';
@@ -22,6 +32,7 @@ import {
 import { ClienteTrabajadorCell } from '@/components/ClienteTrabajadorCell';
 import { ClienteNotasCell } from '@/components/ClienteNotasCell';
 import { ClienteNombreCell } from '@/components/ClienteNombreCell';
+import { clienteRefTextClass } from '@/components/ClienteRefValue';
 import { ClienteTelefonosCell } from '@/components/ClienteTelefonosCell';
 import { InmuebleClienteFiltersBar } from '@/components/InmuebleClienteFiltersBar';
 import { ImagePreviewModal } from '@/components/ImagePreviewModal';
@@ -45,7 +56,11 @@ import {
   handleGestionCalendarError,
   saveGestionWithCalendar,
 } from '@/lib/save-gestion-with-calendar';
-import { bulkAssignWorker, bulkUnassignWorker } from '@/lib/clientes-api';
+import {
+  bulkAssignWorker,
+  bulkDeleteClientes,
+  bulkUnassignWorker,
+} from '@/lib/clientes-api';
 import { updateClienteGestionEstado } from '@/lib/inmuebles-api';
 import {
   applyInmuebleClienteListFilters,
@@ -124,13 +139,15 @@ export function InmuebleDetailPageContent({
   );
   const [assigning, setAssigning] = useState(false);
   const [updatingEstado, setUpdatingEstado] = useState(false);
+  const [deletingClientes, setDeletingClientes] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [bulkCalendarDialogOpen, setBulkCalendarDialogOpen] = useState(false);
   const [bulkCalendarPending, setBulkCalendarPending] = useState<{
     clienteId: string;
     estado: Extract<ClienteGestionEstado, 'visita_concertada' | 'videollamada'>;
     context: ClienteGestionEventContext;
   } | null>(null);
-  const bulkBusy = assigning || updatingEstado;
+  const bulkBusy = assigning || updatingEstado || deletingClientes;
   const tableHeadScrollRef = useRef<HTMLDivElement>(null);
   const tableBodyScrollRef = useRef<HTMLDivElement>(null);
   const syncTableHorizontalScroll = useCallback((source: 'head' | 'body') => {
@@ -336,6 +353,39 @@ export function InmuebleDetailPageContent({
 
   function clearSelection() {
     setSelectedClienteIds(new Set());
+  }
+
+  function openDeleteConfirm() {
+    if (selectedClienteIds.size === 0) {
+      toast.error('Selecciona al menos un cliente');
+      return;
+    }
+
+    setDeleteConfirmOpen(true);
+  }
+
+  async function executeDeleteClientes() {
+    const clienteIds = [...selectedClienteIds];
+
+    setDeletingClientes(true);
+
+    try {
+      const result = await bulkDeleteClientes({ cliente_ids: clienteIds });
+      toast.success(
+        `${result.deleted} cliente${result.deleted !== 1 ? 's' : ''} eliminado${result.deleted !== 1 ? 's' : ''}`,
+      );
+      setDeleteConfirmOpen(false);
+      clearSelection();
+      await refreshInmueble();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudieron eliminar los clientes',
+      );
+    } finally {
+      setDeletingClientes(false);
+    }
   }
 
   async function handleAssignWorkerSelect(inmuebleId: string, workerId: string) {
@@ -669,6 +719,22 @@ export function InmuebleDetailPageContent({
                     </option>
                   ))}
                 </select>
+                {canManageInmuebles ? (
+                  <button
+                    type="button"
+                    onClick={openDeleteConfirm}
+                    disabled={bulkBusy || selectedClienteIds.size === 0}
+                    className="inline-flex h-7 w-[11.25rem] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-red-200 bg-white px-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                    title="Eliminar los clientes seleccionados"
+                  >
+                    {deletingClientes ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                    Eliminar seleccionados
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -1004,7 +1070,10 @@ export function InmuebleDetailPageContent({
                             className={inmuebleClienteBodyClass(col.key)}
                             title={refText !== '—' ? refText : undefined}
                           >
-                            <span className="block line-clamp-3 break-words whitespace-normal leading-snug">
+                            <span
+                              className={clienteRefTextClass}
+                              title={refText !== '—' ? refText : undefined}
+                            >
                               {refText}
                             </span>
                           </td>
@@ -1097,6 +1166,17 @@ export function InmuebleDetailPageContent({
           onCancel={handleBulkCalendarCancel}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Eliminar clientes"
+        description={`¿Eliminar ${selectedClienteIds.size} cliente${selectedClienteIds.size !== 1 ? 's' : ''} seleccionado${selectedClienteIds.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        confirmButtonClassName="bg-red-600 hover:bg-red-500"
+        loading={deletingClientes}
+        onConfirm={() => void executeDeleteClientes()}
+        onCancel={() => setDeleteConfirmOpen(false)}
+      />
     </div>
   );
 }

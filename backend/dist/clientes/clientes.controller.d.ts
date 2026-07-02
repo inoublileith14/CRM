@@ -1,3 +1,5 @@
+import { Request } from 'express';
+import { UserProfile } from '../auth/interfaces/user.interface';
 import { ClienteImportService } from './cliente-import.service';
 import { ClientesService } from './clientes.service';
 import { BulkDeleteClientesDto } from './dto/bulk-delete-clientes.dto';
@@ -13,6 +15,7 @@ export declare class ClientesController {
     private clientesService;
     private clienteImportService;
     constructor(clientesService: ClientesService, clienteImportService: ClienteImportService);
+    private assertAdmin;
     findAll(): Promise<import("./interfaces/cliente.interface").Cliente[]>;
     bulkAssignWorker(dto: BulkAssignWorkerDto): Promise<{
         assigned: number;
@@ -25,7 +28,9 @@ export declare class ClientesController {
         skipped: number;
         phone_duplicates_skipped: number;
     }>;
-    bulkRemove(dto: BulkDeleteClientesDto): Promise<{
+    bulkRemove(req: Request & {
+        user: UserProfile;
+    }, dto: BulkDeleteClientesDto): Promise<{
         deleted: number;
     }>;
     bulkImport(dto: BulkImportClientesDto): Promise<{

@@ -1,4 +1,4 @@
-export type ClienteTipoIngreso = 'contrato' | 'freelance';
+export type ClienteTipoIngreso = 'nomina' | 'freelance';
 
 export type ClienteTipoIngresoOption = {
   value: ClienteTipoIngreso;
@@ -7,7 +7,7 @@ export type ClienteTipoIngresoOption = {
 };
 
 export const CLIENTE_TIPO_INGRESO_OPTIONS: ClienteTipoIngresoOption[] = [
-  { value: 'contrato', label: 'Contrato', shortLabel: 'CONT.' },
+  { value: 'nomina', label: 'Nómina', shortLabel: 'NÓM.' },
   { value: 'freelance', label: 'Freelance', shortLabel: 'FREE.' },
 ];
 
@@ -16,9 +16,11 @@ const CLIENTE_TIPO_INGRESO_BY_VALUE = new Map(
 );
 
 const CLIENTE_TIPO_INGRESO_ALIASES: Record<string, ClienteTipoIngreso> = {
-  contrato: 'contrato',
-  'contrato indefinido': 'contrato',
-  indefinido: 'contrato',
+  nomina: 'nomina',
+  nómina: 'nomina',
+  contrato: 'nomina',
+  'contrato indefinido': 'nomina',
+  indefinido: 'nomina',
   freelance: 'freelance',
   autonomo: 'freelance',
   autónomo: 'freelance',

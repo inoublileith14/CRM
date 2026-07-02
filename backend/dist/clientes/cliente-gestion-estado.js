@@ -9,6 +9,7 @@ exports.CLIENTE_GESTION_ESTADOS_ALQUILER = [
     'gestionando',
     'visita_concertada',
     'reservado',
+    'alquilado_por_coc',
     'nc',
     'cliente_no_interesado',
     'pendiente_cuadrar_docs',

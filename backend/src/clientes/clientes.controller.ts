@@ -2,16 +2,21 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Request } from 'express';
+import { isAdminUser } from '../auth/auth-roles';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UserProfile } from '../auth/interfaces/user.interface';
 import { ClienteImportService } from './cliente-import.service';
 import { ClientesService } from './clientes.service';
 import { BulkDeleteClientesDto } from './dto/bulk-delete-clientes.dto';
@@ -34,6 +39,12 @@ export class ClientesController {
     private clienteImportService: ClienteImportService,
   ) {}
 
+  private assertAdmin(req: Request & { user: UserProfile }) {
+    if (!isAdminUser(req.user.rol)) {
+      throw new ForbiddenException('Solo un administrador puede eliminar clientes');
+    }
+  }
+
   @Get()
   findAll() {
     return this.clientesService.findAll();
@@ -55,7 +66,11 @@ export class ClientesController {
   }
 
   @Post('bulk-delete')
-  bulkRemove(@Body() dto: BulkDeleteClientesDto) {
+  bulkRemove(
+    @Req() req: Request & { user: UserProfile },
+    @Body() dto: BulkDeleteClientesDto,
+  ) {
+    this.assertAdmin(req);
     return this.clientesService.bulkRemove(dto);
   }
 

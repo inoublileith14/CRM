@@ -54,7 +54,8 @@ export function EditInmueblePageContent({
   async function handleSubmit(data: InmuebleFormData) {
     setSaving(true);
     try {
-      await updateInmueble(id, data);
+      const { fecha_entrada_inmueble: _omit, ...updateData } = data;
+      await updateInmueble(id, updateData);
       await invalidateInmueble(id);
       await invalidateAllInmuebles();
       toast.success('Inmueble actualizado');

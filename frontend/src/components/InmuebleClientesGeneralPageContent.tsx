@@ -1353,7 +1353,13 @@ export function InmuebleClientesGeneralPageContent({
                             }
                           />
                         </td>
-                        <td className={denseCellClass('ref_cliente', 'text-slate-600')}>
+                        <td
+                          className={denseCellClass(
+                            'ref_cliente',
+                            'max-w-0 overflow-hidden text-slate-600',
+                          )}
+                          title={cliente.ref_cliente?.trim() || undefined}
+                        >
                           <ClienteRefValue ref={cliente.ref_cliente} />
                         </td>
                         <td

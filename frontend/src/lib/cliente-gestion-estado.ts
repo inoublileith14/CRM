@@ -5,6 +5,7 @@ export type ClienteGestionEstadoAlquiler =
   | 'gestionando'
   | 'visita_concertada'
   | 'reservado'
+  | 'alquilado_por_coc'
   | 'nc'
   | 'pendiente_cuadrar_docs'
   | 'int_pendiente_docs'
@@ -45,6 +46,8 @@ const NC_BG = '#a0a0a0';
 const NC_TEXT = '#000000';
 const CLIENTE_NO_INTERESADO_BG = '#000000';
 const CLIENTE_NO_INTERESADO_TEXT = '#ffffff';
+const RESERVADO_BG = '#ffff00';
+const RESERVADO_TEXT = '#000000';
 
 export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
   {
@@ -68,8 +71,14 @@ export const CLIENTE_GESTION_ESTADO_OPTIONS_ALQUILER: GestionOption[] = [
   {
     value: 'reservado',
     label: 'RESERVADO',
-    backgroundColor: '#ffff00',
-    textColor: '#000000',
+    backgroundColor: RESERVADO_BG,
+    textColor: RESERVADO_TEXT,
+  },
+  {
+    value: 'alquilado_por_coc',
+    label: 'ALQUILADO POR COC',
+    backgroundColor: RESERVADO_BG,
+    textColor: RESERVADO_TEXT,
   },
   {
     value: 'nc',

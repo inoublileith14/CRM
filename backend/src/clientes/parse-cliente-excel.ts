@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { BulkImportClienteItemDto } from './dto/bulk-import-clientes.dto';
 
 const HEADER_MAP: Record<string, keyof BulkImportClienteItemDto> = {
+  // Spanish (Idealista / CRM)
   origen: 'origen',
   estado: 'estado_contacto',
   'estado contacto': 'estado_contacto',
@@ -18,6 +19,25 @@ const HEADER_MAP: Record<string, keyof BulkImportClienteItemDto> = {
   telf: 'telefono',
   mensaje: 'mensaje',
   fecha: 'fecha_contacto',
+  // English (Idealista listing_stats export)
+  source: 'origen',
+  origin: 'origen',
+  state: 'estado_contacto',
+  status: 'estado_contacto',
+  'contact status': 'estado_contacto',
+  description: 'descripcion',
+  'client ref.': 'ref_cliente',
+  'client ref': 'ref_cliente',
+  'client reference': 'ref_cliente',
+  reference: 'ref_cliente',
+  'user name': 'nombre',
+  name: 'nombre',
+  user: 'nombre',
+  phone: 'telefono',
+  mobile: 'telefono',
+  message: 'mensaje',
+  date: 'fecha_contacto',
+  'contact date': 'fecha_contacto',
 };
 
 function normalizeHeader(value: unknown): string {

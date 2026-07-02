@@ -175,6 +175,9 @@ const DENSE_PAGE_COPY: Record<
 const DENSE_ACC_BUTTON_CLASS =
   'inline-flex w-[4rem] self-center items-center justify-center gap-0.5 rounded bg-slate-500 px-2 py-1 text-center text-[8px] font-bold leading-tight text-yellow-300 transition hover:bg-slate-600 sm:text-[9px] whitespace-nowrap';
 
+const DENSE_EDIT_BUTTON_CLASS =
+  'inline-flex w-[4rem] self-center items-center justify-center gap-0.5 rounded bg-black px-2 py-1 text-center text-[8px] font-bold leading-tight text-red-500 transition hover:bg-neutral-900 sm:text-[9px] whitespace-nowrap';
+
 interface InmueblesPageContentProps {
   tipoOperacion: TipoOperacion;
   title: string;
@@ -710,6 +713,35 @@ export function InmueblesPageContent({
     }
   }
 
+  const inmuebleFilterStatusBar = effectiveFiltersActive ? (
+    <TableFilterBar
+      filteredCount={effectiveFilteredInmuebles.length}
+      totalCount={inmuebles.length}
+      entityLabel="inmuebles"
+      hasSort={enableExcelColumnFilters ? !!tableSort : false}
+      onClear={clearAllFilters}
+      {...(isDenseTable
+        ? {
+            className:
+              'flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2 sm:px-4',
+            style: {
+              backgroundColor: isVentaTable
+                ? DEFAULT_VENTA_DENSE_ROW_COLOR
+                : pageTheme?.filterBackground,
+            },
+            clearButtonClassName: `inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold uppercase tracking-wide transition sm:text-sm ${
+              isVentaTable
+                ? 'border-transparent text-yellow-300 hover:brightness-90'
+                : 'border-emerald-700 bg-emerald-700 text-yellow-300 hover:bg-emerald-800'
+            }`,
+            clearButtonStyle: isVentaTable
+              ? { backgroundColor: INMUEBLE_VENTA_DENSE_HEADER_COLOR }
+              : undefined,
+          }
+        : {})}
+    />
+  ) : null;
+
   function togglePisoCodigoLegendFilter(codigo: InmueblePisoCodigo) {
     setPisoCodigoFilter((current) => togglePisoCodigoFilter(current, codigo));
     setPage(1);
@@ -731,6 +763,7 @@ export function InmueblesPageContent({
         | 'propietarios_contactos'
         | 'nombre_propi'
         | 'telf'
+        | 'fecha_entrada_inmueble'
         | 'barrio_distrito'
         | 'distrito_ciudad'
         | 'larga_estancia_temporada'
@@ -1231,6 +1264,7 @@ export function InmueblesPageContent({
                 />
               </div>
             ) : null}
+            {inmuebleFilterStatusBar}
             <div
               className={`${INMUEBLE_DENSE_STICKY_STACK_CLASS} overflow-hidden border border-b-0 border-slate-200${
                 filtersVisible ? '' : ' rounded-t-xl'
@@ -1278,6 +1312,7 @@ export function InmueblesPageContent({
                 tipoOperacion={tipoOperacion}
               />
             </div>
+            {inmuebleFilterStatusBar}
             <table className={denseTableClass} style={denseTableStyle}>
               {denseColgroup}
               {inmuebleTableHead}
@@ -1291,15 +1326,7 @@ export function InmueblesPageContent({
               : ' rounded-xl'
           }`}
         >
-          {effectiveFiltersActive && (
-            <TableFilterBar
-              filteredCount={effectiveFilteredInmuebles.length}
-              totalCount={inmuebles.length}
-              entityLabel="inmuebles"
-              hasSort={enableExcelColumnFilters ? !!tableSort : false}
-              onClear={clearAllFilters}
-            />
-          )}
+          {!usesDetachedStickyHead ? inmuebleFilterStatusBar : null}
           <div
             className={
               isDenseTable
@@ -1451,9 +1478,7 @@ export function InmueblesPageContent({
                               <InmueblePropiCell
                                 propietarios={propietarios}
                                 tipoOperacion={tipoOperacion}
-                                entradaDate={formatInmuebleEntradaDate(
-                                  inmueble.fecha_entrada_inmueble,
-                                )}
+                                entradaDateIso={inmueble.fecha_entrada_inmueble}
                                 centered
                                 editable={canManageInmuebles}
                                 inmuebleId={inmueble.id}
@@ -1909,7 +1934,7 @@ export function InmueblesPageContent({
                             {canManageInmuebles ? (
                               <Link
                                 href={`${basePath}/${inmueble.id}/edit`}
-                                className={DENSE_ACC_BUTTON_CLASS}
+                                className={DENSE_EDIT_BUTTON_CLASS}
                                 title="Editar inmueble"
                               >
                                 <Pencil className="h-2.5 w-2.5 shrink-0" aria-hidden />

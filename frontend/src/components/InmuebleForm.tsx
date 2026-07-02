@@ -148,9 +148,9 @@ export function InmuebleForm({
 
     const data = normalizeInmuebleSplitFieldsForSave({
       ref: (form.get('ref') as string) || null,
-      fecha_entrada_inmueble: initial
-        ? defaults.fecha_entrada_inmueble ?? getInmuebleDefaultEntradaDate()
-        : getInmuebleDefaultEntradaDate(),
+      ...(initial
+        ? {}
+        : { fecha_entrada_inmueble: getInmuebleDefaultEntradaDate() }),
       imagen_real: (form.get('imagen_real') as string) || null,
       direccion_piso_real: (form.get('direccion_piso_real') as string) || null,
       foto_espejo: (form.get('foto_espejo') as string) || null,
@@ -190,7 +190,7 @@ export function InmuebleForm({
       vendido_codigo: defaults.vendido_codigo ?? null,
       row_color: defaults.row_color ?? null,
       tipo_operacion: tipoOperacion,
-    });
+    } as InmuebleFormData);
 
     if (!data.tipo_operacion) {
       toast.error('Selecciona alquiler o venta');

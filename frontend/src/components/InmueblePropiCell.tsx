@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFloatingPanelPosition } from '@/hooks/use-floating-panel-position';
 import { createPortal } from 'react-dom';
 import { ChevronRight, Loader2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
 } from '@/lib/inmueble-propietarios';
 import { updateInmueble } from '@/lib/inmuebles-api';
 import {
+  formatInmuebleEntradaDate,
   INMUEBLE_DENSE_OVERLAY_BAR_CLASS,
   INMUEBLE_DENSE_OVERLAY_TEXT_CLASS,
 } from '@/lib/inmueble-table-utils';
@@ -20,15 +21,18 @@ import { TipoOperacion } from '@/types/inmueble';
 interface InmueblePropiCellProps {
   propietarios: InmueblePropietarioContacto[];
   tipoOperacion: TipoOperacion;
-  entradaDate?: string;
+  /** Raw ISO/date value for fecha entrada al CRM (admin inline edit). */
+  entradaDateIso?: string | null;
   centered?: boolean;
+  /** Admin-only: inline edit for propietario + fecha entrada. */
   editable?: boolean;
   inmuebleId?: string;
   disabled?: boolean;
   onUpdated?: (patch: {
-    propietarios_contactos: InmueblePropietarioContacto[];
-    nombre_propi: string | null;
-    telf: string | null;
+    propietarios_contactos?: InmueblePropietarioContacto[];
+    nombre_propi?: string | null;
+    telf?: string | null;
+    fecha_entrada_inmueble?: string | null;
   }) => void;
 }
 
@@ -53,11 +57,20 @@ const DENSE_PROPI_TAG_BASE = INMUEBLE_DENSE_OVERLAY_BAR_CLASS;
 
 const DENSE_PROPI_TAG_TEXT = `${INMUEBLE_DENSE_OVERLAY_TEXT_CLASS} normal-case tracking-normal`;
 
+const DENSE_PROPI_PILL_SHELL =
+  'propi-dense-pill inline-flex h-7 w-full max-w-full items-center overflow-hidden rounded-full';
+
+const DENSE_PROPI_PILL_LABEL =
+  'relative z-[1] flex min-w-0 flex-1 items-center justify-start truncate px-2.5 py-1 text-left leading-none';
+
+const DENSE_PROPI_CIRCLE_CAP =
+  'relative z-[1] m-1 flex h-5 w-5 shrink-0 items-center justify-center self-center rounded-full bg-black/60 shadow-[inset_0_1px_2px_rgb(0_0_0/0.3)]';
+
 const DENSE_PROPI_PILL_STYLE: PillStyleSet = {
   pill: DENSE_PROPI_TAG_BASE,
-  circle: 'bg-black/70',
-  circleBorder: 'border-l border-white/20',
-  hover: 'hover:bg-black/65',
+  circle: DENSE_PROPI_CIRCLE_CAP,
+  circleBorder: '',
+  hover: 'propi-dense-pill--interactive hover:brightness-105',
 };
 
 function getPillTheme(_tipoOperacion: TipoOperacion): PillTheme {
@@ -67,6 +80,18 @@ function getPillTheme(_tipoOperacion: TipoOperacion): PillTheme {
     fecha: DENSE_PROPI_PILL_STYLE,
     empty: `${DENSE_PROPI_TAG_BASE} text-white/55`,
   };
+}
+
+function PropiPillCircleCap({
+  icon,
+}: {
+  icon?: ReactNode;
+}) {
+  return (
+    <span className={DENSE_PROPI_CIRCLE_CAP}>
+      {icon ?? null}
+    </span>
+  );
 }
 
 interface PropiPillProps {
@@ -102,19 +127,19 @@ function PropiPill({
     ? `${DENSE_PROPI_TAG_TEXT} uppercase tracking-wide`
     : DENSE_PROPI_TAG_TEXT;
 
+  const shellClass = `${DENSE_PROPI_PILL_SHELL} ${baseClass}`;
+
   const inner = (
     <>
-      <span
-        className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${textClass}`}
-      >
+      <span className={`${DENSE_PROPI_PILL_LABEL} ${textClass}`}>
         {label}
       </span>
-      {interactive && styles ? (
-        <span
-          className={`flex h-full w-6 shrink-0 items-center justify-center ${styles.circle} ${styles.circleBorder}`}
-        >
-          <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={2.5} />
-        </span>
+      {interactive ? (
+        <PropiPillCircleCap
+          icon={
+            <ChevronRight className="h-2.5 w-2.5 shrink-0 text-white" strokeWidth={2.5} />
+          }
+        />
       ) : null}
     </>
   );
@@ -125,7 +150,7 @@ function PropiPill({
         type="button"
         onClick={onClick}
         title={title}
-        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${baseClass}`}
+        className={`transition ${shellClass}`}
       >
         {inner}
       </button>
@@ -133,10 +158,7 @@ function PropiPill({
   }
 
   return (
-    <span
-      title={title}
-      className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm ${baseClass}`}
-    >
+    <span title={title} className={shellClass}>
       {inner}
     </span>
   );
@@ -255,18 +277,16 @@ function PropiValueLine({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           title={`Ver todos (${values.length})`}
-          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${
-            theme[variant].pill
-          } ${theme[variant].hover} cursor-pointer`}
+          className={`${DENSE_PROPI_PILL_SHELL} ${theme[variant].pill} ${theme[variant].hover} cursor-pointer transition`}
         >
-          <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${DENSE_PROPI_TAG_TEXT}`}>
+          <span className={`${DENSE_PROPI_PILL_LABEL} ${DENSE_PROPI_TAG_TEXT}`}>
             {summary}
           </span>
-          <span
-            className={`flex h-full w-6 shrink-0 items-center justify-center ${theme[variant].circle} ${theme[variant].circleBorder}`}
-          >
-            <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={2.5} />
-          </span>
+          <PropiPillCircleCap
+            icon={
+              <ChevronRight className="h-2.5 w-2.5 shrink-0 text-white" strokeWidth={2.5} />
+            }
+          />
         </button>
         {dropdown ? createPortal(dropdown, document.body) : null}
       </div>
@@ -452,7 +472,7 @@ function EditablePropiValueLine({
     return (
       <div className={wrapperClass}>
         <div
-          className={`inline-flex h-6 w-full max-w-full items-center overflow-hidden rounded-sm ${styles.pill}`}
+          className={`${DENSE_PROPI_PILL_SHELL} ${styles.pill}`}
         >
           <input
             ref={inputRef}
@@ -474,10 +494,10 @@ function EditablePropiValueLine({
             }}
             onClick={(event) => event.stopPropagation()}
             placeholder={emptyLabel}
-            className={`min-w-0 flex-1 border-0 bg-transparent px-2 py-1 text-center leading-none text-white outline-none placeholder:text-white/50 disabled:opacity-60 ${DENSE_PROPI_TAG_TEXT}`}
+            className={`relative z-[1] min-w-0 flex-1 border-0 bg-transparent px-2.5 py-1 text-left leading-none text-white outline-none placeholder:text-white/50 disabled:opacity-60 ${DENSE_PROPI_TAG_TEXT}`}
           />
           {saving ? (
-            <Loader2 className="mr-1 h-3 w-3 shrink-0 animate-spin text-white/80" />
+            <Loader2 className="mr-2 h-3 w-3 shrink-0 animate-spin text-white/80" />
           ) : null}
         </div>
       </div>
@@ -495,9 +515,9 @@ function EditablePropiValueLine({
             startEdit(0);
           }}
           title={`Clic para añadir ${emptyLabel.toLowerCase()}`}
-          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${theme.empty} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+          className={`${DENSE_PROPI_PILL_SHELL} ${theme.empty} propi-dense-pill--interactive cursor-pointer transition disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 uppercase tracking-wide leading-none ${DENSE_PROPI_TAG_TEXT}`}>
+          <span className={`${DENSE_PROPI_PILL_LABEL} uppercase tracking-wide ${DENSE_PROPI_TAG_TEXT}`}>
             {emptyLabel}
           </span>
         </button>
@@ -572,16 +592,16 @@ function EditablePropiValueLine({
             toggleDropdown();
           }}
           title={`${summary} — clic para editar en el desplegable`}
-          className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+          className={`${DENSE_PROPI_PILL_SHELL} ${styles.pill} ${styles.hover} cursor-pointer transition disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${DENSE_PROPI_TAG_TEXT}`}>
+          <span className={`${DENSE_PROPI_PILL_LABEL} ${DENSE_PROPI_TAG_TEXT}`}>
             {summary}
           </span>
-          <span
-            className={`flex h-full w-6 shrink-0 items-center justify-center ${styles.circle} ${styles.circleBorder}`}
-          >
-            <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={2.5} />
-          </span>
+          <PropiPillCircleCap
+            icon={
+              <ChevronRight className="h-2.5 w-2.5 shrink-0 text-white" strokeWidth={2.5} />
+            }
+          />
         </button>
         {dropdown ? createPortal(dropdown, document.body) : null}
       </div>
@@ -598,9 +618,9 @@ function EditablePropiValueLine({
           startEdit(entries[0].index);
         }}
         title={`${summary} — clic para editar`}
-        className={`inline-flex h-6 w-full max-w-full items-stretch overflow-hidden rounded-sm transition ${styles.pill} ${styles.hover} cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`${DENSE_PROPI_PILL_SHELL} ${styles.pill} ${styles.hover} cursor-pointer transition disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        <span className={`flex min-w-0 flex-1 items-center justify-center truncate px-2 py-1 leading-none ${DENSE_PROPI_TAG_TEXT}`}>
+        <span className={`${DENSE_PROPI_PILL_LABEL} ${DENSE_PROPI_TAG_TEXT}`}>
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : summary}
         </span>
       </button>
@@ -642,10 +662,158 @@ function PropiWhatsAppButton({ phone }: { phone: string }) {
   );
 }
 
+function toPropiDateInput(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  const raw = String(value).trim();
+  const iso = /^(\d{4}-\d{2}-\d{2})/.exec(raw);
+  if (iso) return iso[1];
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function fromPropiDateInput(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return `${trimmed}T00:00:00.000Z`;
+}
+
+interface EditablePropiFechaLineProps {
+  value: string | null | undefined;
+  theme: PillTheme;
+  centered?: boolean;
+  disabled?: boolean;
+  inmuebleId: string;
+  onUpdated: (patch: { fecha_entrada_inmueble: string | null }) => void;
+  onSavingChange?: (saving: boolean) => void;
+}
+
+function EditablePropiFechaLine({
+  value,
+  theme,
+  centered = false,
+  disabled = false,
+  inmuebleId,
+  onUpdated,
+  onSavingChange,
+}: EditablePropiFechaLineProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(() => toPropiDateInput(value));
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const styles = theme.fecha;
+  const wrapperClass = centered
+    ? 'flex w-full max-w-full justify-center'
+    : 'w-full max-w-full';
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(toPropiDateInput(value));
+    }
+  }, [value, editing]);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+    }
+  }, [editing]);
+
+  async function saveDate(nextDraft: string) {
+    const nextIso = fromPropiDateInput(nextDraft);
+    const currentIso = fromPropiDateInput(toPropiDateInput(value));
+    if (nextIso === currentIso) {
+      setEditing(false);
+      return;
+    }
+
+    setSaving(true);
+    onSavingChange?.(true);
+    try {
+      const updated = await updateInmueble(inmuebleId, {
+        fecha_entrada_inmueble: nextIso,
+      });
+      onUpdated({
+        fecha_entrada_inmueble: updated.fecha_entrada_inmueble ?? nextIso,
+      });
+      setEditing(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo guardar la fecha de entrada',
+      );
+      setDraft(toPropiDateInput(value));
+      setEditing(false);
+    } finally {
+      setSaving(false);
+      onSavingChange?.(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className={wrapperClass}>
+        <div className={`${DENSE_PROPI_PILL_SHELL} ${styles.pill}`}>
+          <input
+            ref={inputRef}
+            type="date"
+            value={draft}
+            disabled={disabled || saving}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => void saveDate(draft)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void saveDate(draft);
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setDraft(toPropiDateInput(value));
+                setEditing(false);
+              }
+            }}
+            onClick={(event) => event.stopPropagation()}
+            className={`relative z-[1] min-w-0 flex-1 border-0 bg-transparent px-2.5 py-1 text-left leading-none text-white outline-none [color-scheme:dark] disabled:opacity-60 ${DENSE_PROPI_TAG_TEXT}`}
+            aria-label="Fecha entrada al CRM"
+          />
+          {saving ? (
+            <Loader2 className="mr-2 h-3 w-3 shrink-0 animate-spin text-white/80" />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  const display = formatInmuebleEntradaDate(value);
+  const label = display !== '—' ? display : 'FECHA';
+
+  return (
+    <div className={wrapperClass}>
+      <button
+        type="button"
+        disabled={disabled || saving}
+        onClick={(event) => {
+          event.stopPropagation();
+          setEditing(true);
+        }}
+        title={`${label} — clic para editar fecha entrada`}
+        className={`${DENSE_PROPI_PILL_SHELL} ${styles.pill} ${styles.hover} cursor-pointer transition disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        <span
+          className={`${DENSE_PROPI_PILL_LABEL} ${display === '—' ? `${DENSE_PROPI_TAG_TEXT} uppercase tracking-wide` : DENSE_PROPI_TAG_TEXT}`}
+        >
+          {label}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export function InmueblePropiCell({
   propietarios,
   tipoOperacion,
-  entradaDate,
+  entradaDateIso,
   centered = false,
   editable,
   inmuebleId,
@@ -657,13 +825,14 @@ export function InmueblePropiCell({
     padPropietarioFormSlots(propietarios).slice(0, slotCount),
   );
   const [saving, setSaving] = useState(false);
+  const [savingFecha, setSavingFecha] = useState(false);
 
   const names = propietarios.map((item) => item.nombre.trim()).filter(Boolean);
   const phones = propietarios
     .map((item) => item.telf?.trim() ?? '')
     .filter(Boolean);
-  const dateValues =
-    entradaDate && entradaDate !== '—' ? [entradaDate] : [];
+  const dateDisplay = formatInmuebleEntradaDate(entradaDateIso);
+  const dateValues = dateDisplay !== '—' ? [dateDisplay] : [];
 
   const theme = getPillTheme(tipoOperacion);
 
@@ -718,7 +887,7 @@ export function InmueblePropiCell({
   }
 
   const isEditable = Boolean(editable && inmuebleId && onUpdated);
-  const fieldDisabled = disabled || saving;
+  const fieldDisabled = disabled || saving || savingFecha;
   const whatsappPhone = isEditable
     ? slots.map((slot) => slot.telf.trim()).find(Boolean)
     : phones[0];
@@ -727,13 +896,25 @@ export function InmueblePropiCell({
     <div
       className={`flex min-w-0 w-full max-w-full flex-col gap-1 leading-none ${centered ? 'mx-auto items-center' : 'items-stretch'}`}
     >
-      <PropiValueLine
-        emptyLabel="FECHA"
-        values={dateValues}
-        variant="fecha"
-        theme={theme}
-        centered={centered}
-      />
+      {isEditable && inmuebleId && onUpdated ? (
+        <EditablePropiFechaLine
+          value={entradaDateIso}
+          theme={theme}
+          centered={centered}
+          disabled={fieldDisabled}
+          inmuebleId={inmuebleId}
+          onSavingChange={setSavingFecha}
+          onUpdated={onUpdated}
+        />
+      ) : (
+        <PropiValueLine
+          emptyLabel="FECHA"
+          values={dateValues}
+          variant="fecha"
+          theme={theme}
+          centered={centered}
+        />
+      )}
       {isEditable ? (
         <>
           <EditablePropiValueLine

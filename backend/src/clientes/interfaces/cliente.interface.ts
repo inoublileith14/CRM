@@ -14,6 +14,7 @@ export type ClienteGestionEstado =
   | 'gestionando'
   | 'visita_concertada'
   | 'reservado'
+  | 'alquilado_por_coc'
   | 'nc'
   | 'pendiente_cuadrar_docs'
   | 'int_pendiente_docs'

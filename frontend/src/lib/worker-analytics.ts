@@ -102,6 +102,7 @@ const WIN_ESTADOS = new Set([
   'ya_compro',
   'ya_encontro_piso',
   'reservado',
+  'alquilado_por_coc',
 ]);
 
 const VISITA_ESTADOS = new Set(['visita_concertada']);
@@ -115,6 +116,7 @@ const ACTIVE_GESTION = new Set([
   'pendiente_cuadrar_visita',
   'videollamada',
   'reservado',
+  'alquilado_por_coc',
 ]);
 
 type GestionLink = {

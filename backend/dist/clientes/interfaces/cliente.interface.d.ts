@@ -4,7 +4,7 @@ import { ClientePerfil } from './cliente-perfil.interface';
 export type ClienteEstado = 'activo' | 'inactivo' | 'pendiente';
 export type ClienteOrigen = 'email' | 'call' | 'otro';
 export type ClienteTipoCliente = 'estudiante' | 'parejas' | 'familia_con_hijos' | 'compartir';
-export type ClienteGestionEstado = 'no_gestionando' | 'gestionando' | 'visita_concertada' | 'reservado' | 'nc' | 'pendiente_cuadrar_docs' | 'int_pendiente_docs' | 'videollamada' | 'perfil_no_encaja' | 'ya_encontro_piso' | 'cliente_no_interesado' | 'no_gestionado' | 'gestionando_w' | 'pendiente_cuadrar_visita' | 'ya_compro';
+export type ClienteGestionEstado = 'no_gestionando' | 'gestionando' | 'visita_concertada' | 'reservado' | 'alquilado_por_coc' | 'nc' | 'pendiente_cuadrar_docs' | 'int_pendiente_docs' | 'videollamada' | 'perfil_no_encaja' | 'ya_encontro_piso' | 'cliente_no_interesado' | 'no_gestionado' | 'gestionando_w' | 'pendiente_cuadrar_visita' | 'ya_compro';
 export interface Cliente {
     id: string;
     nombre: string;

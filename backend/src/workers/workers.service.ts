@@ -506,6 +506,7 @@ export class WorkersService {
       ya_compro: 100,
       ya_encontro_piso: 100,
       reservado: 95,
+      alquilado_por_coc: 95,
       visita_concertada: 90,
       pendiente_cuadrar_docs: 75,
       int_pendiente_docs: 75,
